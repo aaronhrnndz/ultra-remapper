@@ -17,9 +17,23 @@ import android.view.accessibility.AccessibilityEvent
 class BottomButtonService : AccessibilityService() {
 
     companion object {
-        @Volatile
         var instance: BottomButtonService? = null
             private set
+
+        @Volatile
+        var isReadingAdbScreen = false
+        @Volatile
+        var capturedPin: String? = null
+        @Volatile
+        var capturedPairingPort: Int? = null
+        @Volatile
+        var capturedConnectPort: Int? = null
+
+        fun clearCapturedAdb() {
+            capturedPin = null
+            capturedPairingPort = null
+            capturedConnectPort = null
+        }
 
         @Volatile
         var isFlashlightWindowActive: Boolean = false
@@ -264,6 +278,16 @@ class BottomButtonService : AccessibilityService() {
             currentActivePackage = pkg
             val cls = event.className?.toString()
             currentActiveClass = cls
+
+            // Inspect screen text when user is on Wireless Debugging or Pairing screen
+            if (isReadingAdbScreen && (pkg.contains("settings", ignoreCase = true) || cls?.contains("wireless", ignoreCase = true) == true || cls?.contains("pair", ignoreCase = true) == true)) {
+                try {
+                    val root = rootInActiveWindow
+                    if (root != null) {
+                        extractAdbInfoFromNode(root)
+                    }
+                } catch (_: Exception) {}
+            }
 
             // Dynamic Action Button handover ONLY during active ExerciseActivity
             if (UtilityActions.hasHardwareActionButton(this) &&
@@ -527,6 +551,36 @@ class BottomButtonService : AccessibilityService() {
     private fun finishWirelessAdbAutoToggle() {
         pendingWirelessAdbAutoToggle = false
         setWindowTrackingEnabled(false)
+    }
+
+    private fun extractAdbInfoFromNode(node: android.view.accessibility.AccessibilityNodeInfo?) {
+        if (node == null) return
+        val text = node.text?.toString() ?: node.contentDescription?.toString()
+        if (!text.isNullOrBlank()) {
+            // Regex to find 6-digit pairing code (standalone or preceded by Código/PIN/Code)
+            if (capturedPin == null) {
+                val pinMatch = Regex("(?:código|pin|code)?[\\s:]*(\\b\\d{6}\\b)", RegexOption.IGNORE_CASE).find(text)
+                if (pinMatch != null) {
+                    capturedPin = pinMatch.groupValues[1]
+                }
+            }
+
+            // Regex to find IP:Port pattern (e.g. 192.168.1.185:33205)
+            val ipPortMatch = Regex("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:(\\d{4,5})").find(text)
+            if (ipPortMatch != null) {
+                val port = ipPortMatch.groupValues[1].toIntOrNull()
+                if (port != null && port > 0) {
+                    if (capturedPin != null) {
+                        capturedPairingPort = port
+                    } else {
+                        capturedConnectPort = port
+                    }
+                }
+            }
+        }
+        for (i in 0 until node.childCount) {
+            extractAdbInfoFromNode(node.getChild(i))
+        }
     }
 
     private fun findCheckableNodes(node: android.view.accessibility.AccessibilityNodeInfo?, list: MutableList<android.view.accessibility.AccessibilityNodeInfo>) {

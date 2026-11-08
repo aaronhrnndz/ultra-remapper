@@ -110,15 +110,31 @@ fun AdbWizardScreen(
         columnState.scrollToItem(0)
     }
 
-    // Re-check system ADB status when returning from Settings
+    // Re-check system ADB status & capture ports from Accessibility when returning from Settings
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isAdbActive = isWirelessAdbEnabledOnSystem(context)
+                val pin = com.aaronhrndz.ultraremapper.BottomButtonService.capturedPin
+                if (!pin.isNullOrBlank() && pinText.isEmpty()) {
+                    pinText = pin
+                }
+                val pairP = com.aaronhrndz.ultraremapper.BottomButtonService.capturedPairingPort
+                if (pairP != null && pairP > 0 && pairingPortText.isEmpty()) {
+                    pairingPortText = pairP.toString()
+                }
+                val connP = com.aaronhrndz.ultraremapper.BottomButtonService.capturedConnectPort
+                if (connP != null && connP > 0 && connectPortText.isEmpty()) {
+                    connectPortText = connP.toString()
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        com.aaronhrndz.ultraremapper.BottomButtonService.isReadingAdbScreen = true
+        onDispose {
+            com.aaronhrndz.ultraremapper.BottomButtonService.isReadingAdbScreen = false
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     // Step 2 Action: Pair via SPAKE2 on local loopback
