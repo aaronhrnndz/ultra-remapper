@@ -129,13 +129,9 @@ fun AdbWizardScreen(
             discovery = AdbMdnsDiscovery(context)
             discovery.startDiscovery { isPairingPort, port ->
                 if (isPairingPort) {
-                    if (pairingPortText.isEmpty()) {
-                        pairingPortText = port.toString()
-                    }
+                    pairingPortText = port.toString()
                 } else {
-                    if (connectPortText.isEmpty()) {
-                        connectPortText = port.toString()
-                    }
+                    connectPortText = port.toString()
                 }
             }
         }

@@ -3,12 +3,17 @@ package com.aaronhrndz.ultraremapper.adb
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
+import android.os.Build
+import java.util.concurrent.Executors
 
 /**
  * Discovers local Wireless Debugging ADB and Pairing ports announced via mDNS on localhost.
+ * Uses a serial executor for service resolution to prevent NsdManager "listener already in use"
+ * crashes and resolves every service cleanly.
  */
 class AdbMdnsDiscovery(private val context: Context) {
     private val nsdManager = context.getSystemService(Context.NSD_SERVICE) as? NsdManager
+    private val resolveExecutor = Executors.newSingleThreadExecutor()
 
     @Volatile
     var discoveredConnectPort: Int? = null
@@ -23,20 +28,12 @@ class AdbMdnsDiscovery(private val context: Context) {
 
     fun startDiscovery(onPortFound: (isPairing: Boolean, port: Int) -> Unit) {
         val manager = nsdManager ?: return
+        stopDiscovery()
 
         // 1. Discover ADB Connect service: _adb-tls-connect._tcp
         connectListener = createListener { info ->
-            // Filter to local device / loopback or first valid local interface
-            val isLocal = info.host?.isLoopbackAddress == true || 
-                          info.host?.hostAddress == "127.0.0.1" || 
-                          info.host?.hostAddress == "::1" ||
-                          info.serviceName?.contains(context.packageName) == true ||
-                          discoveredConnectPort == null
-            if (isLocal) {
-                discoveredConnectPort = info.port
-                LocalAdbClient.setLastPort(context, info.port)
-                onPortFound(false, info.port)
-            }
+            discoveredConnectPort = info.port
+            onPortFound(false, info.port)
         }
         try {
             manager.discoverServices("_adb-tls-connect._tcp", NsdManager.PROTOCOL_DNS_SD, connectListener)
@@ -44,14 +41,8 @@ class AdbMdnsDiscovery(private val context: Context) {
 
         // 2. Discover ADB Pairing service: _adb-tls-pairing._tcp
         pairingListener = createListener { info ->
-            val isLocal = info.host?.isLoopbackAddress == true || 
-                          info.host?.hostAddress == "127.0.0.1" || 
-                          info.host?.hostAddress == "::1" ||
-                          discoveredPairingPort == null
-            if (isLocal) {
-                discoveredPairingPort = info.port
-                onPortFound(true, info.port)
-            }
+            discoveredPairingPort = info.port
+            onPortFound(true, info.port)
         }
         try {
             manager.discoverServices("_adb-tls-pairing._tcp", NsdManager.PROTOCOL_DNS_SD, pairingListener)
@@ -66,14 +57,44 @@ class AdbMdnsDiscovery(private val context: Context) {
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
 
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                try {
-                    nsdManager?.resolveService(serviceInfo, object : NsdManager.ResolveListener {
-                        override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) {}
-                        override fun onServiceResolved(resolvedInfo: NsdServiceInfo) {
-                            onResolved(resolvedInfo)
+                resolveExecutor.execute {
+                    try {
+                        val latch = java.util.concurrent.CountDownLatch(1)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                            // Android 14+ / Wear OS 5+ thread-safe resolve API
+                            nsdManager?.registerServiceInfoCallback(
+                                serviceInfo,
+                                resolveExecutor,
+                                object : NsdManager.ServiceInfoCallback {
+                                    override fun onServiceInfoCallbackRegistrationFailed(errorCode: Int) {
+                                        latch.countDown()
+                                    }
+                                    override fun onServiceUpdated(resolvedInfo: NsdServiceInfo) {
+                                        onResolved(resolvedInfo)
+                                        try { nsdManager.unregisterServiceInfoCallback(this) } catch (_: Exception) {}
+                                        latch.countDown()
+                                    }
+                                    override fun onServiceLost() {
+                                        latch.countDown()
+                                    }
+                                    override fun onServiceInfoCallbackUnregistered() {}
+                                }
+                            )
+                            latch.await(2, java.util.concurrent.TimeUnit.SECONDS)
+                        } else {
+                            nsdManager?.resolveService(serviceInfo, object : NsdManager.ResolveListener {
+                                override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) {
+                                    latch.countDown()
+                                }
+                                override fun onServiceResolved(resolvedInfo: NsdServiceInfo) {
+                                    onResolved(resolvedInfo)
+                                    latch.countDown()
+                                }
+                            })
+                            latch.await(2, java.util.concurrent.TimeUnit.SECONDS)
                         }
-                    })
-                } catch (_: Exception) {}
+                    } catch (_: Exception) {}
+                }
             }
 
             override fun onServiceLost(serviceInfo: NsdServiceInfo) {}
