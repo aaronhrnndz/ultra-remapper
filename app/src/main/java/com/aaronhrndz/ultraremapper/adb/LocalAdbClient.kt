@@ -54,6 +54,14 @@ class LocalAdbClient(
 
         fun unpair(context: Context) {
             try {
+                // If connected, try to revoke our key on the device so it disappears from Android Settings
+                activeInstance?.let { client ->
+                    if (client.isConnected) {
+                        try {
+                            client.exec("rm -f /data/misc/adb/adb_keys")
+                        } catch (_: Exception) {}
+                    }
+                }
                 activeInstance?.close()
             } catch (_: Exception) {}
             activeInstance = null
@@ -122,7 +130,13 @@ class LocalAdbClient(
                 conn.close()
                 false
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            // If device rejected auth (unpaired on OS side), mark as unpaired locally
+            if (e is io.github.muntashirakon.adb.AdbAuthenticationFailedException ||
+                e is io.github.muntashirakon.adb.AdbPairingRequiredException
+            ) {
+                setPaired(context, false)
+            }
             close()
             false
         }

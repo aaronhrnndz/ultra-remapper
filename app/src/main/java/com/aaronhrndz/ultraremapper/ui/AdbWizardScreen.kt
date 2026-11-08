@@ -26,7 +26,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -38,6 +37,7 @@ import androidx.wear.compose.material3.*
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import com.aaronhrndz.ultraremapper.HapticFeedbackHelper
+import com.aaronhrndz.ultraremapper.SwitchLoadingSpinner
 import com.aaronhrndz.ultraremapper.adb.AdbMdnsDiscovery
 import com.aaronhrndz.ultraremapper.adb.LocalAdbClient
 import kotlin.concurrent.thread
@@ -91,20 +91,24 @@ fun AdbWizardScreen(
     val columnState = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
 
-    var currentStep by remember { mutableStateOf(1) }
+    val initiallyPaired = remember { LocalAdbClient.isPaired(context) }
+    // If already paired, skip directly to Step 3 (Connecting)
+    var currentStep by remember { mutableStateOf(if (initiallyPaired) 3 else 1) }
+
     var isAdbActive by remember { mutableStateOf(isWirelessAdbEnabledOnSystem(context)) }
     var pinText by remember { mutableStateOf("") }
-    var detectedPairingPort by remember { mutableStateOf<Int?>(null) }
-    var detectedConnectPort by remember { mutableStateOf<Int?>(null) }
+    var pairingPortText by remember { mutableStateOf("") }
+    var connectPortText by remember { mutableStateOf("") }
+
     var isConnecting by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf<String?>(null) }
+    var isPairing by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var connectedClient by remember { mutableStateOf<LocalAdbClient?>(null) }
+
     val focusRequester = remember { FocusRequester() }
-    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(currentStep) {
-        if (currentStep == 2) {
-            columnState.scrollToItem(0)
-        }
+        columnState.scrollToItem(0)
     }
 
     // Re-check system ADB status when returning from Settings
@@ -118,16 +122,20 @@ fun AdbWizardScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // ONLY start mDNS discovery when entering Step 2 (so ZERO permission popup on Step 1!)
+    // Dynamic mDNS discovery for pairing and connect ports
     DisposableEffect(currentStep) {
         var discovery: AdbMdnsDiscovery? = null
-        if (currentStep == 2) {
+        if (currentStep >= 2 && connectedClient == null) {
             discovery = AdbMdnsDiscovery(context)
-            discovery.startDiscovery { isPairing, port ->
-                if (isPairing) {
-                    detectedPairingPort = port
+            discovery.startDiscovery { isPairingPort, port ->
+                if (isPairingPort) {
+                    if (pairingPortText.isEmpty()) {
+                        pairingPortText = port.toString()
+                    }
                 } else {
-                    detectedConnectPort = port
+                    if (connectPortText.isEmpty()) {
+                        connectPortText = port.toString()
+                    }
                 }
             }
         }
@@ -136,45 +144,58 @@ fun AdbWizardScreen(
         }
     }
 
-    val connectAction: (String) -> Unit = { pin ->
+    // Step 2 Action: Pair via SPAKE2
+    val pairAction: () -> Unit = {
         keyboardController?.hide()
-        isConnecting = true
-        statusMessage = "Conectando..."
-        val pairingPort = detectedPairingPort
-        val connectPort = detectedConnectPort ?: LocalAdbClient.getLastPort(context)
+        isPairing = true
+        errorMessage = null
+        val port = pairingPortText.toIntOrNull() ?: 0
 
         thread {
             val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
-            val client = LocalAdbClient("127.0.0.1", connectPort)
-            var pairedOk = true
+            val client = LocalAdbClient("127.0.0.1", port)
+            val success = client.pair(context, port, pinText)
 
-            // If PIN provided and pairing port detected, pair first
-            if (pin.length == 6) {
-                if (pairingPort != null) {
-                    mainHandler.post { statusMessage = "Emparejando dispositivo..." }
-                    pairedOk = client.pair(context, pairingPort, pin)
+            mainHandler.post {
+                isPairing = false
+                if (success) {
+                    HapticFeedbackHelper.playButtonHaptic(context)
+                    // Move straight to Step 3 for connection
+                    currentStep = 3
+                } else {
+                    errorMessage = "Fallo al emparejar. Código o puerto incorrecto."
                 }
             }
+        }
+    }
 
-            if (!pairedOk) {
+    // Step 3 Action: Connect via ADB TLS/TCP
+    val connectAction: () -> Unit = {
+        keyboardController?.hide()
+        isConnecting = true
+        errorMessage = null
+        val port = connectPortText.toIntOrNull() ?: 0
+
+        thread {
+            val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            if (port <= 0) {
                 mainHandler.post {
                     isConnecting = false
-                    statusMessage = "Fallo al emparejar. Código incorrecto o expirado."
+                    errorMessage = "Introduce un puerto ADB válido."
                 }
                 return@thread
             }
 
-            mainHandler.post { statusMessage = "Estableciendo conexión ADB..." }
-            val connected = client.connect(context)
-            if (connected) {
-                mainHandler.post {
+            val client = LocalAdbClient("127.0.0.1", port)
+            val ok = client.connect(context, timeoutMs = 8000L)
+
+            mainHandler.post {
+                isConnecting = false
+                if (ok) {
                     HapticFeedbackHelper.playButtonHaptic(context)
-                    onPairingSuccess(client)
-                }
-            } else {
-                mainHandler.post {
-                    isConnecting = false
-                    statusMessage = "Fallo al conectar (puerto $connectPort). Abre Depuración inalámbrica para verificar puerto."
+                    connectedClient = client
+                } else {
+                    errorMessage = "Fallo al conectar puerto $port. Revisa el puerto en Ajustes."
                 }
             }
         }
@@ -183,7 +204,7 @@ fun AdbWizardScreen(
     ScreenScaffold(scrollState = columnState) { _ ->
         TransformingLazyColumn(
             state = columnState,
-            contentPadding = PaddingValues(top = 30.dp, bottom = 44.dp, start = 12.dp, end = 12.dp)
+            contentPadding = PaddingValues(top = 32.dp, bottom = 44.dp, start = 12.dp, end = 12.dp)
         ) {
             item(key = "wizard_step_header") {
                 ListHeader(
@@ -192,9 +213,15 @@ fun AdbWizardScreen(
                         .transformedHeight(this, transformationSpec),
                     transformation = SurfaceTransformation(transformationSpec)
                 ) {
+                    val headerTitle = when {
+                        connectedClient != null -> "¡CONECTADO!"
+                        currentStep == 1 -> "PASO 1 DE 3"
+                        currentStep == 2 -> "PASO 2 DE 3"
+                        else -> "PASO 3 DE 3"
+                    }
                     Text(
-                        text = if (currentStep == 1) "PASO 1 DE 2" else "PASO 2 DE 2",
-                        color = UltraOrange,
+                        text = headerTitle,
+                        color = if (connectedClient != null) GreenOk else UltraOrange,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
@@ -203,8 +230,62 @@ fun AdbWizardScreen(
                 }
             }
 
-            if (currentStep == 1) {
-                // STEP 1: Pure Instructions + Direct Wireless Debugging Button + Gated Next
+            if (connectedClient != null) {
+                // CONFIRMATION SUCCESS VIEW
+                item(key = "success_card") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF162319))
+                            .border(1.5.dp, GreenOk, RoundedCornerShape(16.dp))
+                            .padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "✓ ADB Conectado",
+                            color = GreenOk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "Puerto activo: ${connectedClient?.port}\nSesión local autorizada correctamente.",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                item(key = "success_continue_btn") {
+                    Button(
+                        onClick = {
+                            connectedClient?.let { onPairingSuccess(it) }
+                        },
+                        label = {
+                            Text(
+                                text = "Continuar a Ajustes",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = GreenOk,
+                            contentColor = Color.White
+                        ),
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp)
+                            .transformedHeight(this, transformationSpec)
+                    )
+                }
+            } else if (currentStep == 1) {
+                // STEP 1: Wireless debugging instructions & direct jump
                 item(key = "s1_instructions") {
                     Column(
                         modifier = Modifier
@@ -215,19 +296,19 @@ fun AdbWizardScreen(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = "1. Conecta el reloj al Wi-Fi.",
+                            text = "1. Conecta el reloj a tu red Wi-Fi.",
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "2. Abre Depuración inalámbrica y actívala.",
+                            text = "2. Entra en Opciones de Desarrollador y activa Depuración inalámbrica.",
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "3. Toca 'Vincular dispositivo nuevo', apunta el código de emparejamiento de 6 dígitos y vuelve aquí.",
+                            text = "3. Pulsa 'Vincular dispositivo nuevo' para ver el PIN y puerto.",
                             color = Color(0xFFD5DCE6),
                             fontSize = 11.sp
                         )
@@ -262,18 +343,15 @@ fun AdbWizardScreen(
                     )
                 }
 
-                // Direct connect option if already paired earlier
                 if (LocalAdbClient.isPaired(context)) {
                     item(key = "s1_direct_connect_btn") {
                         Button(
-                            enabled = !isConnecting,
                             onClick = {
-                                currentStep = 2
-                                connectAction("")
+                                currentStep = 3
                             },
                             label = {
                                 Text(
-                                    text = "Conectar sin código (ya vinculado)",
+                                    text = "Ya vinculado › Conectar",
                                     color = Color.White,
                                     fontWeight = FontWeight.SemiBold,
                                     textAlign = TextAlign.Center,
@@ -305,7 +383,7 @@ fun AdbWizardScreen(
                         },
                         label = {
                             Text(
-                                text = if (isAdbActive) "Ya tengo el código ›" else "Activa Depuración primero",
+                                text = if (isAdbActive) "Paso siguiente: Vincular ›" else "Activa Depuración primero",
                                 color = if (isAdbActive) Color.White else Color(0xFF7A8392),
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center,
@@ -326,40 +404,37 @@ fun AdbWizardScreen(
                             .transformedHeight(this, transformationSpec)
                     )
                 }
-            } else {
-                // STEP 2: Input box and Debug info where instructions were in Step 1
-                item(key = "s2_card") {
+            } else if (currentStep == 2) {
+                // STEP 2: PAIRING (PIN + Editable Pairing Port)
+                item(key = "s2_pairing_card") {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
                             .background(Color(0xFF181B22))
                             .padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Native Number TextField
+                        Text(
+                            text = "Código de vinculación (6 dígitos):",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
                         BasicTextField(
                             value = pinText,
                             onValueChange = { newValue ->
-                                val filtered = newValue.filter { it.isDigit() }.take(6)
-                                pinText = filtered
+                                pinText = newValue.filter { it.isDigit() }.take(6)
                             },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.NumberPassword,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onDone = {
-                                    keyboardController?.hide()
-                                    if (pinText.length == 6) {
-                                        connectAction(pinText)
-                                    }
-                                }
+                                imeAction = ImeAction.Next
                             ),
                             textStyle = TextStyle(
                                 color = Color.White,
-                                fontSize = 20.sp,
+                                fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center
                             ),
@@ -372,22 +447,20 @@ fun AdbWizardScreen(
                                     contentAlignment = Alignment.Center,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(46.dp)
-                                        .clip(RoundedCornerShape(12.dp))
+                                        .height(40.dp)
+                                        .clip(RoundedCornerShape(10.dp))
                                         .background(Color(0xFF222733))
                                         .border(
-                                            width = 1.5.dp,
-                                            color = if (pinText.isNotEmpty()) UltraOrange else Color(0xFF383D47),
-                                            shape = RoundedCornerShape(12.dp)
+                                            1.dp,
+                                            if (pinText.isNotEmpty()) UltraOrange else Color(0xFF383D47),
+                                            RoundedCornerShape(10.dp)
                                         )
-                                        .padding(horizontal = 8.dp)
                                 ) {
                                     if (pinText.isEmpty()) {
                                         Text(
-                                            text = "PIN de 6 dígitos",
+                                            text = "PIN 6 dígitos",
                                             color = Color(0xFF7A8392),
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 12.sp,
                                             textAlign = TextAlign.Center
                                         )
                                     }
@@ -396,112 +469,102 @@ fun AdbWizardScreen(
                             }
                         )
 
-                        // Port & Debug information UNDER the PIN box
-                        val portInfo = when {
-                            detectedPairingPort != null -> "Puerto vinculado: $detectedPairingPort"
-                            detectedConnectPort != null -> "Puerto ADB: $detectedConnectPort"
-                            else -> "Esperando puerto de emparejamiento..."
-                        }
                         Text(
-                            text = portInfo,
-                            color = if (detectedPairingPort != null || detectedConnectPort != null) GreenOk else Color(0xFF9EA7B8),
-                            style = MaterialTheme.typography.labelSmall,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            modifier = Modifier.fillMaxWidth().basicMarquee()
+                            text = "Puerto de vinculación:",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
 
-                        // Status message right below debug text
-                        statusMessage?.let { msg ->
+                        BasicTextField(
+                            value = pairingPortText,
+                            onValueChange = { newValue ->
+                                pairingPortText = newValue.filter { it.isDigit() }.take(5)
+                            },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = {
+                                    keyboardController?.hide()
+                                    if (pinText.length == 6 && pairingPortText.isNotEmpty()) {
+                                        pairAction()
+                                    }
+                                }
+                            ),
+                            textStyle = TextStyle(
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            ),
+                            cursorBrush = SolidColor(UltraOrange),
+                            modifier = Modifier.fillMaxWidth(),
+                            decorationBox = { innerTextField ->
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(38.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFF222733))
+                                        .border(
+                                            1.dp,
+                                            if (pairingPortText.isNotEmpty()) UltraOrange else Color(0xFF383D47),
+                                            RoundedCornerShape(10.dp)
+                                        )
+                                ) {
+                                    if (pairingPortText.isEmpty()) {
+                                        Text(
+                                            text = "Puerto ej. 44023",
+                                            color = Color(0xFF7A8392),
+                                            fontSize = 12.sp,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        )
+
+                        errorMessage?.let { err ->
                             Text(
-                                text = msg,
-                                color = if (msg.contains("Fallo")) RedAlert else GreenOk,
+                                text = err,
+                                color = RedAlert,
                                 style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.SemiBold,
                                 textAlign = TextAlign.Center,
-                                maxLines = 1,
-                                modifier = Modifier.fillMaxWidth().basicMarquee()
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                     }
                 }
 
-                // S2 Open Wireless Debugging Button (positioned symmetrically as in Step 1)
-                item(key = "s2_open_btn") {
+                item(key = "s2_pair_btn") {
+                    val canPair = pinText.length == 6 && pairingPortText.isNotEmpty() && !isPairing
                     Button(
-                        onClick = {
-                            HapticFeedbackHelper.playUiTap(context)
-                            openWirelessDebuggingSettings(context)
-                        },
+                        enabled = canPair,
+                        onClick = pairAction,
                         label = {
-                            Text(
-                                text = "Abrir Depuración Inalámbrica",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                                maxLines = 1,
-                                modifier = Modifier.fillMaxWidth().basicMarquee()
-                            )
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = UltraOrange,
-                            contentColor = Color.White
-                        ),
-                        transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 6.dp)
-                            .transformedHeight(this, transformationSpec)
-                    )
-                }
-
-                // S2 Direct connect option (identical layout, style, and text as in Step 1)
-                if (LocalAdbClient.isPaired(context)) {
-                    item(key = "s2_direct_connect_btn") {
-                        Button(
-                            enabled = !isConnecting,
-                            onClick = {
-                                connectAction("")
-                            },
-                            label = {
+                            if (isPairing) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    SwitchLoadingSpinner(modifier = Modifier.padding(end = 6.dp))
+                                    Text("Emparejando...", color = Color.White, fontWeight = FontWeight.Bold)
+                                }
+                            } else {
                                 Text(
-                                    text = "Conectar sin código (ya vinculado)",
-                                    color = Color.White,
-                                    fontWeight = FontWeight.SemiBold,
+                                    text = "Vincular Reloj",
+                                    color = if (canPair) Color.White else Color(0xFF7A8392),
+                                    fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center,
-                                    maxLines = 1,
-                                    modifier = Modifier.fillMaxWidth().basicMarquee()
+                                    modifier = Modifier.fillMaxWidth()
                                 )
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = SlateCard,
-                                contentColor = Color.White
-                            ),
-                            transformation = SurfaceTransformation(transformationSpec),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp)
-                                .transformedHeight(this, transformationSpec)
-                        )
-                    }
-                }
-
-                // Connect / Pair button
-                item(key = "s2_connect_btn") {
-                    Button(
-                        enabled = !isConnecting && pinText.length == 6,
-                        onClick = {
-                            connectAction(pinText)
-                        },
-                        label = {
-                            Text(
-                                text = if (isConnecting) "Conectando..." else "Vincular y Conectar",
-                                color = if (pinText.length == 6 && !isConnecting) Color.White else Color(0xFF7A8392),
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                                maxLines = 1,
-                                modifier = Modifier.fillMaxWidth().basicMarquee()
-                            )
+                            }
                         },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = UltraOrange,
@@ -513,6 +576,215 @@ fun AdbWizardScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 6.dp)
+                            .transformedHeight(this, transformationSpec)
+                    )
+                }
+
+                item(key = "s2_open_settings_btn") {
+                    Button(
+                        onClick = { openWirelessDebuggingSettings(context) },
+                        label = {
+                            Text(
+                                text = "Abrir Depuración",
+                                color = Color.White,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SlateCard,
+                            contentColor = Color.White
+                        ),
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp)
+                            .transformedHeight(this, transformationSpec)
+                    )
+                }
+            } else {
+                // STEP 3: CONNECTION (Editable ADB Port + Connect)
+                item(key = "s3_connect_card") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF181B22))
+                            .padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "✓ Dispositivo vinculado",
+                            color = GreenOk,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Text(
+                            text = "Puerto ADB de conexión:",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        BasicTextField(
+                            value = connectPortText,
+                            onValueChange = { newValue ->
+                                connectPortText = newValue.filter { it.isDigit() }.take(5)
+                            },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = {
+                                    keyboardController?.hide()
+                                    if (connectPortText.isNotEmpty()) {
+                                        connectAction()
+                                    }
+                                }
+                            ),
+                            textStyle = TextStyle(
+                                color = Color.White,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            ),
+                            cursorBrush = SolidColor(UltraOrange),
+                            modifier = Modifier.fillMaxWidth(),
+                            decorationBox = { innerTextField ->
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(40.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFF222733))
+                                        .border(
+                                            1.dp,
+                                            if (connectPortText.isNotEmpty()) UltraOrange else Color(0xFF383D47),
+                                            RoundedCornerShape(10.dp)
+                                        )
+                                ) {
+                                    if (connectPortText.isEmpty()) {
+                                        Text(
+                                            text = "Puerto ej. 36793",
+                                            color = Color(0xFF7A8392),
+                                            fontSize = 12.sp,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        )
+
+                        Text(
+                            text = "Mira el puerto que sale en 'Dirección IP y puerto' en los ajustes de depuración.",
+                            color = Color(0xFF9EA7B8),
+                            fontSize = 10.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        errorMessage?.let { err ->
+                            Text(
+                                text = err,
+                                color = RedAlert,
+                                style = MaterialTheme.typography.bodySmall,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+
+                item(key = "s3_connect_btn") {
+                    val canConnect = connectPortText.isNotEmpty() && !isConnecting
+                    Button(
+                        enabled = canConnect,
+                        onClick = connectAction,
+                        label = {
+                            if (isConnecting) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    SwitchLoadingSpinner(modifier = Modifier.padding(end = 6.dp))
+                                    Text("Conectando...", color = Color.White, fontWeight = FontWeight.Bold)
+                                }
+                            } else {
+                                Text(
+                                    text = "Conectar ADB",
+                                    color = if (canConnect) Color.White else Color(0xFF7A8392),
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = UltraOrange,
+                            contentColor = Color.White,
+                            disabledContainerColor = Color(0xFF16191F),
+                            disabledContentColor = Color(0xFF6A717E)
+                        ),
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp)
+                            .transformedHeight(this, transformationSpec)
+                    )
+                }
+
+                item(key = "s3_open_settings_btn") {
+                    Button(
+                        onClick = { openWirelessDebuggingSettings(context) },
+                        label = {
+                            Text(
+                                text = "Abrir Depuración",
+                                color = Color.White,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SlateCard,
+                            contentColor = Color.White
+                        ),
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp)
+                            .transformedHeight(this, transformationSpec)
+                    )
+                }
+
+                item(key = "s3_re_pair_btn") {
+                    Button(
+                        onClick = {
+                            currentStep = 2
+                        },
+                        label = {
+                            Text(
+                                text = "Volver a vincular con nuevo PIN",
+                                color = Color(0xFF9EA7B8),
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = Color(0xFF9EA7B8)
+                        ),
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier
+                            .fillMaxWidth()
                             .transformedHeight(this, transformationSpec)
                     )
                 }
