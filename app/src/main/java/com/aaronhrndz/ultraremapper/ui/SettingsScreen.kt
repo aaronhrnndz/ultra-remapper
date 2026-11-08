@@ -1,5 +1,9 @@
 package com.aaronhrndz.ultraremapper.ui
 
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+
 import android.content.ComponentName
 import android.content.Context
 import android.os.PowerManager
@@ -103,6 +107,7 @@ fun SettingsScreen(
     onDone: () -> Unit
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val columnState = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
 
@@ -121,9 +126,20 @@ fun SettingsScreen(
 
     var connectedClientState by remember { mutableStateOf(client ?: LocalAdbClient.activeInstance) }
     val isAdbConnected = (connectedClientState?.isConnected == true)
-    val isAdbPaired = LocalAdbClient.isPaired(context)
+    var isAdbPaired by remember { mutableStateOf(LocalAdbClient.isPaired(context)) }
     val perms = remember(permVersion, isAdbConnected) { readPermissionItems(context) }
     val mainHandler = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
+
+    // Re-check pairing state on resume
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isAdbPaired = LocalAdbClient.isPaired(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // Track handled target to avoid re-scrolling on back navigation
     var handledTarget by rememberSaveable { mutableStateOf<String?>(null) }
@@ -648,9 +664,9 @@ fun SettingsScreen(
             item(key = "app_version_footer") {
                 val installedVersion = remember {
                     try {
-                        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.2.4"
+                        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.2.5"
                     } catch (e: Exception) {
-                        "2.2.4"
+                        "2.2.5"
                     }
                 }
                 var tapCount by remember { mutableStateOf(0) }
