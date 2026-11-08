@@ -569,13 +569,18 @@ class BottomButtonService : AccessibilityService() {
                 }
             }
 
-            // 2. IP:Port pattern (e.g. 192.168.1.185:33205)
-            val ipPortMatch = Regex("(?:\\d{1,3}\\.){3}\\d{1,3}:(\\d{4,5})").find(trimmed)
+            // 2. IP:Port pattern (e.g. 192.168.1.185:33205 or [fe80::...]:33205 or :33205)
+            val ipPortMatch = Regex("(?:(?:\\d{1,3}\\.){3}\\d{1,3}|(?:\\[?[a-fA-F0-9:]+\\]?))?:(\\d{4,5})").find(trimmed)
             if (ipPortMatch != null) {
                 val port = ipPortMatch.groupValues[1].toIntOrNull()
-                if (port != null && port > 0) {
-                    // If on pairing dialog (has 6-digit code on screen or dialog title), it's pairingPort
-                    if (capturedPin != null || trimmed.contains("vincular", ignoreCase = true) || trimmed.contains("pair", ignoreCase = true)) {
+                if (port != null && port in 1024..65535) {
+                    // Check if current text or current screen state indicates pairing
+                    val isPairingContext = capturedPin != null ||
+                            currentActiveClass?.contains("pair", ignoreCase = true) == true ||
+                            trimmed.contains("vincular", ignoreCase = true) ||
+                            trimmed.contains("pair", ignoreCase = true)
+
+                    if (isPairingContext) {
                         capturedPairingPort = port
                     } else {
                         capturedConnectPort = port

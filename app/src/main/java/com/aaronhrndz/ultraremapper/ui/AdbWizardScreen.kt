@@ -110,6 +110,24 @@ fun AdbWizardScreen(
         columnState.scrollToItem(0)
     }
 
+    // Dual Auto-Inference: Accessibility for PIN + mDNS for live ports
+    DisposableEffect(currentStep) {
+        var discovery: com.aaronhrndz.ultraremapper.adb.AdbMdnsDiscovery? = null
+        if (currentStep >= 2 && connectedClient == null) {
+            discovery = com.aaronhrndz.ultraremapper.adb.AdbMdnsDiscovery(context)
+            discovery.startDiscovery { isPairingPort, port ->
+                if (isPairingPort) {
+                    pairingPortText = port.toString()
+                } else {
+                    connectPortText = port.toString()
+                }
+            }
+        }
+        onDispose {
+            discovery?.stopDiscovery()
+        }
+    }
+
     // Re-check system ADB status & capture ports from Accessibility when returning from Settings
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -120,11 +138,11 @@ fun AdbWizardScreen(
                     pinText = pin
                 }
                 val pairP = com.aaronhrndz.ultraremapper.BottomButtonService.capturedPairingPort
-                if (pairP != null && pairP > 0) {
+                if (pairP != null && pairP > 0 && pairingPortText.isEmpty()) {
                     pairingPortText = pairP.toString()
                 }
                 val connP = com.aaronhrndz.ultraremapper.BottomButtonService.capturedConnectPort
-                if (connP != null && connP > 0) {
+                if (connP != null && connP > 0 && connectPortText.isEmpty()) {
                     connectPortText = connP.toString()
                 }
             }
