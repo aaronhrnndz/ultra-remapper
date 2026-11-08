@@ -38,7 +38,6 @@ import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import com.aaronhrndz.ultraremapper.HapticFeedbackHelper
 import com.aaronhrndz.ultraremapper.SwitchLoadingSpinner
-import com.aaronhrndz.ultraremapper.adb.AdbMdnsDiscovery
 import com.aaronhrndz.ultraremapper.adb.LocalAdbClient
 import kotlin.concurrent.thread
 
@@ -122,25 +121,7 @@ fun AdbWizardScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // Dynamic mDNS discovery for pairing and connect ports
-    DisposableEffect(currentStep) {
-        var discovery: AdbMdnsDiscovery? = null
-        if (currentStep >= 2 && connectedClient == null) {
-            discovery = AdbMdnsDiscovery(context)
-            discovery.startDiscovery { isPairingPort, port ->
-                if (isPairingPort) {
-                    pairingPortText = port.toString()
-                } else {
-                    connectPortText = port.toString()
-                }
-            }
-        }
-        onDispose {
-            discovery?.stopDiscovery()
-        }
-    }
-
-    // Step 2 Action: Pair via SPAKE2
+    // Step 2 Action: Pair via SPAKE2 on local loopback
     val pairAction: () -> Unit = {
         keyboardController?.hide()
         isPairing = true
@@ -156,7 +137,7 @@ fun AdbWizardScreen(
                 isPairing = false
                 if (success) {
                     HapticFeedbackHelper.playButtonHaptic(context)
-                    // Move straight to Step 3 for connection
+                    // Advance directly to Step 3 for connection
                     currentStep = 3
                 } else {
                     errorMessage = "Fallo al emparejar. Código o puerto incorrecto."
@@ -165,7 +146,7 @@ fun AdbWizardScreen(
         }
     }
 
-    // Step 3 Action: Connect via ADB TLS/TCP
+    // Step 3 Action: Connect via ADB TLS/TCP on local loopback
     val connectAction: () -> Unit = {
         keyboardController?.hide()
         isConnecting = true
@@ -177,7 +158,7 @@ fun AdbWizardScreen(
             if (port <= 0) {
                 mainHandler.post {
                     isConnecting = false
-                    errorMessage = "Introduce un puerto ADB válido."
+                    errorMessage = "Introduce el puerto que sale en 'Dirección IP y puerto'."
                 }
                 return@thread
             }
@@ -281,7 +262,7 @@ fun AdbWizardScreen(
                     )
                 }
             } else if (currentStep == 1) {
-                // STEP 1: Wireless debugging instructions & direct jump
+                // STEP 1: Enable Wireless Debugging
                 item(key = "s1_instructions") {
                     Column(
                         modifier = Modifier
@@ -298,7 +279,7 @@ fun AdbWizardScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "2. Entra en Opciones de Desarrollador y activa Depuración inalámbrica.",
+                            text = "2. Entra en Depuración inalámbrica y actívala.",
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
@@ -401,7 +382,7 @@ fun AdbWizardScreen(
                     )
                 }
             } else if (currentStep == 2) {
-                // STEP 2: PAIRING (PIN + Editable Pairing Port)
+                // STEP 2: PAIRING (PIN + Pairing Port)
                 item(key = "s2_pairing_card") {
                     Column(
                         modifier = Modifier
@@ -466,7 +447,7 @@ fun AdbWizardScreen(
                         )
 
                         Text(
-                            text = "Puerto de vinculación:",
+                            text = "Puerto de vinculación (5 dígitos):",
                             color = Color.White,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold
@@ -514,7 +495,7 @@ fun AdbWizardScreen(
                                 ) {
                                     if (pairingPortText.isEmpty()) {
                                         Text(
-                                            text = "Puerto ej. 44023",
+                                            text = "Puerto que sale con el PIN",
                                             color = Color(0xFF7A8392),
                                             fontSize = 12.sp,
                                             textAlign = TextAlign.Center
@@ -599,7 +580,7 @@ fun AdbWizardScreen(
                     )
                 }
             } else {
-                // STEP 3: CONNECTION (Editable ADB Port + Connect)
+                // STEP 3: CONNECTION (ADB Connect Port)
                 item(key = "s3_connect_card") {
                     Column(
                         modifier = Modifier
@@ -619,7 +600,7 @@ fun AdbWizardScreen(
                         )
 
                         Text(
-                            text = "Puerto ADB de conexión:",
+                            text = "Puerto de 'Dirección IP y puerto':",
                             color = Color.White,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold
@@ -667,7 +648,7 @@ fun AdbWizardScreen(
                                 ) {
                                     if (connectPortText.isEmpty()) {
                                         Text(
-                                            text = "Puerto ej. 36793",
+                                            text = "Puerto ej. 37757",
                                             color = Color(0xFF7A8392),
                                             fontSize = 12.sp,
                                             textAlign = TextAlign.Center
@@ -679,7 +660,7 @@ fun AdbWizardScreen(
                         )
 
                         Text(
-                            text = "Mira el puerto que sale en 'Dirección IP y puerto' en los ajustes de depuración.",
+                            text = "Apunta solo los últimos 5 números de 'Dirección IP y puerto' en los ajustes de depuración.",
                             color = Color(0xFF9EA7B8),
                             fontSize = 10.sp,
                             textAlign = TextAlign.Center,
