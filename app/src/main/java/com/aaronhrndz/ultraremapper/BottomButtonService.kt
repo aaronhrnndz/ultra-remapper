@@ -557,20 +557,25 @@ class BottomButtonService : AccessibilityService() {
         if (node == null) return
         val text = node.text?.toString() ?: node.contentDescription?.toString()
         if (!text.isNullOrBlank()) {
-            // Regex to find 6-digit pairing code (standalone or preceded by Código/PIN/Code)
-            if (capturedPin == null) {
-                val pinMatch = Regex("(?:código|pin|code)?[\\s:]*(\\b\\d{6}\\b)", RegexOption.IGNORE_CASE).find(text)
+            val trimmed = text.trim()
+
+            // 1. If text is exactly a 6-digit number, it's the pairing code
+            if (trimmed.matches(Regex("^\\d{6}$"))) {
+                capturedPin = trimmed
+            } else {
+                val pinMatch = Regex("(?:código|pin|code)?[\\s:]*(\\b\\d{6}\\b)", RegexOption.IGNORE_CASE).find(trimmed)
                 if (pinMatch != null) {
                     capturedPin = pinMatch.groupValues[1]
                 }
             }
 
-            // Regex to find IP:Port pattern (e.g. 192.168.1.185:33205)
-            val ipPortMatch = Regex("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:(\\d{4,5})").find(text)
+            // 2. IP:Port pattern (e.g. 192.168.1.185:33205)
+            val ipPortMatch = Regex("(?:\\d{1,3}\\.){3}\\d{1,3}:(\\d{4,5})").find(trimmed)
             if (ipPortMatch != null) {
                 val port = ipPortMatch.groupValues[1].toIntOrNull()
                 if (port != null && port > 0) {
-                    if (capturedPin != null) {
+                    // If on pairing dialog (has 6-digit code on screen or dialog title), it's pairingPort
+                    if (capturedPin != null || trimmed.contains("vincular", ignoreCase = true) || trimmed.contains("pair", ignoreCase = true)) {
                         capturedPairingPort = port
                     } else {
                         capturedConnectPort = port

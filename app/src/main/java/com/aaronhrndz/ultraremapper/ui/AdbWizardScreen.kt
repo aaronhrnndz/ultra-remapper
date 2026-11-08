@@ -116,15 +116,15 @@ fun AdbWizardScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 isAdbActive = isWirelessAdbEnabledOnSystem(context)
                 val pin = com.aaronhrndz.ultraremapper.BottomButtonService.capturedPin
-                if (!pin.isNullOrBlank() && pinText.isEmpty()) {
+                if (!pin.isNullOrBlank()) {
                     pinText = pin
                 }
                 val pairP = com.aaronhrndz.ultraremapper.BottomButtonService.capturedPairingPort
-                if (pairP != null && pairP > 0 && pairingPortText.isEmpty()) {
+                if (pairP != null && pairP > 0) {
                     pairingPortText = pairP.toString()
                 }
                 val connP = com.aaronhrndz.ultraremapper.BottomButtonService.capturedConnectPort
-                if (connP != null && connP > 0 && connectPortText.isEmpty()) {
+                if (connP != null && connP > 0) {
                     connectPortText = connP.toString()
                 }
             }
@@ -311,6 +311,10 @@ fun AdbWizardScreen(
                 item(key = "s1_open_btn") {
                     Button(
                         onClick = {
+                            com.aaronhrndz.ultraremapper.BottomButtonService.clearCapturedAdb()
+                            pinText = ""
+                            pairingPortText = ""
+                            connectPortText = ""
                             HapticFeedbackHelper.playUiTap(context)
                             openWirelessDebuggingSettings(context)
                         },
@@ -575,7 +579,12 @@ fun AdbWizardScreen(
 
                 item(key = "s2_open_settings_btn") {
                     Button(
-                        onClick = { openWirelessDebuggingSettings(context) },
+                        onClick = {
+                            com.aaronhrndz.ultraremapper.BottomButtonService.clearCapturedAdb()
+                            pinText = ""
+                            pairingPortText = ""
+                            openWirelessDebuggingSettings(context)
+                        },
                         label = {
                             Text(
                                 text = "Abrir Depuración",
@@ -736,7 +745,11 @@ fun AdbWizardScreen(
 
                 item(key = "s3_open_settings_btn") {
                     Button(
-                        onClick = { openWirelessDebuggingSettings(context) },
+                        onClick = {
+                            com.aaronhrndz.ultraremapper.BottomButtonService.capturedConnectPort = null
+                            connectPortText = ""
+                            openWirelessDebuggingSettings(context)
+                        },
                         label = {
                             Text(
                                 text = "Abrir Depuración",
