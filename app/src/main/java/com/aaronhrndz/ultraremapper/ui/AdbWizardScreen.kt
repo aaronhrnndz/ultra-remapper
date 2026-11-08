@@ -59,16 +59,16 @@ private fun isWirelessAdbEnabledOnSystem(context: Context): Boolean {
 
 private fun openWirelessDebuggingSettings(context: Context) {
     val devIntents = listOf(
-        Intent("android.settings.WIRELESS_DEBUGGING_SETTINGS"),
         Intent().setClassName(
             "com.google.android.apps.wearable.settings",
             "com.samsung.android.clockwork.settings.developer.wirelessadb.WirelessDebuggingActivity"
         ),
-        Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS),
         Intent().setClassName(
             "com.google.android.apps.wearable.settings",
             "com.samsung.android.clockwork.settings.developer.StDevOptionsActivity"
         ),
+        Intent("android.settings.WIRELESS_DEBUGGING_SETTINGS"),
+        Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS),
         Intent("com.google.android.clockwork.settings.DEVELOPER_OPTIONS")
     )
     for (intent in devIntents) {

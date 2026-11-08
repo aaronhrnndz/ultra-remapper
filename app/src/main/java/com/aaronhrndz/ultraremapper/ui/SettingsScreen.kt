@@ -130,11 +130,12 @@ fun SettingsScreen(
     val perms = remember(permVersion, isAdbConnected) { readPermissionItems(context) }
     val mainHandler = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
 
-    // Re-check pairing state on resume
+    // Re-check pairing and connection state on resume
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isAdbPaired = LocalAdbClient.isPaired(context)
+                connectedClientState = client ?: LocalAdbClient.activeInstance
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -432,6 +433,7 @@ fun SettingsScreen(
                             Button(
                                 onClick = {
                                     LocalAdbClient.unpair(context)
+                                    isAdbPaired = false
                                     connectedClientState = null
                                     permVersion++
                                     onRefreshPermissions()
@@ -664,9 +666,9 @@ fun SettingsScreen(
             item(key = "app_version_footer") {
                 val installedVersion = remember {
                     try {
-                        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.2.7"
+                        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.2.8"
                     } catch (e: Exception) {
-                        "2.2.7"
+                        "2.2.8"
                     }
                 }
                 var tapCount by remember { mutableStateOf(0) }
