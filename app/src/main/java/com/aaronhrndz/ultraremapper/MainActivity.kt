@@ -595,6 +595,14 @@ class MainActivity : ComponentActivity() {
                                     isActionButtonRouted(context)
                                     syncTopButtonRoute(context)
                                     mappingVersion++
+                                    if (gesture == "top_long") {
+                                        val msg = if (action != "none" && action != "assistant") {
+                                            "Asistente enrutado a Ultra Remapper automáticamente"
+                                        } else {
+                                            "Asistente nativo de Google restaurado"
+                                        }
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    }
                                     nav.popBackStack()
                                 }
                             )
@@ -609,6 +617,14 @@ class MainActivity : ComponentActivity() {
                                     isActionButtonRouted(context)
                                     syncTopButtonRoute(context)
                                     mappingVersion++
+                                    if (gesture == "top_long") {
+                                        val msg = if (action != "none" && action != "assistant") {
+                                            "Asistente enrutado a Ultra Remapper automáticamente"
+                                        } else {
+                                            "Asistente nativo de Google restaurado"
+                                        }
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    }
                                     nav.popBackStack("home", inclusive = false)
                                 }
                             )
@@ -1176,13 +1192,19 @@ private fun Home(
                             if (idx > 0) Spacer(modifier = Modifier.height(4.dp))
                             val (currentAction, currentLabel) = actPair
                             val isConfigured = currentAction != "none"
+                            val subtitleText = if (gesture == "top_long" && isConfigured) {
+                                if (currentAction == "assistant") "$currentLabel • Nativo Google"
+                                else "$currentLabel • Auto-enrutado ADB"
+                            } else {
+                                currentLabel
+                            }
                             Button(
                                 onClick = { onPick(gesture) },
                                 label = {
                                     Text(name, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.basicMarquee())
                                 },
                                 secondaryLabel = {
-                                    Text(currentLabel, maxLines = 1, modifier = Modifier.basicMarquee())
+                                    Text(subtitleText, maxLines = 1, modifier = Modifier.basicMarquee())
                                 },
                                 colors = if (isConfigured) cardConfiguredColors else cardUnconfiguredColors,
                                 modifier = Modifier.fillMaxWidth()
