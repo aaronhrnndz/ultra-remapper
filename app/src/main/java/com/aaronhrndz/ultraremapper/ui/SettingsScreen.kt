@@ -666,9 +666,9 @@ fun SettingsScreen(
             item(key = "app_version_footer") {
                 val installedVersion = remember {
                     try {
-                        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.2.8"
+                        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.2.9"
                     } catch (e: Exception) {
-                        "2.2.8"
+                        "2.2.9"
                     }
                 }
                 var tapCount by remember { mutableStateOf(0) }
