@@ -10,8 +10,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Aaronhrndz/ultra-remapper/releases/latest">
-    <img src="https://img.shields.io/github/v/release/Aaronhrndz/ultra-remapper?color=FF5500&label=latest%20release&style=flat-square" alt="Latest Release" />
+  <a href="https://github.com/aaronhrnndz/ultra-remapper/releases/latest">
+    <img src="https://img.shields.io/github/v/release/aaronhrnndz/ultra-remapper?color=FF5500&label=latest%20release&style=flat-square" alt="Latest Release" />
+  </a>
+  <a href="https://codeberg.org/Aaronhrndz/ultra-remapper/releases">
+    <img src="https://img.shields.io/badge/Codeberg-Mirror-2185D0?style=flat-square&logo=codeberg&logoColor=white" alt="Codeberg Mirror" />
   </a>
   <a href="https://ko-fi.com/Aaronhrndz">
     <img src="https://img.shields.io/badge/Ko--fi-Donate%20%E2%98%95-FF5E5B?style=flat-square&logo=kofi&logoColor=white" alt="Support on Ko-fi" />
@@ -32,7 +35,7 @@
 
 ---
 
-## 🌟 What's New in v2.3.9
+## 🌟 What's New in v2.4.7
 
 - **📱 Ultra Remapper Phone Companion App**: Modern, lightweight Material 3 companion app for your phone with zero idle battery drain. Configures your watch buttons, toggles options, and syncs states over native Bluetooth DataLayer.
 - **⚡ Guided 3-Step Wireless ADB Wizard**:
@@ -67,9 +70,9 @@
 
 ## Download & Installation
 
-Download the latest prebuilt APKs from the [**Releases**](https://github.com/Aaronhrndz/ultra-remapper/releases/latest) page:
-- **`UltraRemapper-Watch-vX.X.X.apk`**: App for your Wear OS smartwatch.
-- **`UltraRemapper-Companion-Mobile-vX.X.X.apk`**: Companion app for your Android phone.
+Download the latest prebuilt APKs from the [**GitHub Releases**](https://github.com/aaronhrnndz/ultra-remapper/releases/latest) page (or [**Codeberg Mirror**](https://codeberg.org/Aaronhrndz/ultra-remapper/releases)):
+- **`ultra-remapper-watch-vX.X.X.apk`**: App for your Wear OS smartwatch.
+- **`ultra-remapper-companion-vX.X.X.apk`**: Companion app for your Android phone.
 
 > [!TIP]
 > You can install the **Phone Companion App** first, and it will automatically guide you through pairing, installing, and configuring Ultra Remapper on your watch with 1 click over Wireless ADB!
