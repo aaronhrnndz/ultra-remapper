@@ -70,6 +70,9 @@
 
 ## Download & Installation
 
+> [!IMPORTANT]
+> **Migrating from v2.4.5 or older?** The previous GitHub repository is offline, so older versions cannot receive OTA updates automatically. Please download and install **v2.4.7** manually once—from this version onward, automatic OTA updates work seamlessly across **Codeberg** and **GitHub**.
+
 Download the latest prebuilt APKs from the [**GitHub Releases**](https://github.com/aaronhrnndz/ultra-remapper/releases/latest) page (or [**Codeberg Mirror**](https://codeberg.org/Aaronhrndz/ultra-remapper/releases)):
 - **`ultra-remapper-watch-vX.X.X.apk`**: App for your Wear OS smartwatch.
 - **`ultra-remapper-companion-vX.X.X.apk`**: Companion app for your Android phone.
