@@ -30,7 +30,9 @@ data class ReleaseUpdate(
 object UpdateChecker {
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val REPOS = listOf("Aaronhrndz/ultra-remapper", "Aaronhrnndz/ultra-remapper")
+    private const val CODEBERG_MANIFEST_URL = "https://codeberg.org/Aaronhrndz/ultra-remapper/raw/branch/main/update.json"
+    private const val CODEBERG_RELEASES_API = "https://codeberg.org/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
+    private val GITHUB_REPOS = listOf("Aaronhrndz/ultra-remapper", "aaronhrnndz/ultra-remapper")
     
     private const val PREFS_NAME = "update_checker"
     private const val KEY_LAST_CHECK = "last_check_time"
@@ -102,61 +104,125 @@ object UpdateChecker {
         } catch (e: Exception) {
             "0.0.0"
         }
+        val cleanCurrent = currentVersion.removePrefix("v")
+        val userAgent = "UltraRemapper/$currentVersion"
 
         executor.execute {
             val isBeta = isBetaChannel(context)
-            for (repo in REPOS) {
-            try {
-                val apiUrl = if (isBeta) "https://api.github.com/repos/$repo/releases?per_page=1" else "https://api.github.com/repos/$repo/releases/latest"
-                val conn = (URL(apiUrl).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "GET"
-                    setRequestProperty("Accept", "application/vnd.github+json")
-                    setRequestProperty("User-Agent", "UltraRemapper/$currentVersion")
-                    connectTimeout = 5000
-                    readTimeout = 5000
+            var best: ReleaseUpdate? = null
+
+            // 1. Codeberg Master Manifest (update.json)
+            fetchUrlText(CODEBERG_MANIFEST_URL, userAgent)?.let { body ->
+                try {
+                    val json = JSONObject(body)
+                    val ver = json.optString("version", "").removePrefix("v").trim()
+                    val isPre = json.optBoolean("isPrerelease", false)
+                    if (ver.isNotEmpty() && (isBeta || !isPre)) {
+                        val candidate = ReleaseUpdate(
+                            versionName = ver,
+                            htmlUrl = json.optString("htmlUrl", "https://codeberg.org/Aaronhrndz/ultra-remapper/releases/latest"),
+                            apkDownloadUrl = json.optString("watchApkUrl", "").takeIf { it.isNotEmpty() },
+                            releaseNotes = json.optString("notes", "").trim(),
+                            isPrerelease = isPre
+                        )
+                        best = pickHigherVersion(best, candidate)
+                    }
+                } catch (_: Exception) {}
+            }
+
+            // 2 & 3. GitHub Primary (Aaronhrndz) & Secondary (aaronhrnndz)
+            for (repo in GITHUB_REPOS) {
+                val apiUrl = if (isBeta) {
+                    "https://api.github.com/repos/$repo/releases?per_page=5"
+                } else {
+                    "https://api.github.com/repos/$repo/releases/latest"
                 }
-                if (conn.responseCode == 200) {
-                    val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    val json = if (isBeta) {
-                        val arr = org.json.JSONArray(body)
-                        if (arr.length() > 0) arr.getJSONObject(0) else null
-                    } else {
-                        JSONObject(body)
-                    }
-                    if (json == null) {
-                        mainHandler.post { onResult(null) }
-                        return@execute
-                    }
-                    val tag = json.optString("tag_name", "").removePrefix("v").trim()
-                    val htmlUrl = json.optString("html_url", "https://github.com/Aaronhrndz/ultra-remapper/releases/latest")
-                    val notes = json.optString("body", "").trim()
-                    var apkUrl: String? = null
-                    val assets = json.optJSONArray("assets")
-                    if (assets != null) {
-                        for (i in 0 until assets.length()) {
-                            val asset = assets.getJSONObject(i)
-                            val name = asset.optString("name", "")
-                            if (name.endsWith(".apk", ignoreCase = true) &&
-                                !name.contains("companion", ignoreCase = true) &&
-                                !name.contains("mobile", ignoreCase = true)
-                            ) {
-                                apkUrl = asset.optString("browser_download_url", "").takeIf { it.isNotEmpty() }
-                                break
+                fetchUrlText(apiUrl, userAgent, "application/vnd.github+json")?.let { body ->
+                    try {
+                        if (isBeta) {
+                            val arr = org.json.JSONArray(body)
+                            for (i in 0 until arr.length()) {
+                                val obj = arr.optJSONObject(i) ?: continue
+                                if (obj.optBoolean("draft", false)) continue
+                                best = pickHigherVersion(best, parseRelease(obj, repo))
                             }
+                        } else {
+                            best = pickHigherVersion(best, parseRelease(JSONObject(body), repo))
                         }
-                    }
-                    val isPre = json.optBoolean("prerelease", false)
-                    if (tag.isNotEmpty() && isNewerVersion(tag, currentVersion.removePrefix("v"))) {
-                        val update = ReleaseUpdate(tag, htmlUrl, apkUrl, notes, isPre)
-                        mainHandler.post { onResult(update) }
-                        return@execute
-                    }
+                    } catch (_: Exception) {}
                 }
-            } catch (ignored: Exception) {
             }
+
+            // 4. Codeberg Releases API
+            fetchUrlText(CODEBERG_RELEASES_API, userAgent, "application/json")?.let { body ->
+                try {
+                    val arr = org.json.JSONArray(body)
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.optJSONObject(i) ?: continue
+                        if (obj.optBoolean("draft", false)) continue
+                        val parsed = parseRelease(obj, "Aaronhrndz/ultra-remapper") ?: continue
+                        if (!isBeta && parsed.isPrerelease) continue
+                        best = pickHigherVersion(best, parsed)
+                    }
+                } catch (_: Exception) {}
             }
-            mainHandler.post { onResult(null) }
+
+            val finalUpdate = best?.takeIf { isNewerVersion(it.versionName, cleanCurrent) }
+            mainHandler.post { onResult(finalUpdate) }
         }
+    }
+
+    private fun fetchUrlText(urlStr: String, userAgent: String, accept: String? = null): String? {
+        var conn: HttpURLConnection? = null
+        return try {
+            conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                if (accept != null) setRequestProperty("Accept", accept)
+                setRequestProperty("User-Agent", userAgent)
+                connectTimeout = 5000
+                readTimeout = 5000
+                instanceFollowRedirects = true
+            }
+            if (conn.responseCode == 200) {
+                conn.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                null
+            }
+        } catch (_: Exception) {
+            null
+        } finally {
+            try { conn?.disconnect() } catch (_: Exception) {}
+        }
+    }
+
+    private fun pickHigherVersion(current: ReleaseUpdate?, candidate: ReleaseUpdate?): ReleaseUpdate? {
+        if (candidate == null) return current
+        if (current == null || isNewerVersion(candidate.versionName, current.versionName)) return candidate
+        return current
+    }
+
+    private fun parseRelease(json: JSONObject, fallbackRepo: String): ReleaseUpdate? {
+        val tag = json.optString("tag_name", "").removePrefix("v").trim()
+        if (tag.isEmpty()) return null
+        val htmlUrl = json.optString("html_url", "https://github.com/$fallbackRepo/releases/latest")
+        val notes = json.optString("body", "").trim()
+        var apkUrl: String? = null
+        val assets = json.optJSONArray("assets")
+        if (assets != null) {
+            for (i in 0 until assets.length()) {
+                val asset = assets.optJSONObject(i) ?: continue
+                val name = asset.optString("name", "")
+                if (name.endsWith(".apk", ignoreCase = true) &&
+                    !name.contains("companion", ignoreCase = true) &&
+                    !name.contains("mobile", ignoreCase = true)
+                ) {
+                    apkUrl = asset.optString("browser_download_url", "").takeIf { it.isNotEmpty() }
+                    break
+                }
+            }
+        }
+        val isPre = json.optBoolean("prerelease", false)
+        return ReleaseUpdate(tag, htmlUrl, apkUrl, notes, isPre)
     }
 
     private fun isNewerVersion(remote: String, local: String): Boolean {

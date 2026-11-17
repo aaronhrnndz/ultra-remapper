@@ -1,7 +1,7 @@
 {
-  "version": "2.4.6",
-  "htmlUrl": "https://github.com/aaronhrnndz/ultra-remapper/releases/tag/v2.4.6",
-  "companionApkUrl": "https://github.com/aaronhrnndz/ultra-remapper/releases/download/v2.4.6/ultra-remapper-companion-v2.4.6.apk",
-  "watchApkUrl": "https://github.com/aaronhrnndz/ultra-remapper/releases/download/v2.4.6/ultra-remapper-watch-v2.4.6.apk",
-  "notes": "Ultra Remapper v2.4.6: Dual-repo OTA fallback, dual wireless ADB pairing/connect fix, and background phone actions."
+  "version": "2.4.7",
+  "htmlUrl": "https://codeberg.org/Aaronhrndz/ultra-remapper/releases/tag/v2.4.7",
+  "companionApkUrl": "https://codeberg.org/Aaronhrndz/ultra-remapper/releases/download/v2.4.7/ultra-remapper-companion-v2.4.7.apk",
+  "watchApkUrl": "https://codeberg.org/Aaronhrndz/ultra-remapper/releases/download/v2.4.7/ultra-remapper-watch-v2.4.7.apk",
+  "notes": "Ultra Remapper v2.4.7: Multi-source highest-version OTA (Codeberg manifest + Codeberg Releases + dual GitHub), dual wireless ADB fix, and background phone actions."
 }

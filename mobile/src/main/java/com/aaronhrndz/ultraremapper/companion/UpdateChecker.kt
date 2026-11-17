@@ -25,9 +25,11 @@ data class ReleaseUpdate(
 object UpdateChecker {
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val REPOS = listOf(
+    private const val CODEBERG_MANIFEST_URL = "https://codeberg.org/Aaronhrndz/ultra-remapper/raw/branch/main/update.json"
+    private const val CODEBERG_RELEASES_API = "https://codeberg.org/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
+    private val GITHUB_REPOS = listOf(
         "Aaronhrndz/ultra-remapper",
-        "Aaronhrnndz/ultra-remapper"
+        "aaronhrnndz/ultra-remapper"
     )
     private const val PREFS_NAME = "companion_update_checker"
     private const val KEY_BETA_CHANNEL = "beta_channel_enabled"
@@ -45,9 +47,10 @@ object UpdateChecker {
     }
 
     /**
-     * Checks GitHub Releases and returns both:
+     * Checks all configured OTA sources (Codeberg master manifest, dual GitHub repos, Codeberg Releases API),
+     * picks the highest available version across all sources, and returns both:
      * - companionUpdate (if a newer mobile companion APK is available)
-     * - latestRelease (always contains the latest Watch APK URL so the phone can install/update the watch)
+     * - latestRelease (contains the latest Watch APK URL so the phone can install/update the watch)
      */
     fun checkAll(
         context: Context,
@@ -60,73 +63,85 @@ object UpdateChecker {
         } catch (_: Exception) {
             "1.0.0"
         }
+        val cleanCurrent = currentVersion.removePrefix("v")
+        val userAgent = "UltraRemapperCompanion/$currentVersion"
 
         executor.execute {
-            var companionUpd: ReleaseUpdate? = null
-            var latestRel: ReleaseUpdate? = null
-            for (repo in REPOS) {
-                if (latestRel != null) break
+            var bestCompanionRel: ReleaseUpdate? = null
+            var bestWatchRel: ReleaseUpdate? = null
+
+            // 1. Codeberg Master Manifest (update.json)
+            fetchUrlText(CODEBERG_MANIFEST_URL, userAgent)?.let { body ->
                 try {
-                    val apiUrl = if (isBeta) {
-                        "https://api.github.com/repos/$repo/releases?per_page=5"
-                    } else {
-                        "https://api.github.com/repos/$repo/releases/latest"
-                    }
-                    val url = URL(apiUrl)
-                    val conn = (url.openConnection() as HttpURLConnection).apply {
-                        connectTimeout = 8000
-                        readTimeout = 8000
-                        setRequestProperty("Accept", "application/vnd.github+json")
-                        setRequestProperty("User-Agent", "UltraRemapperCompanion/$currentVersion")
-                    }
-                    if (conn.responseCode == 200) {
-                        val body = conn.inputStream.bufferedReader().use { it.readText() }
-                        if (isBeta) {
-                            val arr = JSONArray(body)
-                            var foundCompanionRel: ReleaseUpdate? = null
-                            var foundWatchRel: ReleaseUpdate? = null
-                            for (i in 0 until arr.length()) {
-                                val parsed = parseRelease(arr.optJSONObject(i)) ?: continue
-                                if (foundCompanionRel == null && parsed.companionApkUrl != null) {
-                                    foundCompanionRel = parsed
-                                }
-                                if (foundWatchRel == null && parsed.watchApkUrl != null) {
-                                    foundWatchRel = parsed
-                                }
-                                if (foundCompanionRel != null && foundWatchRel != null) break
-                            }
-                            latestRel = foundWatchRel ?: foundCompanionRel
-                            if (foundCompanionRel != null &&
-                                isNewerVersion(foundCompanionRel.versionName, currentVersion.removePrefix("v"))
-                            ) {
-                                companionUpd = foundCompanionRel
-                            }
-                        } else {
-                            latestRel = parseRelease(JSONObject(body))
-                            if (latestRel != null &&
-                                latestRel.companionApkUrl != null &&
-                                isNewerVersion(latestRel.versionName, currentVersion.removePrefix("v"))
-                            ) {
-                                companionUpd = latestRel
-                            }
+                    val parsed = parseManifestJson(JSONObject(body))
+                    if (parsed != null && (isBeta || !parsed.isPrerelease)) {
+                        if (parsed.companionApkUrl != null) {
+                            bestCompanionRel = pickHigherVersion(bestCompanionRel, parsed)
+                        }
+                        if (parsed.watchApkUrl != null) {
+                            bestWatchRel = pickHigherVersion(bestWatchRel, parsed)
                         }
                     }
-                } catch (_: Exception) {
+                } catch (_: Exception) {}
+            }
+
+            // 2 & 3. GitHub Primary (Aaronhrndz) & Secondary (aaronhrnndz)
+            for (repo in GITHUB_REPOS) {
+                val apiUrl = if (isBeta) {
+                    "https://api.github.com/repos/$repo/releases?per_page=5"
+                } else {
+                    "https://api.github.com/repos/$repo/releases/latest"
+                }
+                fetchUrlText(apiUrl, userAgent, "application/vnd.github+json")?.let { body ->
+                    try {
+                        if (isBeta) {
+                            val (cBest, wBest) = processReleasesArray(JSONArray(body), true, bestCompanionRel, bestWatchRel)
+                            bestCompanionRel = cBest
+                            bestWatchRel = wBest
+                        } else {
+                            val parsed = parseRelease(JSONObject(body))
+                            if (parsed != null) {
+                                if (parsed.companionApkUrl != null) {
+                                    bestCompanionRel = pickHigherVersion(bestCompanionRel, parsed)
+                                }
+                                if (parsed.watchApkUrl != null) {
+                                    bestWatchRel = pickHigherVersion(bestWatchRel, parsed)
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {}
                 }
             }
 
-            // Fallback to embedded Watch APK in assets when GitHub is unavailable or older than embedded
+            // 4. Codeberg Releases API
+            fetchUrlText(CODEBERG_RELEASES_API, userAgent, "application/json")?.let { body ->
+                try {
+                    val (cBest, wBest) = processReleasesArray(JSONArray(body), isBeta, bestCompanionRel, bestWatchRel)
+                    bestCompanionRel = cBest
+                    bestWatchRel = wBest
+                } catch (_: Exception) {}
+            }
+
+            var latestRel: ReleaseUpdate? = bestWatchRel ?: bestCompanionRel
+            val companionUpd = if (bestCompanionRel != null &&
+                isNewerVersion(bestCompanionRel!!.versionName, cleanCurrent)
+            ) {
+                bestCompanionRel
+            } else {
+                null
+            }
+
+            // Fallback to embedded Watch APK in assets when remote sources are unavailable or older than embedded
             try {
                 val assets = appContext.assets.list("")
                 if (assets != null && assets.contains("watch-release.apk")) {
-                    val embeddedVer = currentVersion.removePrefix("v")
-                    if (latestRel == null || isNewerVersion(embeddedVer, latestRel.versionName)) {
+                    if (latestRel == null || isNewerVersion(cleanCurrent, latestRel.versionName)) {
                         latestRel = ReleaseUpdate(
-                            versionName = embeddedVer,
-                            htmlUrl = "https://github.com/Aaronhrnndz/ultra-remapper",
+                            versionName = cleanCurrent,
+                            htmlUrl = "https://codeberg.org/Aaronhrndz/ultra-remapper",
                             companionApkUrl = null,
                             watchApkUrl = "asset://watch-release.apk",
-                            releaseNotes = "Embedded Watch APK v$embeddedVer"
+                            releaseNotes = "Embedded Watch APK v$cleanCurrent"
                         )
                     }
                 }
@@ -134,6 +149,75 @@ object UpdateChecker {
 
             mainHandler.post { onResult(companionUpd, latestRel) }
         }
+    }
+
+    private fun fetchUrlText(urlStr: String, userAgent: String, accept: String? = null): String? {
+        var conn: HttpURLConnection? = null
+        return try {
+            conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 8000
+                readTimeout = 8000
+                instanceFollowRedirects = true
+                if (accept != null) setRequestProperty("Accept", accept)
+                setRequestProperty("User-Agent", userAgent)
+            }
+            if (conn.responseCode == 200) {
+                conn.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                null
+            }
+        } catch (_: Exception) {
+            null
+        } finally {
+            try { conn?.disconnect() } catch (_: Exception) {}
+        }
+    }
+
+    private fun pickHigherVersion(current: ReleaseUpdate?, candidate: ReleaseUpdate?): ReleaseUpdate? {
+        if (candidate == null) return current
+        if (current == null || isNewerVersion(candidate.versionName, current.versionName)) return candidate
+        return current
+    }
+
+    private fun processReleasesArray(
+        arr: JSONArray,
+        isBeta: Boolean,
+        bestCompanion: ReleaseUpdate?,
+        bestWatch: ReleaseUpdate?
+    ): Pair<ReleaseUpdate?, ReleaseUpdate?> {
+        var cBest = bestCompanion
+        var wBest = bestWatch
+        for (i in 0 until arr.length()) {
+            val obj = arr.optJSONObject(i) ?: continue
+            if (obj.optBoolean("draft", false)) continue
+            val parsed = parseRelease(obj) ?: continue
+            if (!isBeta && parsed.isPrerelease) continue
+            if (parsed.companionApkUrl != null) {
+                cBest = pickHigherVersion(cBest, parsed)
+            }
+            if (parsed.watchApkUrl != null) {
+                wBest = pickHigherVersion(wBest, parsed)
+            }
+        }
+        return cBest to wBest
+    }
+
+    private fun parseManifestJson(json: JSONObject): ReleaseUpdate? {
+        val ver = json.optString("version", "").removePrefix("v").trim()
+        if (ver.isEmpty()) return null
+        val isPrerelease = json.optBoolean("isPrerelease", false)
+        val htmlUrl = json.optString("htmlUrl", "https://codeberg.org/Aaronhrndz/ultra-remapper/releases/latest")
+        val companionUrl = json.optString("companionApkUrl", "").takeIf { it.isNotEmpty() }
+        val watchUrl = json.optString("watchApkUrl", "").takeIf { it.isNotEmpty() }
+        val notes = json.optString("notes", "").trim()
+        return ReleaseUpdate(
+            versionName = ver,
+            htmlUrl = htmlUrl,
+            companionApkUrl = companionUrl,
+            watchApkUrl = watchUrl,
+            releaseNotes = notes,
+            isPrerelease = isPrerelease
+        )
     }
 
     private fun parseRelease(json: JSONObject?): ReleaseUpdate? {
