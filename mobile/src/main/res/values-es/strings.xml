@@ -1,69 +1,217 @@
 <resources>
     <string name="app_name">Ultra Remapper Companion</string>
-    <string name="title_companion">Ultra Remapper</string>
-    <string name="subtitle_companion">Asistente ADB Inalámbrico y Gestor del Reloj</string>
-    <string name="status_watch">Estado del Reloj</string>
-    <string name="watch_connected">Emparejado por Bluetooth / DataLayer</string>
-    <string name="watch_disconnected">Buscando reloj conectado…</string>
 
-    <!-- Companion OTA Update Banner -->
-    <string name="companion_update_title">Actualización de App Móvil: v%1$s</string>
-    <string name="companion_update_beta_title">Beta de App Móvil disponible: v%1$s</string>
-    <string name="companion_update_btn">Actualizar App Móvil</string>
-
-    <!-- Watch APK Installer Section -->
-    <string name="hdr_watch_apk">App del Reloj (Ultra Remapper)</string>
-    <string name="watch_apk_sub">Instala o actualiza Ultra Remapper directamente en tu reloj por ADB</string>
-    <string name="watch_ver_installed">Instalada en el reloj: %1$s</string>
-    <string name="watch_ver_not_installed">No instalada en el reloj</string>
-    <string name="watch_ver_latest">Última en GitHub: v%1$s</string>
-    <string name="btn_install_watch_github">Instalar / Actualizar v%1$s en el Reloj</string>
-    <string name="btn_install_watch_local">Instalar archivo APK local en el Reloj…</string>
-
-    <!-- Wizard Steps (3 Pasos) -->
-    <string name="step_1_title">Paso 1: Wi-Fi y Depuración Inalámbrica</string>
-    <string name="step_1_desc">1. Conecta tanto tu Galaxy Watch como este teléfono a la misma red Wi-Fi.\n2. En el reloj, abre Ajustes › Opciones de desarrollador › Depuración inalámbrica y actívala.</string>
-    <string name="step_1_tip">💡 Consejo: ¿No ves Opciones de desarrollador? Ve a Ajustes › Información del reloj › Software y toca 7 veces seguidas en \'Versión de software\'. Si estás fuera de casa, comparte la Zona Wi-Fi de este móvil.</string>
-    <string name="btn_next">Siguiente ›</string>
-    <string name="btn_already_enabled">Ya activé Depuración Inalámbrica ›</string>
-    <string name="btn_direct_connect">¿Ya vinculado antes? Ir a Permisos y App ›</string>
-
-    <string name="step_2_title">Paso 2: Vincular con PIN de 6 dígitos</string>
-    <string name="step_2_desc">En la pantalla de Depuración Inalámbrica del reloj, toca en \'Vincular dispositivo nuevo\'. La IP y puertos se detectan solos por mDNS al estar en el mismo Wi-Fi.</string>
+    <!-- Navigation Tabs -->
+    <string name="nav_buttons">Botones</string>
+    <string name="nav_settings">Ajustes</string>
     <string name="btn_back">‹ Atrás</string>
+
+    <!-- Status Bar Pills -->
+    <string name="status_bt_connected">BT: %1$s</string>
+    <string name="status_bt_synced">BT: Conectado</string>
+    <string name="status_bt_waiting">BT: Desconectado</string>
+    <string name="status_adb_connected">ADB: Conectado</string>
+    <string name="status_adb_paired">ADB: Vinculado</string>
+    <string name="status_adb_unpaired">ADB: Desconectado</string>
+
+    <!-- OTA Updates -->
+    <string name="companion_update_title">Actualización de App Móvil: v%1$s</string>
+    <string name="companion_update_btn">Actualizar App Móvil</string>
+    <string name="watch_install_title">Instalar Ultra Remapper en el Reloj</string>
+    <string name="watch_update_title">Actualización del Reloj: v%1$s</string>
+    <string name="watch_ver_installed">Instalada: v%1$s</string>
+    <string name="watch_ver_not_installed">No instalada</string>
+    <string name="btn_install_watch">Descargar e Instalar v%1$s en el Reloj</string>
+    <string name="btn_update_watch">Actualizar Reloj a v%1$s</string>
+    <string name="toast_connect_adb_first">Conecta primero por ADB al reloj</string>
+    <string name="msg_downloading_ver">Descargando v%1$s…</string>
+    <string name="msg_download_error">Error al descargar el APK de GitHub.</string>
+
+    <!-- Diagnostic Banners -->
+    <string name="diag_header_status">Acciones necesarias</string>
+    <string name="diag_route_title">Enrutado de botón inactivo</string>
+    <string name="diag_route_sub">Toca para activar Ruta del Botón de Acción en Ajustes</string>
+    <string name="diag_overlay_title">Falta permiso de superposición</string>
+    <string name="diag_overlay_sub">Necesario para abrir apps y linterna RGBW</string>
+    <string name="diag_secure_title">Falta Secure Settings</string>
+    <string name="diag_secure_sub">Necesario para LTE, Toc toc y doble toque superior</string>
+    <string name="diag_media_title">Control multimedia inactivo</string>
+    <string name="diag_media_sub">Activar acceso a notificaciones en Permisos</string>
+    <string name="diag_a11y_title">Activar Accesibilidad en el reloj</string>
+    <string name="diag_a11y_sub">Toca para abrir Ajustes de Accesibilidad en el reloj</string>
+    <string name="diag_assistant_title">Elegir como Asistente Digital</string>
+    <string name="diag_assistant_sub">Toca para abrir selector de Asistente en el reloj</string>
+    <string name="diag_toctoc_title">Configurar gesto Toc toc</string>
+    <string name="diag_toctoc_sub">Toca para abrir ajustes de Botones y Gestos en el reloj</string>
+    <string name="diag_spay_title">Conflicto con Samsung Pay</string>
+    <string name="diag_spay_sub">Congela Samsung Pay en Ajustes para que el botón inferior no falle</string>
+    <string name="badge_adb">ADB</string>
+    <string name="badge_watch">RELOJ</string>
+    <string name="toast_opening_a11y">Abriendo Accesibilidad en el reloj…</string>
+    <string name="toast_select_assistant">Selecciona Ultra Remapper en el reloj</string>
+    <string name="toast_select_toctoc">Elige Ultra Remapper en Toc toc del reloj</string>
+
+    <!-- Buttons & Gestures Section -->
+    <string name="hdr_buttons_gestures">Botones y Gestos del Reloj</string>
+    <string name="sub_connect_to_configure">Conecta el reloj para configurar</string>
+    <string name="btn_top_title">Botón Superior</string>
+    <string name="btn_center_title">Botón Central (Acción)</string>
+    <string name="btn_center_note">Con Samsung Health en pantalla la app se pausa para permitir los controles nativos.</string>
+    <string name="btn_bottom_title">Botón Inferior</string>
+    <string name="btn_gestures_title">Gestos</string>
+    <string name="count_configured">%1$d configurados</string>
+    <string name="status_unassigned">Sin asignar</string>
+    <string name="status_toctoc_active">Toc toc activo</string>
+
+    <!-- Gesture Names -->
+    <string name="gesture_single">Una pulsación</string>
+    <string name="gesture_double">Doble pulsación</string>
+    <string name="gesture_triple">Triple pulsación</string>
+    <string name="gesture_long">Pulsación larga</string>
+    <string name="gesture_toctoc">Toc toc (Gesto de muñeca)</string>
+
+    <!-- Action Categories & Names -->
+    <string name="picker_select_watch_app">Seleccionar App del Reloj</string>
+    <string name="picker_back_to_actions">‹ Volver a acciones</string>
+    <string name="picker_no_apps_synced">Abre Ultra Remapper en el reloj para sincronizar la lista de aplicaciones instaladas por Bluetooth.</string>
+    <string name="action_open_app">Abrir App…</string>
+    <string name="action_choose_from_apps">Elegir entre %1$d apps del reloj ›</string>
+    <string name="action_none">Nada</string>
+
+    <string name="hdr_section_watch">ACCIONES DEL RELOJ</string>
+    <string name="hdr_section_phone">ACCIONES DEL TELÉFONO</string>
+    <string name="cat_shealth">Samsung Health</string>
+    <string name="cat_samsung">Funciones Samsung</string>
+    <string name="cat_dev">Desarrollo (ADB)</string>
+    <string name="cat_utility">Utilidades</string>
+    <string name="cat_phone">Acciones del Teléfono</string>
+    <string name="cat_ha">Home Assistant</string>
+    <string name="cat_media">Multimedia y Volumen</string>
+
+    <string name="action_shealth_workout">Mis entrenamientos</string>
+    <string name="action_shealth_route">Modo Ruta (Samsung Health)</string>
+    <string name="action_recents">Abrir multitarea (Recientes)</string>
+    <string name="action_stopwatch">Cronómetro</string>
+    <string name="action_water_lock">Bloqueo de Agua</string>
+    <string name="action_assistant">Asistente Digital</string>
+    <string name="action_wireless_debugging">Depuración Inalámbrica (ADB)</string>
+    <string name="action_adb_mode">Mantener Pantalla Activa (Reloj despierto)</string>
+    <string name="action_flashlight">Linterna</string>
+    <string name="action_red_flashlight">Linterna RGBW</string>
+    <string name="action_dnd_toggle">No Molestar</string>
+    <string name="action_save_parking">Guardar Parking</string>
+    <string name="action_nav_parking">Volver al Coche (Maps a pie)</string>
+    <string name="action_water_eject">Expulsar Agua (Altavoz)</string>
+    <string name="action_lte_toggle">LTE y Datos Móviles</string>
+    <string name="action_phone_find">Hacer sonar mi teléfono</string>
+    <string name="action_phone_torch">Linterna del teléfono</string>
+    <string name="action_phone_camera">Cámara del teléfono (Disparar)</string>
+    <string name="action_phone_ringer">Teléfono Sonido / Vibración</string>
+    <string name="action_phone_lock">Bloquear pantalla del teléfono</string>
+    <string name="action_phone_dnd">Teléfono No Molestar</string>
+    <string name="action_phone_ha_event">Disparar evento en Home Assistant</string>
+    <string name="action_ha_assist">Home Assistant Assist (Voz)</string>
+    <string name="action_play_pause">Reproducir / Pausa</string>
+    <string name="action_next">Pista Siguiente</string>
+    <string name="action_previous">Pista Anterior</string>
+    <string name="action_vol_up">Subir Volumen</string>
+    <string name="action_vol_down">Bajar Volumen</string>
+    <string name="action_open_media_player">Abrir Controlador Multimedia</string>
+
+    <!-- Settings Tab -->
+    <string name="hdr_general_settings">Ajustes Generales</string>
+    <string name="theme_selector_title">Tema de la aplicación</string>
+    <string name="theme_selector_sub">Claro, Automático o Oscuro</string>
+    <string name="master_switch_title">Remapear botones</string>
+    <string name="master_switch_on">Activo en el reloj</string>
+    <string name="master_switch_off">Pausado</string>
+    <string name="haptic_switch_title">Vibración háptica</string>
+    <string name="haptic_switch_sub">Respuesta táctil al pulsar botones</string>
+
+    <!-- ADB Section -->
+    <string name="hdr_adb_wireless">Ajustes ADB Inalámbrico</string>
+    <string name="adb_status_connecting">Conectando al reloj…</string>
+    <string name="adb_status_connected">Conectado (%1$s:%2$s)</string>
+    <string name="adb_status_paired_tap">Vinculado • Toca para conectar</string>
+    <string name="adb_status_unpaired">No vinculado • Necesario para conceder permisos</string>
+    <string name="adb_wiz_step1_title">PASO 1 DE 3 • Activar Depuración</string>
+    <string name="adb_wiz_step1_instructions">1. Conecta reloj y móvil a la misma red Wi-Fi.\n2. En el reloj: Ajustes → Información del reloj → Software → pulsa 7 veces seguidas en \'Versión de software\' para activar Opciones de desarrollador.\n3. Entra en Opciones de desarrollador → activa \'Depuración inalámbrica\'.\n4. Toca \'Vincular dispositivo nuevo\' (PIN y puerto).</string>
+    <string name="adb_wiz_step1_instructions_installed">1. Conecta reloj y móvil a la misma red Wi-Fi.\n2. Pulsa \'Abrir Depuración Inalámbrica en el Reloj\' abajo.\n3. En el reloj toca \'Vincular dispositivo nuevo\' (PIN y puerto se detectarán solos).</string>
+    <string name="adb_wiz_step1_next">Paso siguiente: Vincular con PIN ›</string>
+    <string name="adb_wiz_step1_skip">¿Ya está vinculado? Ir a Conectar ›</string>
+    <string name="adb_wiz_step2_title">PASO 2 DE 3 • Vincular con PIN</string>
+    <string name="adb_wiz_step2_instructions">Al abrir \'Vincular dispositivo nuevo\' en el reloj, el servicio de accesibilidad rellena automáticamente la IP, Puerto PIN y PIN de 6 dígitos.</string>
+    <string name="adb_wiz_step2_back">‹ Volver al Paso 1</string>
+    <string name="adb_wiz_step3_title">PASO 3 DE 3 • Conectar Sesión ADB</string>
+    <string name="adb_wiz_step3_instructions">Asegúrate de estar en la pantalla principal de Depuración Inalámbrica del reloj. El Puerto ADB se detecta automáticamente.</string>
+    <string name="adb_wiz_paired_badge">✓ Reloj Vinculado</string>
+    <string name="adb_wiz_connected_badge">✓ Sesión ADB Activa</string>
+    <string name="adb_step1_title">Paso 1: Vincular Reloj (PIN 6 dígitos)</string>
+    <string name="adb_step1_instructions">1. Conecta reloj y móvil al mismo Wi-Fi.\n2. Pulsa \'Abrir Depuración Inalámbrica en el Reloj\' y entra en \'Vincular dispositivo nuevo\'.</string>
+    <string name="adb_step1_skip_already_paired">¿Ya está vinculado en el reloj? Ir a Conectar ›</string>
+    <string name="adb_step2_title">Paso 2: Conectar Sesión ADB</string>
+    <string name="adb_step2_instructions">Con la Depuración Inalámbrica activa en el reloj, verifica el Puerto ADB que muestra el reloj.</string>
+    <string name="adb_instructions">1. Conecta reloj y móvil al mismo Wi-Fi.\n2. En el reloj abre Opciones de desarrollador › Depuración inalámbrica.</string>
+    <string name="adb_mdns_pair_found">✓ Reloj detectado en vinculación (%1$s:%2$s)</string>
+    <string name="adb_mdns_connect_found">✓ Reloj detectado en red (%1$s:%2$s)</string>
+    <string name="adb_open_on_watch_btn">Abrir Depuración Inalámbrica en el Reloj</string>
+    <string name="adb_autofill_btn">Autocompletar IP y Puertos</string>
+    <string name="adb_autofill_scanning">Buscando IP y puertos del reloj…</string>
+    <string name="toast_opening_wireless_adb">Abriendo Depuración Inalámbrica en el reloj…</string>
     <string name="label_watch_ip">IP del Reloj</string>
-    <string name="label_pair_port">Puerto Vinculación</string>
-    <string name="label_pairing_code">PIN de 6 dígitos</string>
-    <string name="btn_pair_watch">Vincular y Continuar</string>
-    <string name="skip_to_step_3">¿Ya vinculaste este reloj antes? Saltar al Paso 3 ›</string>
-    <string name="mdns_detecting">Buscando servicios mDNS del reloj en la red Wi-Fi…</string>
-    <string name="mdns_detected_pair">✓ Puerto de vinculación detectado: %1$s:%2$s</string>
-    <string name="mdns_detected_connect">✓ Puerto ADB del reloj detectado: %1$s:%2$s</string>
+    <string name="label_adb_port">Puerto ADB</string>
+    <string name="label_pairing_pin">PIN 6 dígitos</string>
+    <string name="label_pairing_port">Puerto PIN</string>
+    <string name="btn_pair_with_pin">Vincular Reloj con PIN</string>
+    <string name="btn_need_new_pin">Vincular con un nuevo PIN de 6 dígitos</string>
+    <string name="btn_refresh_adb">Refrescar ADB</string>
+    <string name="btn_connect_adb">Conectar ADB</string>
+    <string name="btn_unpair_adb">Borrar ADB</string>
+    <string name="msg_adb_pairing">Vinculando con el reloj…</string>
+    <string name="msg_adb_connecting">Conectando y leyendo estado del reloj…</string>
+    <string name="msg_adb_connect_failed">No se pudo conectar a %1$s:%2$s. Revisa que el Puerto ADB coincida con el que muestra el reloj en Depuración Inalámbrica.</string>
+    <string name="msg_adb_unpaired">Vinculación ADB borrada.</string>
+    <string name="toast_enter_ip_pair_port">Indica IP y Puerto de vinculación</string>
+    <string name="toast_enter_ip_adb_port">Introduce IP y Puerto ADB del reloj</string>
 
-    <string name="step_3_title">Paso 3: App, Permisos y Samsung Pay</string>
-    <string name="step_3_desc">Instala Ultra Remapper en el reloj, concede todos los permisos y congela Samsung Pay desde el teléfono.</string>
-    <string name="label_main_port">Puerto Conexión</string>
-    <string name="btn_connect">Conectar</string>
-    <string name="btn_connected">Conectado</string>
-    <string name="btn_grant_all">Conceder Todos los Permisos</string>
-    <string name="btn_revoke_all">Revocar Todos</string>
-    <string name="btn_scan_status">Refrescar Estado</string>
-    <string name="btn_unpair_adb">Borrar vinculación ADB</string>
-
+    <!-- Permissions Section -->
     <string name="hdr_permissions">Permisos del Reloj</string>
-    <string name="hdr_permissions_sub">Concede o revoca cada permiso en tiempo real</string>
-    <string name="status_granted">Concedido</string>
-    <string name="status_missing">Falta</string>
-    <string name="btn_grant">Conceder</string>
-    <string name="btn_revoke">Revocar</string>
+    <string name="perms_connect_to_view">Conecta el reloj para ver permisos</string>
+    <string name="perms_active_count">%1$d de %2$d activos</string>
+    <string name="btn_grant_missing_perms">Activar permisos faltantes</string>
 
-    <string name="hdr_samsung_pay">Samsung Pay / Wallet</string>
-    <string name="samsung_pay_title">Samsung Pay Activo</string>
-    <string name="samsung_pay_desc">Desactívalo (congelar) para que la pulsación larga del botón inferior funcione siempre de forma fiable sin que Samsung Pay tome prioridad.</string>
-    <string name="samsung_pay_frozen_badge">Congelado (Recomendado)</string>
-    <string name="samsung_pay_active_badge">Activo</string>
+    <string name="perm_overlay_title">Overlay</string>
+    <string name="perm_overlay_desc">Superposición en segundo plano y linterna RGBW</string>
+    <string name="perm_secure_title">Secure Settings</string>
+    <string name="perm_secure_desc">Ajustes del sistema, LTE, No Molestar y rutas</string>
+    <string name="perm_action_title">Botón de Acción</string>
+    <string name="perm_action_desc">Ruta de pulsación física del botón central</string>
+    <string name="perm_media_title">Notificaciones</string>
+    <string name="perm_media_desc">Control multimedia y detección de ejercicio</string>
+    <string name="perm_battery_title">Sin restricción batería</string>
+    <string name="perm_battery_desc">Evita cierre en reposo (Doze)</string>
 
+    <!-- Samsung Pay Section -->
+    <string name="hdr_samsung_pay">Samsung Pay</string>
+    <string name="spay_status_active">Activo (Desactívalo para evitar conflictos con botón inferior)</string>
+    <string name="spay_status_frozen">Congelado (El botón inferior funciona al 100%)</string>
+    <string name="spay_status_unknown">Conecta el reloj para ver estado</string>
+
+    <!-- Developer Options Screen -->
     <string name="dev_options_title">Opciones de Desarrollador</string>
     <string name="beta_channel_title">Canal Beta</string>
-    <string name="beta_channel_desc">Recibir versiones Beta anticipadas tanto para la app móvil como para el reloj.</string>
+    <string name="beta_channel_desc">Recibir versiones preliminares tanto para el móvil como para el reloj</string>
+    <string name="version_footer">v%1$s</string>
+    <string name="version_footer_beta">v%1$s [Beta Channel]</string>
+    <string name="toast_phone_ringing">Localizando teléfono: Sonando al máximo volumen…</string>
+    <string name="toast_phone_ring_stopped">Alarma del teléfono silenciada</string>
+    <string name="toast_phone_vibrate">Teléfono en modo Vibración</string>
+    <string name="toast_phone_sound">Teléfono en modo Sonido</string>
+    <string name="toast_enable_phone_a11y">Activa Ultra Remapper Companion en Accesibilidad para apagar pantalla</string>
+    <string name="toast_grant_phone_dnd">Concede acceso a No Molestar en Ajustes</string>
+    <string name="toast_phone_dnd_on">Teléfono No Molestar: ACTIVADO</string>
+    <string name="toast_phone_dnd_off">Teléfono No Molestar: DESACTIVADO</string>
+    <string name="toast_ha_event_fired">¡Evento enviado a Home Assistant!</string>
+    <string name="toast_ha_not_installed">App Home Assistant Companion no instalada</string>
+    <string name="phone_a11y_desc">Necesario para apagar y bloquear la pantalla del teléfono desde el reloj.</string>
 </resources>

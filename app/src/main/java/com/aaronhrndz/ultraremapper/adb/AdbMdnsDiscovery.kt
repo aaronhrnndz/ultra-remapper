@@ -28,27 +28,54 @@ class AdbMdnsDiscovery(private val context: Context) {
     private var connectListener: NsdManager.DiscoveryListener? = null
     private var pairingListener: NsdManager.DiscoveryListener? = null
 
-    fun startDiscovery(onPortFound: (isPairing: Boolean, port: Int) -> Unit) {
+    private fun getLocalWatchIps(): Set<String> {
+        val ips = mutableSetOf("127.0.0.1", "::1")
+        try {
+            val interfaces = java.net.NetworkInterface.getNetworkInterfaces() ?: return ips
+            for (nif in interfaces) {
+                for (addr in nif.inetAddresses) {
+                    val host = addr.hostAddress
+                    if (!host.isNullOrBlank()) ips.add(host)
+                }
+            }
+        } catch (_: Exception) {}
+        return ips
+    }
+
+    private fun isLocalWatchService(info: NsdServiceInfo): Boolean {
+        val localIps = getLocalWatchIps()
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            info.hostAddresses.any { it.isLoopbackAddress || localIps.contains(it.hostAddress) }
+        } else {
+            @Suppress("DEPRECATION")
+            val host = info.host
+            host != null && (host.isLoopbackAddress || localIps.contains(host.hostAddress))
+        }
+    }
+
+    fun startDiscovery(wantPairing: Boolean, onPortFound: (isPairing: Boolean, port: Int) -> Unit) {
         val manager = nsdManager ?: return
         stopDiscovery()
 
-        // 1. Discover ADB Connect service: _adb-tls-connect._tcp
-        connectListener = createListener { info ->
-            discoveredConnectPort = info.port
-            mainHandler.post { onPortFound(false, info.port) }
+        if (wantPairing) {
+            // Discover ONLY ADB Pairing service: _adb-tls-pairing._tcp
+            pairingListener = createListener { info ->
+                discoveredPairingPort = info.port
+                mainHandler.post { onPortFound(true, info.port) }
+            }
+            try {
+                manager.discoverServices("_adb-tls-pairing._tcp", NsdManager.PROTOCOL_DNS_SD, pairingListener)
+            } catch (_: Exception) {}
+        } else {
+            // Discover ONLY ADB Connect service: _adb-tls-connect._tcp
+            connectListener = createListener { info ->
+                discoveredConnectPort = info.port
+                mainHandler.post { onPortFound(false, info.port) }
+            }
+            try {
+                manager.discoverServices("_adb-tls-connect._tcp", NsdManager.PROTOCOL_DNS_SD, connectListener)
+            } catch (_: Exception) {}
         }
-        try {
-            manager.discoverServices("_adb-tls-connect._tcp", NsdManager.PROTOCOL_DNS_SD, connectListener)
-        } catch (_: Exception) {}
-
-        // 2. Discover ADB Pairing service: _adb-tls-pairing._tcp
-        pairingListener = createListener { info ->
-            discoveredPairingPort = info.port
-            mainHandler.post { onPortFound(true, info.port) }
-        }
-        try {
-            manager.discoverServices("_adb-tls-pairing._tcp", NsdManager.PROTOCOL_DNS_SD, pairingListener)
-        } catch (_: Exception) {}
     }
 
     private fun createListener(onResolved: (NsdServiceInfo) -> Unit): NsdManager.DiscoveryListener {
@@ -72,7 +99,9 @@ class AdbMdnsDiscovery(private val context: Context) {
                                         latch.countDown()
                                     }
                                     override fun onServiceUpdated(resolvedInfo: NsdServiceInfo) {
-                                        onResolved(resolvedInfo)
+                                        if (isLocalWatchService(resolvedInfo)) {
+                                            onResolved(resolvedInfo)
+                                        }
                                         try { nsdManager.unregisterServiceInfoCallback(this) } catch (_: Exception) {}
                                         latch.countDown()
                                     }
@@ -89,7 +118,9 @@ class AdbMdnsDiscovery(private val context: Context) {
                                     latch.countDown()
                                 }
                                 override fun onServiceResolved(resolvedInfo: NsdServiceInfo) {
-                                    onResolved(resolvedInfo)
+                                    if (isLocalWatchService(resolvedInfo)) {
+                                        onResolved(resolvedInfo)
+                                    }
                                     latch.countDown()
                                 }
                             })

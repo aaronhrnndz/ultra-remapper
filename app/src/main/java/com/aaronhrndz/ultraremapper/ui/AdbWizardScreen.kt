@@ -115,7 +115,7 @@ fun AdbWizardScreen(
         var discovery: com.aaronhrndz.ultraremapper.adb.AdbMdnsDiscovery? = null
         if (currentStep >= 2 && connectedClient == null) {
             discovery = com.aaronhrndz.ultraremapper.adb.AdbMdnsDiscovery(context)
-            discovery.startDiscovery { isPairingPort, port ->
+            discovery.startDiscovery(wantPairing = (currentStep == 2)) { isPairingPort, port ->
                 if (isPairingPort) {
                     pairingPortText = port.toString()
                 } else {

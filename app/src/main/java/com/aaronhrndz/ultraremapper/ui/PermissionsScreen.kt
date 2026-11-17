@@ -46,6 +46,7 @@ fun PermissionsScreen(
     onDone: () -> Unit
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val columnState = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
 
@@ -57,6 +58,24 @@ fun PermissionsScreen(
     val isAdbConnected = (connectedClientState?.isConnected == true)
     val perms = remember(permVersion, isAdbConnected) { readPermissionItems(context) }
     val mainHandler = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
+
+    DisposableEffect(lifecycleOwner) {
+        val stateReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: android.content.Intent?) {
+                permVersion++
+                onRefreshPermissions()
+            }
+        }
+        val filter = android.content.IntentFilter(com.aaronhrndz.ultraremapper.CompanionSyncService.ACTION_STATE_UPDATED)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(stateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            context.registerReceiver(stateReceiver, filter)
+        }
+        onDispose {
+            try { context.unregisterReceiver(stateReceiver) } catch (_: Exception) {}
+        }
+    }
 
     var handledTarget by rememberSaveable { mutableStateOf<String?>(null) }
     val flashAnim = remember { Animatable(0f) }

@@ -30,8 +30,8 @@ data class ReleaseUpdate(
 object UpdateChecker {
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
-    private const val LATEST_RELEASE_API = "https://api.github.com/repos/Aaronhrndz/ultra-remapper/releases/latest"
-    private const val ALL_RELEASES_API = "https://api.github.com/repos/Aaronhrndz/ultra-remapper/releases?per_page=1"
+    private val REPOS = listOf("Aaronhrndz/ultra-remapper", "Aaronhrnndz/ultra-remapper")
+    
     private const val PREFS_NAME = "update_checker"
     private const val KEY_LAST_CHECK = "last_check_time"
     private const val KEY_NOTIFIED_VER = "last_notified_version"
@@ -104,9 +104,10 @@ object UpdateChecker {
         }
 
         executor.execute {
+            val isBeta = isBetaChannel(context)
+            for (repo in REPOS) {
             try {
-                val isBeta = isBetaChannel(context)
-                val apiUrl = if (isBeta) ALL_RELEASES_API else LATEST_RELEASE_API
+                val apiUrl = if (isBeta) "https://api.github.com/repos/$repo/releases?per_page=1" else "https://api.github.com/repos/$repo/releases/latest"
                 val conn = (URL(apiUrl).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     setRequestProperty("Accept", "application/vnd.github+json")
@@ -152,6 +153,7 @@ object UpdateChecker {
                     }
                 }
             } catch (ignored: Exception) {
+            }
             }
             mainHandler.post { onResult(null) }
         }

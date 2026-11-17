@@ -1,9 +1,13 @@
 package com.aaronhrndz.ultraremapper.companion
 
+import android.content.Context
 import android.os.Bundle
 import android.widget.Toast
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -15,6 +19,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +31,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,29 +39,35 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -67,14 +79,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -82,22 +98,57 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 private val UltraOrange = Color(0xFFFF5500)
-private val DarkBg = Color(0xFF0E1014)
-private val CardBg = Color(0xFF181B22)
-private val SlateButton = Color(0xFF242934)
-private val CardBorder = Color(0xFF282E3A)
 private val GreenOk = Color(0xFF4CAF50)
 private val RedAlert = Color(0xFFF44336)
-private val RedBannerBg = Color(0xFF8E1B1B)
-private val TextMuted = Color(0xFF9EA7B8)
+
+data class AppPalette(
+    val isDark: Boolean,
+    val bg: Color,
+    val cardBg: Color,
+    val rowBg: Color,
+    val border: Color,
+    val textPrimary: Color,
+    val textSecondary: Color,
+    val navBarBg: Color,
+    val redBannerBg: Color,
+    val mdnsBannerBg: Color
+)
+
+private val DarkPalette = AppPalette(
+    isDark = true,
+    bg = Color(0xFF0E1014),
+    cardBg = Color(0xFF181B22),
+    rowBg = Color(0xFF232833),
+    border = Color(0xFF2B313E),
+    textPrimary = Color(0xFFF4F6FA),
+    textSecondary = Color(0xFF9EA7B8),
+    navBarBg = Color(0xFF14171E),
+    redBannerBg = Color(0xFF8E1B1B),
+    mdnsBannerBg = Color(0xFF132A1C)
+)
+
+private val LightPalette = AppPalette(
+    isDark = false,
+    bg = Color(0xFFF4F6F9),
+    cardBg = Color(0xFFFFFFFF),
+    rowBg = Color(0xFFEEF1F6),
+    border = Color(0xFFDCE1EB),
+    textPrimary = Color(0xFF12151C),
+    textSecondary = Color(0xFF5D6677),
+    navBarBg = Color(0xFFFFFFFF),
+    redBannerBg = Color(0xFFD32F2F),
+    mdnsBannerBg = Color(0xFFE8F5E9)
+)
+
+val LocalPalette = compositionLocalOf { DarkPalette }
 
 private const val SAMSUNG_PAY_PKG = "com.samsung.android.samsungpay.gear"
 private const val WATCH_APP_PKG = "com.aaronhrndz.ultraremapper"
 
 enum class WatchPermission(
     val key: String,
-    val title: String,
-    val description: String,
+    val titleRes: Int,
+    val descRes: Int,
     val grantCmd: String,
     val revokeCmd: String,
     val checkCmd: String,
@@ -105,8 +156,8 @@ enum class WatchPermission(
 ) {
     OVERLAY(
         key = "OVERLAY",
-        title = "Overlay",
-        description = "Superposición en segundo plano y linterna",
+        titleRes = R.string.perm_overlay_title,
+        descRes = R.string.perm_overlay_desc,
         grantCmd = "appops set com.aaronhrndz.ultraremapper SYSTEM_ALERT_WINDOW allow",
         revokeCmd = "appops set com.aaronhrndz.ultraremapper SYSTEM_ALERT_WINDOW ignore",
         checkCmd = "appops get com.aaronhrndz.ultraremapper SYSTEM_ALERT_WINDOW",
@@ -114,8 +165,8 @@ enum class WatchPermission(
     ),
     WRITE_SECURE(
         key = "WRITE_SECURE",
-        title = "Secure Settings",
-        description = "Ajustes del sistema, LTE, No Molestar y rutas",
+        titleRes = R.string.perm_secure_title,
+        descRes = R.string.perm_secure_desc,
         grantCmd = "pm grant com.aaronhrndz.ultraremapper android.permission.WRITE_SECURE_SETTINGS",
         revokeCmd = "pm revoke com.aaronhrndz.ultraremapper android.permission.WRITE_SECURE_SETTINGS",
         checkCmd = "dumpsys package com.aaronhrndz.ultraremapper | grep WRITE_SECURE_SETTINGS",
@@ -123,8 +174,8 @@ enum class WatchPermission(
     ),
     ACTION_ROUTING(
         key = "ACTION_ROUTING",
-        title = "Botón de Acción",
-        description = "Ruta de pulsación física del botón central",
+        titleRes = R.string.perm_action_title,
+        descRes = R.string.perm_action_desc,
         grantCmd = "settings put global setting_action_button_press com.aaronhrndz.ultraremapper/com.aaronhrndz.ultraremapper.ActionButtonService",
         revokeCmd = "settings put global setting_action_button_press com.samsung.android.wear.shealth/com.samsung.android.wear.shealth.service.ActionButtonService",
         checkCmd = "settings get global setting_action_button_press",
@@ -132,8 +183,8 @@ enum class WatchPermission(
     ),
     MEDIA_BRIDGE(
         key = "MEDIA_BRIDGE",
-        title = "Notificaciones",
-        description = "Control multimedia y detección de ejercicio",
+        titleRes = R.string.perm_media_title,
+        descRes = R.string.perm_media_desc,
         grantCmd = "cmd notification allow_listener com.aaronhrndz.ultraremapper/com.aaronhrndz.ultraremapper.MediaControlService",
         revokeCmd = "cmd notification disallow_listener com.aaronhrndz.ultraremapper/com.aaronhrndz.ultraremapper.MediaControlService",
         checkCmd = "settings get secure enabled_notification_listeners",
@@ -141,8 +192,8 @@ enum class WatchPermission(
     ),
     BATTERY_WHITELIST(
         key = "BATTERY_WHITELIST",
-        title = "Sin restricción batería",
-        description = "Evita cierre en reposo (Doze)",
+        titleRes = R.string.perm_battery_title,
+        descRes = R.string.perm_battery_desc,
         grantCmd = "cmd deviceidle whitelist +com.aaronhrndz.ultraremapper",
         revokeCmd = "cmd deviceidle whitelist -com.aaronhrndz.ultraremapper",
         checkCmd = "cmd deviceidle whitelist",
@@ -150,18 +201,55 @@ enum class WatchPermission(
     )
 }
 
+enum class CompanionTab {
+    BUTTONS,
+    SETTINGS
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        val prefs = getSharedPreferences("companion_prefs", Context.MODE_PRIVATE)
         setContent {
-            MaterialTheme(
-                colorScheme = darkColorScheme(
-                    background = DarkBg,
-                    surface = CardBg,
-                    primary = UltraOrange
+            var themeMode by remember {
+                mutableIntStateOf(prefs.getInt("theme_mode", 1)) // 0 = Light, 1 = Auto, 2 = Dark
+            }
+            val systemDark = isSystemInDarkTheme()
+            val isDark = when (themeMode) {
+                0 -> false
+                2 -> true
+                else -> systemDark
+            }
+            val palette = if (isDark) DarkPalette else LightPalette
+            val colorScheme = if (isDark) {
+                darkColorScheme(
+                    background = palette.bg,
+                    surface = palette.cardBg,
+                    primary = UltraOrange,
+                    onBackground = palette.textPrimary,
+                    onSurface = palette.textPrimary
                 )
-            ) {
-                CompanionHomeScreen()
+            } else {
+                lightColorScheme(
+                    background = palette.bg,
+                    surface = palette.cardBg,
+                    primary = UltraOrange,
+                    onBackground = palette.textPrimary,
+                    onSurface = palette.textPrimary
+                )
+            }
+
+            CompositionLocalProvider(LocalPalette provides palette) {
+                MaterialTheme(colorScheme = colorScheme) {
+                    CompanionAppRoot(
+                        themeMode = themeMode,
+                        onThemeModeChange = { nextMode ->
+                            themeMode = nextMode
+                            prefs.edit().putInt("theme_mode", nextMode).apply()
+                        }
+                    )
+                }
             }
         }
     }
@@ -169,12 +257,22 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CompanionHomeScreen() {
+fun CompanionAppRoot(
+    themeMode: Int = 1,
+    onThemeModeChange: (Int) -> Unit = {}
+) {
     val context = LocalContext.current
+    val palette = LocalPalette.current
     val scope = rememberCoroutineScope()
-    val listState = rememberLazyListState()
+    val buttonsListState = rememberLazyListState()
+    val settingsListState = rememberLazyListState()
+
     val adbHelper = remember { AdbHelper.getInstance(context) }
     val adbClient = remember { AdbClient(context) }
+
+    // Navigation state
+    var activeTab by remember { mutableStateOf(CompanionTab.BUTTONS) }
+    var showDevOptionsScreen by remember { mutableStateOf(false) }
 
     // Bluetooth / DataLayer Sync State
     var isBtSynced by remember { mutableStateOf(false) }
@@ -194,34 +292,40 @@ fun CompanionHomeScreen() {
     // ADB Connection State
     var isAdbConnected by remember { mutableStateOf(adbHelper.isConnected) }
     var isAdbPaired by remember { mutableStateOf(adbHelper.isPaired()) }
-    var watchIp by remember { mutableStateOf(adbHelper.getLastHost()) }
+    var adbWizardStep by remember { mutableIntStateOf(if (adbHelper.isPaired()) 3 else 1) }
+    var lastAppliedPin by remember { mutableStateOf("") }
+    var watchIp by remember {
+        mutableStateOf(
+            adbHelper.getLastHost().takeIf { !it.startsWith("192.168.167.") } ?: ""
+        )
+    }
     var pairPort by remember { mutableStateOf("") }
     var watchPort by remember { mutableStateOf(adbHelper.getLastPort()?.toString() ?: "") }
     var pairingCode by remember { mutableStateOf("") }
     var mdnsPairDetected by remember { mutableStateOf(false) }
     var mdnsConnectDetected by remember { mutableStateOf(false) }
+    var isMdnsScanning by remember { mutableStateOf(false) }
 
     var isAdbConnecting by remember { mutableStateOf(false) }
     var isPairing by remember { mutableStateOf(false) }
     var adbStatusMsg by remember { mutableStateOf<String?>(null) }
     var isAdbStatusOk by remember { mutableStateOf(false) }
 
-    // Collapsible Sections (Watch-style)
+    // Collapsible Sections (ALL collapsed by default)
     var isTopExpanded by remember { mutableStateOf(false) }
     var isActionExpanded by remember { mutableStateOf(false) }
     var isBottomExpanded by remember { mutableStateOf(false) }
     var isGesturesExpanded by remember { mutableStateOf(false) }
-    var isAdbExpanded by remember { mutableStateOf(!isAdbPaired && !isBtSynced) }
+    var isAdbExpanded by remember { mutableStateOf(false) }
     var isPermsExpanded by remember { mutableStateOf(false) }
 
     // Loading spinners per item
     var activeLoadingItem by remember { mutableStateOf<String?>(null) }
     var samsungPayError by remember { mutableStateOf<String?>(null) }
 
-    // OTA Updates (Mobile Companion + Watch APK)
+    // OTA Updates
     var isBetaEnabled by remember { mutableStateOf(UpdateChecker.isBetaChannel(context)) }
     var versionTapCount by remember { mutableIntStateOf(0) }
-    var devOptionsUnlocked by remember { mutableStateOf(isBetaEnabled) }
     var companionUpdate by remember { mutableStateOf<ReleaseUpdate?>(null) }
     var latestWatchRelease by remember { mutableStateOf<ReleaseUpdate?>(null) }
     var companionUpdateProgress by remember { mutableFloatStateOf(0f) }
@@ -238,41 +342,91 @@ fun CompanionHomeScreen() {
 
     val currentVersion = remember {
         try {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.2.3"
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.3.6"
         } catch (_: Exception) {
-            "2.2.3"
+            "2.3.6"
         }
     }
 
     // Apply incoming Bluetooth / DataLayer state
     val dataLayerBridge = remember {
-        WatchDataLayerBridge(context) { state, nodeName ->
-            isBtSynced = true
-            if (!nodeName.isNullOrBlank()) btWatchName = nodeName
-            if (state.versionName.isNotBlank()) installedWatchVersion = state.versionName
-            isMasterEnabled = state.masterEnabled
-            isHapticEnabled = state.hapticEnabled
-            for ((k, v) in state.mappings) {
-                gestureMappings[k] = v
+        WatchDataLayerBridge(
+            context = context,
+            onNodeConnected = { nodeName ->
+                isBtSynced = true
+                if (nodeName.isNotBlank()) btWatchName = nodeName
+            },
+            onStateReceived = { state, nodeName ->
+                isBtSynced = true
+                if (!nodeName.isNullOrBlank()) btWatchName = nodeName
+                if (state.versionName.isNotBlank()) installedWatchVersion = state.versionName
+                isMasterEnabled = state.masterEnabled
+                isHapticEnabled = state.hapticEnabled
+                for ((k, v) in state.mappings) {
+                    gestureMappings[k] = v
+                }
+                for (perm in WatchPermission.values()) {
+                    state.permissions[perm.key]?.let { permissionStates[perm] = it }
+                }
+                state.permissions["ACCESSIBILITY"]?.let { a11yEnabled = it }
+                state.permissions["IS_ASSISTANT"]?.let { isAssistantConfigured = it }
+                state.permissions["IS_TOCTOC"]?.let { isTocTocConfigured = it }
+                state.permissions["HA_INSTALLED"]?.let { haInstalledOnWatch = it }
+                state.permissions["SAMSUNG_PAY_ENABLED"]?.let { isSamsungPayEnabled = it }
+                if (state.installedApps.isNotEmpty()) {
+                    watchInstalledApps = state.installedApps
+                }
+                if (!state.capturedHostIp.isNullOrBlank() && !state.capturedHostIp.startsWith("192.168.167.")) {
+                    watchIp = state.capturedHostIp
+                }
+                if (state.capturedPairingPort != null && state.capturedPairingPort > 0) {
+                    pairPort = state.capturedPairingPort.toString()
+                    mdnsPairDetected = true
+                    if (isMdnsScanning && adbWizardStep == 2) {
+                        isMdnsScanning = false
+                    }
+                }
+                if (state.capturedConnectPort != null && state.capturedConnectPort > 0 && !isAdbConnected && !isAdbConnecting) {
+                    if (watchPort.isBlank() || watchPort != state.capturedConnectPort.toString()) {
+                        watchPort = state.capturedConnectPort.toString()
+                        mdnsConnectDetected = true
+                    }
+                    if (isMdnsScanning && adbWizardStep == 3) {
+                        isMdnsScanning = false
+                    }
+                }
+                if (!state.capturedPin.isNullOrBlank() && state.capturedPin != lastAppliedPin) {
+                    lastAppliedPin = state.capturedPin
+                    pairingCode = state.capturedPin
+                    if (!isAdbPaired || adbWizardStep == 2) {
+                        adbWizardStep = 2
+                    }
+                }
             }
-            for (perm in WatchPermission.values()) {
-                state.permissions[perm.key]?.let { permissionStates[perm] = it }
-            }
-            state.permissions["ACCESSIBILITY"]?.let { a11yEnabled = it }
-            state.permissions["IS_ASSISTANT"]?.let { isAssistantConfigured = it }
-            state.permissions["IS_TOCTOC"]?.let { isTocTocConfigured = it }
-            state.permissions["HA_INSTALLED"]?.let { haInstalledOnWatch = it }
-            state.permissions["SAMSUNG_PAY_ENABLED"]?.let { isSamsungPayEnabled = it }
-            if (state.installedApps.isNotEmpty()) {
-                watchInstalledApps = state.installedApps
-            }
-        }
+        )
     }
 
     DisposableEffect(Unit) {
         dataLayerBridge.start()
         onDispose {
             dataLayerBridge.stop()
+        }
+    }
+
+    // Periodic Bluetooth sync heartbeat so connection state stays fresh
+    LaunchedEffect(Unit) {
+        try {
+            val pm = context.getSystemService(android.os.PowerManager::class.java)
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(context.packageName)) {
+                val intent = android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = android.net.Uri.parse("package:${context.packageName}")
+                }
+                context.startActivity(intent)
+            }
+        } catch (_: Exception) {}
+        while (true) {
+            dataLayerBridge.requestSyncFromWatch()
+            delay(5000L)
         }
     }
 
@@ -285,42 +439,62 @@ fun CompanionHomeScreen() {
     }
 
     /**
-     * Reads complete state from Watch over ADB (used when ADB connects or when Watch app is older/not installed).
-     * Runs in a single batched shell call to be fast and avoid socket contention.
+     * Reads complete state from Watch over ADB.
      */
-    suspend fun fetchFullWatchStateViaAdb(host: String, port: Int): Boolean {
-        val ok = adbHelper.ensureConnected(host, port)
+    suspend fun fetchFullWatchStateViaAdb(host: String, port: Int, forceReconnect: Boolean = false): Boolean {
+        val ok = adbHelper.ensureConnected(host, port, forceReconnect)
         isAdbConnected = ok
-        if (!ok) return false
+        isAdbPaired = adbHelper.isPaired()
+        if (!ok) {
+            return false
+        }
         isAdbPaired = true
+        adbWizardStep = 3
 
-        // 1. Check installed version
-        val verOut = adbHelper.executeCommand(host, port, "dumpsys package $WATCH_APP_PKG | grep versionName")
+        // Single consolidated shell query (10x faster, avoids timeout & multi-stream race)
+        val combinedCmd = buildString {
+            append("echo '===VER==='; dumpsys package $WATCH_APP_PKG | grep versionName; ")
+            append("echo '===OVL==='; appops get $WATCH_APP_PKG SYSTEM_ALERT_WINDOW; ")
+            append("echo '===SEC==='; dumpsys package $WATCH_APP_PKG | grep WRITE_SECURE_SETTINGS; ")
+            append("echo '===ACT==='; settings get global setting_action_button_press; ")
+            append("echo '===MED==='; settings get secure enabled_notification_listeners; ")
+            append("echo '===BAT==='; cmd deviceidle whitelist | grep $WATCH_APP_PKG; ")
+            append("echo '===A11Y==='; settings get secure enabled_accessibility_services; ")
+            append("echo '===AST==='; settings get secure voice_interaction_service; settings get secure assistant; ")
+            append("echo '===TOC==='; settings get global setting_gesture_launch_app; ")
+            append("echo '===SPAY==='; pm list packages -d $SAMSUNG_PAY_PKG; dumpsys package $SAMSUNG_PAY_PKG | grep -E 'enabled=[234]|enabledSetting=[234]'; ")
+            append("am broadcast -a com.aaronhrndz.ultraremapper.ACTION_STATE_UPDATED -p $WATCH_APP_PKG >/dev/null 2>&1")
+        }
+
+        val fullOut = adbHelper.executeCommand(host, port, combinedCmd, timeoutMs = 8000L)
+        if (fullOut.startsWith("ERROR:")) {
+            isAdbConnected = false
+            return false
+        }
+
+        fun section(tag: String): String {
+            val start = fullOut.indexOf("===$tag===")
+            if (start == -1) return ""
+            val contentStart = start + tag.length + 6
+            val next = fullOut.indexOf("===", contentStart)
+            return if (next == -1) fullOut.substring(contentStart).trim() else fullOut.substring(contentStart, next).trim()
+        }
+
+        val verOut = section("VER")
         val verMatch = Regex("versionName=([^\\s]+)").find(verOut)
         installedWatchVersion = verMatch?.groupValues?.getOrNull(1)
 
-        // 2. Check all 5 permissions
-        for (perm in WatchPermission.values()) {
-            val out = adbHelper.executeCommand(host, port, perm.checkCmd)
-            permissionStates[perm] = out.contains(perm.expectedGrantedOutput)
-        }
+        permissionStates[WatchPermission.OVERLAY] = section("OVL").contains(WatchPermission.OVERLAY.expectedGrantedOutput)
+        permissionStates[WatchPermission.WRITE_SECURE] = section("SEC").contains(WatchPermission.WRITE_SECURE.expectedGrantedOutput)
+        permissionStates[WatchPermission.ACTION_ROUTING] = section("ACT").contains(WatchPermission.ACTION_ROUTING.expectedGrantedOutput)
+        permissionStates[WatchPermission.MEDIA_BRIDGE] = section("MED").contains(WatchPermission.MEDIA_BRIDGE.expectedGrantedOutput)
+        permissionStates[WatchPermission.BATTERY_WHITELIST] = section("BAT").contains(WatchPermission.BATTERY_WHITELIST.expectedGrantedOutput)
 
-        // 3. Check Accessibility, Assistant, TocToc
-        val a11yOut = adbHelper.executeCommand(host, port, "settings get secure enabled_accessibility_services")
-        a11yEnabled = a11yOut.contains(WATCH_APP_PKG)
+        a11yEnabled = section("A11Y").contains(WATCH_APP_PKG)
+        isAssistantConfigured = section("AST").contains(WATCH_APP_PKG)
+        isTocTocConfigured = section("TOC").contains(WATCH_APP_PKG)
 
-        val assistOut = adbHelper.executeCommand(host, port, "settings get secure voice_interaction_service; settings get secure assistant")
-        isAssistantConfigured = assistOut.contains(WATCH_APP_PKG)
-
-        val toctocOut = adbHelper.executeCommand(host, port, "settings get global setting_gesture_launch_app")
-        isTocTocConfigured = toctocOut.contains(WATCH_APP_PKG)
-
-        // 4. Reliable Samsung Pay enabled/frozen check
-        val spayDump = adbHelper.executeCommand(
-            host,
-            port,
-            "pm list packages -d $SAMSUNG_PAY_PKG; dumpsys package $SAMSUNG_PAY_PKG | grep -E 'enabled=[234]|enabledSetting=[234]'"
-        )
+        val spayDump = section("SPAY")
         val isSpayDisabled = spayDump.contains("package:$SAMSUNG_PAY_PKG") ||
             spayDump.contains("enabled=2") ||
             spayDump.contains("enabled=3") ||
@@ -350,24 +524,54 @@ fun CompanionHomeScreen() {
             }
         }
 
-        // Also ask watch to push DataLayer state over Bluetooth
         dataLayerBridge.requestSyncFromWatch()
         return true
     }
 
-    // Start mDNS discovery ONLY when ADB collapsible is expanded AND not yet connected
-    DisposableEffect(isAdbExpanded, isAdbConnected) {
-        if (isAdbExpanded && !isAdbConnected) {
-            adbClient.startDiscovery { endpoint ->
-                if (watchIp.isBlank() || watchIp != endpoint.host) {
-                    watchIp = endpoint.host
-                }
+    // Verify cached ADB connection ONLY when user explicitly connects or expands with a valid connection
+    LaunchedEffect(activeTab, isAdbExpanded) {
+        if (activeTab == CompanionTab.SETTINGS && isAdbExpanded) {
+            adbWizardStep = if (isAdbPaired || isAdbConnected) 3 else 1
+            dataLayerBridge.requestSyncFromWatch()
+        } else {
+            isMdnsScanning = false
+        }
+    }
+
+    // Automatically trigger NsdPickerActivity / mDNS discovery ONLY when PIN is captured without pairing port
+    // or when entering Step 3 (Connect) without a known ADB port
+    LaunchedEffect(isAdbExpanded, adbWizardStep, pairingCode, pairPort, watchPort) {
+        if (!isAdbExpanded || activeTab != CompanionTab.SETTINGS) return@LaunchedEffect
+        if (adbWizardStep == 2 && pairPort.isEmpty() && !isMdnsScanning) {
+            // Give Bluetooth Accessibility sync 350ms to deliver capturedPairingPort before opening NsdPicker
+            delay(350L)
+            if (adbWizardStep == 2 && pairPort.isEmpty() && !isMdnsScanning) {
+                isMdnsScanning = true
+            }
+        } else if (adbWizardStep == 3 && !isAdbConnected && watchPort.isEmpty() && !isMdnsScanning) {
+            delay(350L)
+            if (adbWizardStep == 3 && !isAdbConnected && watchPort.isEmpty() && !isMdnsScanning) {
+                isMdnsScanning = true
+            }
+        }
+    }
+
+    DisposableEffect(isMdnsScanning, adbWizardStep) {
+        if (isMdnsScanning) {
+            val wantPairing = (adbWizardStep == 2)
+            adbClient.startDiscovery(wantPairing = wantPairing) { endpoint ->
+                watchIp = endpoint.host
                 if (endpoint.isPairing) {
                     pairPort = endpoint.port.toString()
                     mdnsPairDetected = true
+                    if (!isAdbPaired) adbWizardStep = 2
+                    dataLayerBridge.requestSyncFromWatch()
                 } else {
                     watchPort = endpoint.port.toString()
                     mdnsConnectDetected = true
+                }
+                if ((adbWizardStep == 2 && pairPort.isNotEmpty()) || (adbWizardStep == 3 && watchPort.isNotEmpty())) {
+                    isMdnsScanning = false
                 }
             }
         }
@@ -376,22 +580,29 @@ fun CompanionHomeScreen() {
         }
     }
 
-    // Auto-connect & auto-fetch when mDNS detects watch connect port and we are already paired
-    LaunchedEffect(mdnsConnectDetected, isAdbPaired) {
+    // Auto-connect when watch connect port is detected in Step 3
+    LaunchedEffect(mdnsConnectDetected, watchPort, isAdbPaired, adbWizardStep) {
         val port = watchPort.toIntOrNull()
-        if (isAdbPaired && !isAdbConnected && !isAdbConnecting && watchIp.isNotBlank() && port != null) {
+        if (isAdbPaired && adbWizardStep == 3 && mdnsConnectDetected && !isAdbConnected && !isAdbConnecting && watchIp.isNotBlank() && port != null) {
+            mdnsConnectDetected = false
             isAdbConnecting = true
-            val ok = fetchFullWatchStateViaAdb(watchIp, port)
-            isAdbConnecting = false
-            if (ok) {
-                adbStatusMsg = "Conectado ($watchIp:$port)"
-                isAdbStatusOk = true
-                isAdbExpanded = false // Auto-collapse ADB card once connected!
+            try {
+                withTimeoutOrNull(14000L) {
+                    fetchFullWatchStateViaAdb(watchIp, port, forceReconnect = true)
+                }?.let { ok ->
+                    if (ok) {
+                        adbStatusMsg = context.getString(R.string.adb_status_connected, watchIp, port.toString())
+                        isAdbStatusOk = true
+                        isAdbExpanded = false
+                    }
+                }
+            } finally {
+                isAdbConnecting = false
             }
         }
     }
 
-    // Helper to update a button/gesture mapping (via Bluetooth DataLayer + ADB fallback)
+    // Helper to update a button/gesture mapping
     fun updateWatchMapping(gesture: String, action: String) {
         gestureMappings[gesture] = action
         val cmd = JSONObject().apply {
@@ -420,7 +631,7 @@ fun CompanionHomeScreen() {
         dataLayerBridge.sendCommandToWatch(cmd)
     }
 
-    // Diagnostic calculation (exact match with Watch Home screen)
+    // Diagnostic calculation
     val allConfiguredActions = WatchActionCatalog.allGestures.map { gestureMappings[it.first] ?: "none" }.toSet()
     val bottomConfigured = WatchActionCatalog.bottomGestures.any { (gestureMappings[it.first] ?: "none") != "none" }
     val needsA11y = bottomConfigured || allConfiguredActions.contains("flashlight")
@@ -441,1026 +652,1336 @@ fun CompanionHomeScreen() {
 
     val watchConnectedAny = isBtSynced || isAdbConnected
 
+    // Developer Options Dedicated Subscreen (7 taps on version in Settings)
+    if (showDevOptionsScreen) {
+        BackHandler { showDevOptionsScreen = false }
+        DevOptionsFullScreen(
+            isBetaEnabled = isBetaEnabled,
+            onToggleBeta = { next ->
+                isBetaEnabled = next
+                UpdateChecker.setBetaChannel(context, next)
+            },
+            onBack = { showDevOptionsScreen = false }
+        )
+        return
+    }
+
     Scaffold(
-        containerColor = DarkBg
-    ) { innerPadding ->
-        LazyColumn(
-            state = listState,
-            contentPadding = PaddingValues(top = 12.dp, bottom = 36.dp, start = 16.dp, end = 16.dp),
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // 1. HEADER + CONNECTION PILL
-            item(key = "header") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Ultra Remapper",
-                                fontSize = 21.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(UltraOrange.copy(alpha = 0.18f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "COMPANION",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = UltraOrange
-                                )
-                            }
+        containerColor = palette.bg,
+        topBar = {
+            // Compact Status Bar (NO title "Ultra Remapper Companion")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(palette.bg)
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                StatusPill(
+                    label = if (isBtSynced) {
+                        if (!btWatchName.isNullOrBlank()) {
+                            stringResource(R.string.status_bt_connected, btWatchName!!)
+                        } else {
+                            stringResource(R.string.status_bt_synced)
                         }
+                    } else {
+                        stringResource(R.string.status_bt_waiting)
+                    },
+                    active = isBtSynced,
+                    activeColor = GreenOk,
+                    onClick = { dataLayerBridge.requestSyncFromWatch() }
+                )
 
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Bluetooth Sync Pill
-                            StatusPill(
-                                label = if (isBtSynced) {
-                                    "BT: ${btWatchName ?: "Sincronizado"}"
-                                } else {
-                                    "BT: Esperando reloj"
-                                },
-                                active = isBtSynced,
-                                activeColor = GreenOk
-                            )
-                            // ADB Sync Pill
-                            StatusPill(
-                                label = if (isAdbConnected) {
-                                    "ADB: Conectado"
-                                } else if (isAdbPaired) {
-                                    "ADB: Vinculado"
-                                } else {
-                                    "ADB: No vinculado"
-                                },
-                                active = isAdbConnected,
-                                activeColor = UltraOrange
-                            )
-                        }
+                StatusPill(
+                    label = when {
+                        isAdbConnected -> stringResource(R.string.status_adb_connected)
+                        isAdbPaired -> stringResource(R.string.status_adb_paired)
+                        else -> stringResource(R.string.status_adb_unpaired)
+                    },
+                    active = isAdbConnected,
+                    activeColor = GreenOk,
+                    onClick = {
+                        activeTab = CompanionTab.SETTINGS
+                        isAdbExpanded = true
                     }
-
-                    // Version Tag (7 taps -> Dev options)
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(CardBg)
-                            .clickable {
-                                versionTapCount++
-                                if (versionTapCount >= 7) {
-                                    devOptionsUnlocked = !devOptionsUnlocked
-                                    versionTapCount = 0
-                                    Toast.makeText(
-                                        context,
-                                        if (devOptionsUnlocked) "Opciones de desarrollador activadas" else "Opciones de desarrollador ocultas",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
-                            .padding(horizontal = 8.dp, vertical = 5.dp)
-                    ) {
-                        Text(
-                            text = "v$currentVersion",
-                            fontSize = 11.sp,
-                            color = if (isBetaEnabled || devOptionsUnlocked) UltraOrange else TextMuted,
-                            fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = palette.navBarBg,
+                tonalElevation = 0.dp,
+                modifier = Modifier.border(
+                    width = 1.dp,
+                    color = palette.border,
+                    shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                )
+            ) {
+                NavigationBarItem(
+                    selected = activeTab == CompanionTab.BUTTONS,
+                    onClick = { activeTab = CompanionTab.BUTTONS },
+                    icon = {
+                        ButtonsTabIcon(
+                            color = if (activeTab == CompanionTab.BUTTONS) UltraOrange else palette.textSecondary
                         )
-                    }
-                }
+                    },
+                    label = {
+                        Text(
+                            text = stringResource(R.string.nav_buttons),
+                            fontWeight = if (activeTab == CompanionTab.BUTTONS) FontWeight.Bold else FontWeight.Medium
+                        )
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = UltraOrange,
+                        selectedTextColor = UltraOrange,
+                        indicatorColor = UltraOrange.copy(alpha = 0.15f),
+                        unselectedIconColor = palette.textSecondary,
+                        unselectedTextColor = palette.textSecondary
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = activeTab == CompanionTab.SETTINGS,
+                    onClick = { activeTab = CompanionTab.SETTINGS },
+                    icon = {
+                        SettingsTabIcon(
+                            color = if (activeTab == CompanionTab.SETTINGS) UltraOrange else palette.textSecondary
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = stringResource(R.string.nav_settings),
+                            fontWeight = if (activeTab == CompanionTab.SETTINGS) FontWeight.Bold else FontWeight.Medium
+                        )
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = UltraOrange,
+                        selectedTextColor = UltraOrange,
+                        indicatorColor = UltraOrange.copy(alpha = 0.15f),
+                        unselectedIconColor = palette.textSecondary,
+                        unselectedTextColor = palette.textSecondary
+                    )
+                )
             }
-
-            // 2. COMPANION APP SELF-UPDATE BANNER (if available)
-            companionUpdate?.let { upd ->
-                item(key = "companion_update_banner") {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.5.dp, UltraOrange, RoundedCornerShape(16.dp)),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF261812))
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+        }
+    ) { innerPadding ->
+        if (activeTab == CompanionTab.BUTTONS) {
+            LazyColumn(
+                state = buttonsListState,
+                contentPadding = PaddingValues(top = 8.dp, bottom = 28.dp, start = 16.dp, end = 16.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 1. COMPANION APP SELF-UPDATE BANNER (if available)
+                companionUpdate?.let { upd ->
+                    item(key = "companion_update_banner") {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(1.5.dp, UltraOrange, RoundedCornerShape(18.dp)),
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = palette.cardBg)
                         ) {
-                            Text(
-                                text = "Actualización de App Móvil disponible: v${upd.versionName}",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = UltraOrange
-                            )
-                            if (companionUpdateStatus.isNotEmpty()) {
-                                LinearProgressIndicator(
-                                    progress = { companionUpdateProgress },
-                                    modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)),
-                                    color = UltraOrange,
-                                    trackColor = CardBorder
-                                )
-                                Text(companionUpdateStatus, fontSize = 12.sp, color = Color.White)
-                            } else {
-                                Button(
-                                    onClick = {
-                                        UpdateChecker.downloadAndInstallCompanion(context, upd) { frac, status ->
-                                            companionUpdateProgress = frac
-                                            companionUpdateStatus = status
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = UltraOrange),
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("Actualizar App Móvil", fontWeight = FontWeight.Bold, color = Color.White)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 3. WATCH APP INSTALL / UPDATE BANNER (Clean, no local APK button)
-            val watchRel = latestWatchRelease
-            val watchNeedsInstall = (isAdbConnected && installedWatchVersion == null)
-            val watchHasUpdate = (installedWatchVersion != null && watchRel != null &&
-                UpdateChecker.isNewerVersion(watchRel.versionName, installedWatchVersion!!))
-
-            if (watchNeedsInstall || watchHasUpdate || isInstallingWatchApk || watchApkStatusMsg.isNotEmpty()) {
-                item(key = "watch_apk_banner") {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, UltraOrange.copy(alpha = 0.6f), RoundedCornerShape(16.dp)),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = CardBg)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Text(
-                                    text = if (installedWatchVersion == null) {
-                                        "Instalar Ultra Remapper en el Reloj"
-                                    } else {
-                                        "Actualización para el Reloj: v${watchRel?.versionName ?: ""}"
-                                    },
+                                    text = stringResource(R.string.companion_update_title, upd.versionName),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
                                     color = UltraOrange
                                 )
-                                Text(
-                                    text = if (installedWatchVersion != null) "Instalada: v$installedWatchVersion" else "No instalada",
-                                    fontSize = 11.sp,
-                                    color = TextMuted
-                                )
+                                if (companionUpdateStatus.isNotEmpty()) {
+                                    LinearProgressIndicator(
+                                        progress = { companionUpdateProgress },
+                                        modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)),
+                                        color = UltraOrange,
+                                        trackColor = palette.border
+                                    )
+                                    Text(companionUpdateStatus, fontSize = 12.sp, color = palette.textPrimary)
+                                } else {
+                                    Button(
+                                        onClick = {
+                                            UpdateChecker.downloadAndInstallCompanion(context, upd) { frac, status ->
+                                                companionUpdateProgress = frac
+                                                companionUpdateStatus = status
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = UltraOrange),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            stringResource(R.string.companion_update_btn),
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
                             }
+                        }
+                    }
+                }
 
-                            if (watchRel?.watchApkUrl != null && !isInstallingWatchApk) {
-                                Button(
-                                    onClick = {
-                                        val port = watchPort.toIntOrNull()
-                                        if (!isAdbConnected || watchIp.isBlank() || port == null) {
-                                            isAdbExpanded = true
-                                            Toast.makeText(context, "Conecta primero por ADB al reloj", Toast.LENGTH_SHORT).show()
-                                            return@Button
-                                        }
-                                        isInstallingWatchApk = true
-                                        watchApkProgress = 0.02f
-                                        watchApkStatusMsg = "Descargando v${watchRel.versionName}…"
-                                        watchApkSuccess = false
+                // 2. DIAGNOSTIC BANNERS
+                if (watchConnectedAny) {
+                    val missingRoute = permissionStates[WatchPermission.ACTION_ROUTING] == false
+                    val missingOverlay = permissionStates[WatchPermission.OVERLAY] == false && needsOverlay
+                    val missingMedia = permissionStates[WatchPermission.MEDIA_BRIDGE] == false && needsMediaBridge
+                    val missingSecure = permissionStates[WatchPermission.WRITE_SECURE] == false && needsSecureSettings
+                    val missingA11y = !a11yEnabled && needsA11y
+                    val missingAssistant = !isAssistantConfigured && needsAssistant
+                    val missingTocToc = !isTocTocConfigured && needsTocToc
 
-                                        UpdateChecker.downloadApkToFile(
-                                            context = context,
-                                            apkUrl = watchRel.watchApkUrl,
-                                            targetFileName = "ultra-remapper-watch-v${watchRel.versionName}.apk",
-                                            onProgress = { frac, status ->
-                                                watchApkProgress = frac * 0.45f
-                                                watchApkStatusMsg = status
-                                            }
-                                        ) { file ->
-                                            if (file == null) {
-                                                isInstallingWatchApk = false
-                                                watchApkStatusMsg = "Error al descargar el APK de GitHub."
-                                                return@downloadApkToFile
-                                            }
-                                            scope.launch {
-                                                val (ok, msg) = adbHelper.installApkOnWatch(watchIp, port, file) { frac, status ->
-                                                    scope.launch {
-                                                        watchApkProgress = 0.45f + (frac * 0.55f)
-                                                        watchApkStatusMsg = status
-                                                    }
-                                                }
-                                                watchApkSuccess = ok
-                                                watchApkStatusMsg = msg
-                                                isInstallingWatchApk = false
-                                                if (ok) fetchFullWatchStateViaAdb(watchIp, port)
-                                            }
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = UltraOrange),
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.fillMaxWidth()
+                    if (missingRoute || missingOverlay || missingMedia || missingSecure || missingA11y || missingAssistant || missingTocToc || needsSamsungPayFreeze) {
+                        item(key = "diag_banners") {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = stringResource(R.string.diag_header_status),
+                                    color = RedAlert,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(horizontal = 4.dp)
+                                )
+
+                                if (missingRoute) {
+                                    DiagBanner(
+                                        title = stringResource(R.string.diag_route_title),
+                                        subtitle = stringResource(R.string.diag_route_sub),
+                                        badge = stringResource(R.string.badge_adb)
+                                    ) {
+                                        activeTab = CompanionTab.SETTINGS
+                                        isPermsExpanded = true
+                                    }
+                                }
+                                if (missingOverlay) {
+                                    DiagBanner(
+                                        title = stringResource(R.string.diag_overlay_title),
+                                        subtitle = stringResource(R.string.diag_overlay_sub),
+                                        badge = stringResource(R.string.badge_adb)
+                                    ) {
+                                        activeTab = CompanionTab.SETTINGS
+                                        isPermsExpanded = true
+                                    }
+                                }
+                                if (missingSecure) {
+                                    DiagBanner(
+                                        title = stringResource(R.string.diag_secure_title),
+                                        subtitle = stringResource(R.string.diag_secure_sub),
+                                        badge = stringResource(R.string.badge_adb)
+                                    ) {
+                                        activeTab = CompanionTab.SETTINGS
+                                        isPermsExpanded = true
+                                    }
+                                }
+                                if (missingMedia) {
+                                    DiagBanner(
+                                        title = stringResource(R.string.diag_media_title),
+                                        subtitle = stringResource(R.string.diag_media_sub),
+                                        badge = stringResource(R.string.badge_adb)
+                                    ) {
+                                        activeTab = CompanionTab.SETTINGS
+                                        isPermsExpanded = true
+                                    }
+                                }
+                                if (missingA11y) {
+                                    DiagBanner(
+                                        title = stringResource(R.string.diag_a11y_title),
+                                        subtitle = stringResource(R.string.diag_a11y_sub),
+                                        badge = stringResource(R.string.badge_watch)
+                                    ) {
+                                        dataLayerBridge.sendCommandToWatch(JSONObject().put("type", "open_a11y"))
+                                        Toast.makeText(context, context.getString(R.string.toast_opening_a11y), Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                                if (missingAssistant) {
+                                    DiagBanner(
+                                        title = stringResource(R.string.diag_assistant_title),
+                                        subtitle = stringResource(R.string.diag_assistant_sub),
+                                        badge = stringResource(R.string.badge_watch)
+                                    ) {
+                                        dataLayerBridge.sendCommandToWatch(JSONObject().put("type", "open_assistant"))
+                                        Toast.makeText(context, context.getString(R.string.toast_select_assistant), Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                                if (missingTocToc) {
+                                    DiagBanner(
+                                        title = stringResource(R.string.diag_toctoc_title),
+                                        subtitle = stringResource(R.string.diag_toctoc_sub),
+                                        badge = stringResource(R.string.badge_watch)
+                                    ) {
+                                        dataLayerBridge.sendCommandToWatch(JSONObject().put("type", "open_toctoc"))
+                                        Toast.makeText(context, context.getString(R.string.toast_select_toctoc), Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                                if (needsSamsungPayFreeze) {
+                                    DiagBanner(
+                                        title = stringResource(R.string.diag_spay_title),
+                                        subtitle = stringResource(R.string.diag_spay_sub),
+                                        badge = stringResource(R.string.badge_adb)
+                                    ) {
+                                        activeTab = CompanionTab.SETTINGS
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. BUTTON & GESTURE CONFIGURATION
+                item(key = "hdr_remap_config") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.hdr_buttons_gestures),
+                            color = palette.textPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        if (!watchConnectedAny) {
+                            Text(
+                                text = stringResource(R.string.sub_connect_to_configure),
+                                color = palette.textSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+
+                // Top Button Collapsible
+                item(key = "card_top_button") {
+                    val count = WatchActionCatalog.topGestures.count { (gestureMappings[it.first] ?: "none") != "none" }
+                    WatchSectionCollapsible(
+                        iconRes = R.drawable.ic_watch_top_button,
+                        title = stringResource(R.string.btn_top_title),
+                        subtitle = if (count > 0) stringResource(R.string.count_configured, count) else stringResource(R.string.status_unassigned),
+                        isHighlighted = count > 0,
+                        isExpanded = isTopExpanded,
+                        onToggle = { isTopExpanded = !isTopExpanded }
+                    ) {
+                        WatchActionCatalog.topGestures.forEach { (gesture, nameRes) ->
+                            val act = gestureMappings[gesture] ?: "none"
+                            GestureMappingRow(
+                                gestureName = stringResource(nameRes),
+                                actionLabel = WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
+                                isConfigured = act != "none",
+                                enabled = watchConnectedAny
+                            ) {
+                                pickingAppSublist = false
+                                pickingGesture = gesture
+                            }
+                        }
+                    }
+                }
+
+                // Center / Action Button Collapsible
+                item(key = "card_action_button") {
+                    val count = WatchActionCatalog.actionGestures.count { (gestureMappings[it.first] ?: "none") != "none" }
+                    WatchSectionCollapsible(
+                        iconRes = R.drawable.ic_watch_quick_button,
+                        title = stringResource(R.string.btn_center_title),
+                        subtitle = if (count > 0) stringResource(R.string.count_configured, count) else stringResource(R.string.status_unassigned),
+                        isHighlighted = count > 0,
+                        isExpanded = isActionExpanded,
+                        onToggle = { isActionExpanded = !isActionExpanded }
+                    ) {
+                        Text(
+                            text = stringResource(R.string.btn_center_note),
+                            color = palette.textSecondary,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                        WatchActionCatalog.actionGestures.forEach { (gesture, nameRes) ->
+                            val act = gestureMappings[gesture] ?: "none"
+                            GestureMappingRow(
+                                gestureName = stringResource(nameRes),
+                                actionLabel = WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
+                                isConfigured = act != "none",
+                                enabled = watchConnectedAny
+                            ) {
+                                pickingAppSublist = false
+                                pickingGesture = gesture
+                            }
+                        }
+                    }
+                }
+
+                // Bottom Button Collapsible
+                item(key = "card_bottom_button") {
+                    val count = WatchActionCatalog.bottomGestures.count { (gestureMappings[it.first] ?: "none") != "none" }
+                    WatchSectionCollapsible(
+                        iconRes = R.drawable.ic_watch_bottom_button,
+                        title = stringResource(R.string.btn_bottom_title),
+                        subtitle = if (count > 0) stringResource(R.string.count_configured, count) else stringResource(R.string.status_unassigned),
+                        isHighlighted = count > 0,
+                        isExpanded = isBottomExpanded,
+                        onToggle = { isBottomExpanded = !isBottomExpanded }
+                    ) {
+                        WatchActionCatalog.bottomGestures.forEach { (gesture, nameRes) ->
+                            val act = gestureMappings[gesture] ?: "none"
+                            GestureMappingRow(
+                                gestureName = stringResource(nameRes),
+                                actionLabel = WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
+                                isConfigured = act != "none",
+                                enabled = watchConnectedAny
+                            ) {
+                                pickingAppSublist = false
+                                pickingGesture = gesture
+                            }
+                        }
+                    }
+                }
+
+                // Gestures (Toc toc) Collapsible
+                item(key = "card_gestures") {
+                    val count = WatchActionCatalog.gestureList.count { (gestureMappings[it.first] ?: "none") != "none" }
+                    WatchSectionCollapsible(
+                        iconRes = R.drawable.ic_wrist_gesture,
+                        title = stringResource(R.string.btn_gestures_title),
+                        subtitle = if (count > 0) stringResource(R.string.status_toctoc_active) else stringResource(R.string.status_unassigned),
+                        isHighlighted = count > 0,
+                        isExpanded = isGesturesExpanded,
+                        onToggle = { isGesturesExpanded = !isGesturesExpanded }
+                    ) {
+                        WatchActionCatalog.gestureList.forEach { (gesture, nameRes) ->
+                            val act = gestureMappings[gesture] ?: "none"
+                            GestureMappingRow(
+                                gestureName = stringResource(nameRes),
+                                actionLabel = WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
+                                isConfigured = act != "none",
+                                enabled = watchConnectedAny
+                            ) {
+                                pickingAppSublist = false
+                                pickingGesture = gesture
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // SETTINGS TAB
+            LazyColumn(
+                state = settingsListState,
+                contentPadding = PaddingValues(top = 8.dp, bottom = 28.dp, start = 16.dp, end = 16.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 1. WATCH APP INSTALL / UPDATE BANNER
+                val watchRel = latestWatchRelease
+                val watchNeedsInstall = (isAdbConnected && installedWatchVersion == null)
+                val watchHasUpdate = (installedWatchVersion != null && watchRel != null &&
+                    UpdateChecker.isNewerVersion(watchRel.versionName, installedWatchVersion!!))
+
+                if (watchNeedsInstall || watchHasUpdate || isInstallingWatchApk || watchApkStatusMsg.isNotEmpty()) {
+                    item(key = "watch_apk_banner") {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(1.dp, UltraOrange.copy(alpha = 0.6f), RoundedCornerShape(18.dp)),
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = palette.cardBg)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
                                         text = if (installedWatchVersion == null) {
-                                            "Descargar e Instalar v${watchRel.versionName} en el Reloj"
+                                            stringResource(R.string.watch_install_title)
                                         } else {
-                                            "Actualizar Reloj a v${watchRel.versionName}"
+                                            stringResource(R.string.watch_update_title, watchRel?.versionName ?: "")
                                         },
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        fontSize = 14.sp,
+                                        color = UltraOrange
                                     )
-                                }
-                            }
-
-                            if (isInstallingWatchApk || watchApkStatusMsg.isNotEmpty()) {
-                                if (isInstallingWatchApk) {
-                                    LinearProgressIndicator(
-                                        progress = { watchApkProgress },
-                                        modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)),
-                                        color = UltraOrange,
-                                        trackColor = CardBorder
-                                    )
-                                }
-                                Text(
-                                    text = watchApkStatusMsg,
-                                    fontSize = 12.sp,
-                                    color = if (watchApkSuccess) GreenOk else if (isInstallingWatchApk) Color.White else RedAlert,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 4. MISSING PERMISSIONS / DIAGNOSTIC BANNERS (Same as Watch Home)
-            if (watchConnectedAny) {
-                val missingRoute = permissionStates[WatchPermission.ACTION_ROUTING] == false
-                val missingOverlay = permissionStates[WatchPermission.OVERLAY] == false && needsOverlay
-                val missingMedia = permissionStates[WatchPermission.MEDIA_BRIDGE] == false && needsMediaBridge
-                val missingSecure = permissionStates[WatchPermission.WRITE_SECURE] == false && needsSecureSettings
-                val missingA11y = !a11yEnabled && needsA11y
-                val missingAssistant = !isAssistantConfigured && needsAssistant
-                val missingTocToc = !isTocTocConfigured && needsTocToc
-
-                if (missingRoute || missingOverlay || missingMedia || missingSecure || missingA11y || missingAssistant || missingTocToc || needsSamsungPayFreeze) {
-                    item(key = "diag_banners") {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(
-                                text = "Acciones necesarias",
-                                color = RedAlert,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            )
-
-                            if (missingRoute) {
-                                DiagBanner(
-                                    title = "Enrutado de botón inactivo",
-                                    subtitle = "Toca para activar Ruta del Botón de Acción",
-                                    badge = "ADB"
-                                ) {
-                                    isPermsExpanded = true
-                                }
-                            }
-                            if (missingOverlay) {
-                                DiagBanner(
-                                    title = "Falta permiso de superposición",
-                                    subtitle = "Necesario para abrir apps y linterna RGBW",
-                                    badge = "ADB"
-                                ) {
-                                    isPermsExpanded = true
-                                }
-                            }
-                            if (missingSecure) {
-                                DiagBanner(
-                                    title = "Falta Secure Settings",
-                                    subtitle = "Necesario para LTE, Toc toc y doble toque superior",
-                                    badge = "ADB"
-                                ) {
-                                    isPermsExpanded = true
-                                }
-                            }
-                            if (missingMedia) {
-                                DiagBanner(
-                                    title = "Control multimedia inactivo",
-                                    subtitle = "Activar acceso a notificaciones en Permisos",
-                                    badge = "ADB"
-                                ) {
-                                    isPermsExpanded = true
-                                }
-                            }
-                            if (missingA11y) {
-                                DiagBanner(
-                                    title = "Activar Accesibilidad en el reloj",
-                                    subtitle = "Toca para abrir Ajustes de Accesibilidad en el reloj",
-                                    badge = "RELOJ"
-                                ) {
-                                    dataLayerBridge.sendCommandToWatch(JSONObject().put("type", "open_a11y"))
-                                    Toast.makeText(context, "Abriendo Accesibilidad en el reloj…", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                            if (missingAssistant) {
-                                DiagBanner(
-                                    title = "Elegir como Asistente Digital",
-                                    subtitle = "Toca para abrir selector de Asistente en el reloj",
-                                    badge = "RELOJ"
-                                ) {
-                                    dataLayerBridge.sendCommandToWatch(JSONObject().put("type", "open_assistant"))
-                                    Toast.makeText(context, "Selecciona Ultra Remapper en el reloj", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                            if (missingTocToc) {
-                                DiagBanner(
-                                    title = "Configurar gesto Toc toc",
-                                    subtitle = "Toca para abrir ajustes de Botones y Gestos en el reloj",
-                                    badge = "RELOJ"
-                                ) {
-                                    dataLayerBridge.sendCommandToWatch(JSONObject().put("type", "open_toctoc"))
-                                    Toast.makeText(context, "Elige Ultra Remapper en Toc toc del reloj", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                            if (needsSamsungPayFreeze) {
-                                DiagBanner(
-                                    title = "Conflicto con Samsung Pay",
-                                    subtitle = "Congela Samsung Pay abajo para que el botón inferior no falle",
-                                    badge = "ADB"
-                                ) {
-                                    scope.launch { listState.animateScrollToItem(8) }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 5. BUTTON & GESTURE CONFIGURATION (Mirrors Watch UI Collapsibles)
-            item(key = "hdr_remap_config") {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Botones y Gestos del Reloj",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
-                    if (!watchConnectedAny) {
-                        Text(
-                            text = "Conecta el reloj para configurar",
-                            color = TextMuted,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-            }
-
-            // Top Button Collapsible
-            item(key = "card_top_button") {
-                WatchSectionCollapsible(
-                    iconRes = R.drawable.ic_watch_top_button,
-                    title = "Botón Superior",
-                    subtitle = WatchActionCatalog.topGestures.count { (gestureMappings[it.first] ?: "none") != "none" }
-                        .let { if (it > 0) "$it configurados" else "Sin asignar" },
-                    isExpanded = isTopExpanded,
-                    onToggle = { isTopExpanded = !isTopExpanded }
-                ) {
-                    WatchActionCatalog.topGestures.forEach { (gesture, name) ->
-                        val act = gestureMappings[gesture] ?: "none"
-                        GestureMappingRow(
-                            gestureName = name,
-                            actionLabel = WatchActionCatalog.getActionLabel(act, watchInstalledApps),
-                            isConfigured = act != "none",
-                            enabled = watchConnectedAny
-                        ) {
-                            pickingAppSublist = false
-                            pickingGesture = gesture
-                        }
-                    }
-                }
-            }
-
-            // Center / Action Button Collapsible
-            item(key = "card_action_button") {
-                WatchSectionCollapsible(
-                    iconRes = R.drawable.ic_watch_quick_button,
-                    title = "Botón Central (Acción)",
-                    subtitle = WatchActionCatalog.actionGestures.count { (gestureMappings[it.first] ?: "none") != "none" }
-                        .let { if (it > 0) "$it configurados" else "Sin asignar" },
-                    isExpanded = isActionExpanded,
-                    onToggle = { isActionExpanded = !isActionExpanded }
-                ) {
-                    Text(
-                        text = "Con Samsung Health en pantalla la app se pausa para permitir los controles nativos.",
-                        color = TextMuted,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                    )
-                    WatchActionCatalog.actionGestures.forEach { (gesture, name) ->
-                        val act = gestureMappings[gesture] ?: "none"
-                        GestureMappingRow(
-                            gestureName = name,
-                            actionLabel = WatchActionCatalog.getActionLabel(act, watchInstalledApps),
-                            isConfigured = act != "none",
-                            enabled = watchConnectedAny
-                        ) {
-                            pickingAppSublist = false
-                            pickingGesture = gesture
-                        }
-                    }
-                }
-            }
-
-            // Bottom Button Collapsible
-            item(key = "card_bottom_button") {
-                WatchSectionCollapsible(
-                    iconRes = R.drawable.ic_watch_bottom_button,
-                    title = "Botón Inferior",
-                    subtitle = WatchActionCatalog.bottomGestures.count { (gestureMappings[it.first] ?: "none") != "none" }
-                        .let { if (it > 0) "$it configurados" else "Sin asignar" },
-                    isExpanded = isBottomExpanded,
-                    onToggle = { isBottomExpanded = !isBottomExpanded }
-                ) {
-                    WatchActionCatalog.bottomGestures.forEach { (gesture, name) ->
-                        val act = gestureMappings[gesture] ?: "none"
-                        GestureMappingRow(
-                            gestureName = name,
-                            actionLabel = WatchActionCatalog.getActionLabel(act, watchInstalledApps),
-                            isConfigured = act != "none",
-                            enabled = watchConnectedAny
-                        ) {
-                            pickingAppSublist = false
-                            pickingGesture = gesture
-                        }
-                    }
-                }
-            }
-
-            // Gestures (Toc toc) Collapsible
-            item(key = "card_gestures") {
-                WatchSectionCollapsible(
-                    iconRes = R.drawable.ic_wrist_gesture,
-                    title = "Gestos",
-                    subtitle = WatchActionCatalog.gestureList.count { (gestureMappings[it.first] ?: "none") != "none" }
-                        .let { if (it > 0) "Toc toc activo" else "Sin asignar" },
-                    isExpanded = isGesturesExpanded,
-                    onToggle = { isGesturesExpanded = !isGesturesExpanded }
-                ) {
-                    WatchActionCatalog.gestureList.forEach { (gesture, name) ->
-                        val act = gestureMappings[gesture] ?: "none"
-                        GestureMappingRow(
-                            gestureName = name,
-                            actionLabel = WatchActionCatalog.getActionLabel(act, watchInstalledApps),
-                            isConfigured = act != "none",
-                            enabled = watchConnectedAny
-                        ) {
-                            pickingAppSublist = false
-                            pickingGesture = gesture
-                        }
-                    }
-                }
-            }
-
-            // 6. SETTINGS & ADB SECTION HEADER (Mirrors Watch SettingsScreen)
-            item(key = "hdr_settings_section") {
-                Text(
-                    text = "Ajustes y Sistema del Reloj",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-
-            // Master Remapper & Haptic Switches
-            item(key = "master_haptic_card") {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(CardBg)
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    WatchToggleRow(
-                        title = "Remapear botones",
-                        subtitle = if (isMasterEnabled) "Activo en el reloj" else "Pausado",
-                        checked = isMasterEnabled,
-                        enabled = watchConnectedAny,
-                        onToggle = { updateMasterSwitch(!isMasterEnabled) }
-                    )
-                    WatchToggleRow(
-                        title = "Vibración háptica",
-                        subtitle = "Respuesta táctil al pulsar botones",
-                        checked = isHapticEnabled,
-                        enabled = watchConnectedAny,
-                        onToggle = { updateHapticSwitch(!isHapticEnabled) }
-                    )
-                }
-            }
-
-            // 7. COLLAPSIBLE ADB CONNECTION CARD (Auto-closes when connected!)
-            item(key = "adb_collapsible") {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(CardBg)
-                        .padding(horizontal = 14.dp, vertical = 12.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { isAdbExpanded = !isAdbExpanded }
-                            .padding(vertical = 4.dp)
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Ajustes ADB Inalámbrico",
-                                color = Color.White,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            val statusText = when {
-                                isAdbConnecting -> "ADB: Conectando al reloj…"
-                                isAdbConnected -> "ADB: Conectado ($watchIp:$watchPort)"
-                                isAdbPaired -> "ADB: Vinculado (Toca para conectar)"
-                                else -> "ADB: No emparejado (Necesario para conceder permisos)"
-                            }
-                            Text(
-                                text = statusText,
-                                color = when {
-                                    isAdbConnecting -> Color(0xFFFFB74D)
-                                    isAdbConnected -> GreenOk
-                                    isAdbPaired -> Color(0xFF64B5F6)
-                                    else -> TextMuted
-                                },
-                                fontSize = 12.sp
-                            )
-                        }
-                        CollapseChevron(isExpanded = isAdbExpanded)
-                    }
-
-                    AnimatedVisibility(visible = isAdbExpanded) {
-                        Column(
-                            modifier = Modifier.padding(top = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Text(
-                                text = "1. Conecta reloj y móvil al mismo Wi-Fi.\n2. En el reloj abre Opciones de desarrollador › Depuración inalámbrica.",
-                                color = TextMuted,
-                                fontSize = 12.sp,
-                                lineHeight = 17.sp
-                            )
-
-                            if (mdnsPairDetected || mdnsConnectDetected) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(Color(0xFF132A1C))
-                                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                                ) {
                                     Text(
-                                        text = if (mdnsPairDetected) {
-                                            "✓ Reloj detectado en modo vinculación ($watchIp:$pairPort)"
+                                        text = if (installedWatchVersion != null) {
+                                            stringResource(R.string.watch_ver_installed, installedWatchVersion!!)
                                         } else {
-                                            "✓ Reloj detectado en red ($watchIp:$watchPort)"
+                                            stringResource(R.string.watch_ver_not_installed)
                                         },
+                                        fontSize = 11.sp,
+                                        color = palette.textSecondary
+                                    )
+                                }
+
+                                if (watchRel?.watchApkUrl != null && !isInstallingWatchApk && (watchNeedsInstall || watchHasUpdate)) {
+                                    Button(
+                                        onClick = {
+                                            val port = watchPort.toIntOrNull()
+                                            if (!isAdbConnected || watchIp.isBlank() || port == null) {
+                                                isAdbExpanded = true
+                                                Toast.makeText(context, context.getString(R.string.toast_connect_adb_first), Toast.LENGTH_SHORT).show()
+                                                return@Button
+                                            }
+                                            isInstallingWatchApk = true
+                                            watchApkProgress = 0.02f
+                                            watchApkStatusMsg = context.getString(R.string.msg_downloading_ver, watchRel.versionName)
+                                            watchApkSuccess = false
+
+                                            UpdateChecker.downloadApkToFile(
+                                                context = context,
+                                                apkUrl = watchRel.watchApkUrl,
+                                                targetFileName = "ultra-remapper-watch-v${watchRel.versionName}.apk",
+                                                onProgress = { frac, status ->
+                                                    watchApkProgress = frac * 0.45f
+                                                    watchApkStatusMsg = status
+                                                }
+                                            ) { file ->
+                                                if (file == null) {
+                                                    isInstallingWatchApk = false
+                                                    watchApkStatusMsg = context.getString(R.string.msg_download_error)
+                                                    return@downloadApkToFile
+                                                }
+                                                scope.launch {
+                                                    val (ok, msg) = adbHelper.installApkOnWatch(watchIp, port, file) { frac, status ->
+                                                        scope.launch {
+                                                            watchApkProgress = 0.45f + (frac * 0.55f)
+                                                            watchApkStatusMsg = status
+                                                        }
+                                                    }
+                                                    watchApkSuccess = ok
+                                                    watchApkStatusMsg = msg
+                                                    isInstallingWatchApk = false
+                                                    if (ok) {
+                                                        fetchFullWatchStateViaAdb(watchIp, port)
+                                                        delay(3000)
+                                                        watchApkStatusMsg = ""
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = UltraOrange),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = if (installedWatchVersion == null) {
+                                                stringResource(R.string.btn_install_watch, watchRel.versionName)
+                                            } else {
+                                                stringResource(R.string.btn_update_watch, watchRel.versionName)
+                                            },
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+
+                                if (isInstallingWatchApk || watchApkStatusMsg.isNotEmpty()) {
+                                    if (isInstallingWatchApk) {
+                                        LinearProgressIndicator(
+                                            progress = { watchApkProgress },
+                                            modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)),
+                                            color = UltraOrange,
+                                            trackColor = palette.border
+                                        )
+                                    }
+                                    Text(
+                                        text = watchApkStatusMsg,
                                         fontSize = 12.sp,
-                                        color = GreenOk,
+                                        color = if (watchApkSuccess) GreenOk else if (isInstallingWatchApk) palette.textPrimary else RedAlert,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                 }
                             }
-
-                            // IP & Connection Port
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                OutlinedTextField(
-                                    value = watchIp,
-                                    onValueChange = { watchIp = it },
-                                    label = { Text("IP del Reloj", fontSize = 11.sp) },
-                                    placeholder = { Text("192.168.1.X") },
-                                    singleLine = true,
-                                    modifier = Modifier.weight(1.6f),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = UltraOrange,
-                                        unfocusedBorderColor = CardBorder,
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White
-                                    )
-                                )
-                                OutlinedTextField(
-                                    value = watchPort,
-                                    onValueChange = { watchPort = it.filter { c -> c.isDigit() } },
-                                    label = { Text("Puerto ADB", fontSize = 11.sp) },
-                                    placeholder = { Text("42071") },
-                                    singleLine = true,
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    modifier = Modifier.weight(1f),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = UltraOrange,
-                                        unfocusedBorderColor = CardBorder,
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White
-                                    )
-                                )
-                            }
-
-                            // Optional 6-digit Pairing row (shown if not paired yet or user wants to pair)
-                            if (!isAdbPaired || mdnsPairDetected) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    OutlinedTextField(
-                                        value = pairingCode,
-                                        onValueChange = { pairingCode = it.filter { c -> c.isDigit() }.take(6) },
-                                        label = { Text("PIN 6 dígitos", fontSize = 11.sp) },
-                                        placeholder = { Text("000000") },
-                                        singleLine = true,
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                                        modifier = Modifier.weight(1.2f),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = UltraOrange,
-                                            unfocusedBorderColor = CardBorder,
-                                            focusedTextColor = Color.White,
-                                            unfocusedTextColor = Color.White
-                                        )
-                                    )
-                                    OutlinedTextField(
-                                        value = pairPort,
-                                        onValueChange = { pairPort = it.filter { c -> c.isDigit() } },
-                                        label = { Text("Puerto PIN", fontSize = 11.sp) },
-                                        placeholder = { Text("38123") },
-                                        singleLine = true,
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        modifier = Modifier.weight(1f),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = UltraOrange,
-                                            unfocusedBorderColor = CardBorder,
-                                            focusedTextColor = Color.White,
-                                            unfocusedTextColor = Color.White
-                                        )
-                                    )
-                                }
-
-                                Button(
-                                    enabled = !isPairing && pairingCode.length == 6,
-                                    onClick = {
-                                        val pPort = pairPort.toIntOrNull()
-                                        if (watchIp.isBlank() || pPort == null) {
-                                            Toast.makeText(context, "Indica IP y Puerto de vinculación", Toast.LENGTH_SHORT).show()
-                                            return@Button
-                                        }
-                                        scope.launch {
-                                            isPairing = true
-                                            adbStatusMsg = "Vinculando con el reloj…"
-                                            val (ok, msg) = adbHelper.pairDevice(watchIp, pPort, pairingCode)
-                                            isPairing = false
-                                            adbStatusMsg = msg
-                                            isAdbStatusOk = ok
-                                            if (ok) {
-                                                isAdbPaired = true
-                                                pairingCode = ""
-                                                // Auto-connect right after pairing if connect port is known
-                                                val cPort = watchPort.toIntOrNull()
-                                                if (cPort != null) {
-                                                    isAdbConnecting = true
-                                                    val connOk = fetchFullWatchStateViaAdb(watchIp, cPort)
-                                                    isAdbConnecting = false
-                                                    if (connOk) {
-                                                        isAdbExpanded = false
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = UltraOrange),
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    if (isPairing) {
-                                        SwitchLoadingSpinner()
-                                    } else {
-                                        Text("Vincular Reloj con PIN", fontWeight = FontWeight.Bold, color = Color.White)
-                                    }
-                                }
-                            }
-
-                            // Connect / Refresh & Unpair buttons
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Button(
-                                    enabled = !isAdbConnecting,
-                                    onClick = {
-                                        val port = watchPort.toIntOrNull()
-                                        if (watchIp.isBlank() || port == null) {
-                                            Toast.makeText(context, "Introduce IP y Puerto ADB del reloj", Toast.LENGTH_SHORT).show()
-                                            return@Button
-                                        }
-                                        scope.launch {
-                                            isAdbConnecting = true
-                                            adbStatusMsg = "Conectando y leyendo estado del reloj…"
-                                            val ok = fetchFullWatchStateViaAdb(watchIp, port)
-                                            isAdbConnecting = false
-                                            if (ok) {
-                                                adbStatusMsg = "Conectado ($watchIp:$port)"
-                                                isAdbStatusOk = true
-                                                delay(350)
-                                                isAdbExpanded = false // Close ADB collapsible automatically!
-                                            } else {
-                                                adbStatusMsg = "No se pudo conectar a $watchIp:$port. Verifica que Depuración Inalámbrica esté activa."
-                                                isAdbStatusOk = false
-                                            }
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = if (isAdbConnected) SlateButton else UltraOrange),
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.weight(1.4f)
-                                ) {
-                                    if (isAdbConnecting) {
-                                        SwitchLoadingSpinner()
-                                    } else {
-                                        Text(
-                                            text = if (isAdbConnected) "Refrescar ADB" else "Conectar ADB",
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White,
-                                            fontSize = 13.sp
-                                        )
-                                    }
-                                }
-
-                                if (isAdbPaired) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            adbHelper.unpair()
-                                            isAdbPaired = false
-                                            isAdbConnected = false
-                                            adbStatusMsg = "Vinculación ADB borrada."
-                                            isAdbStatusOk = false
-                                        },
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = RedAlert),
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Text("Borrar ADB", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                    }
-                                }
-                            }
-
-                            adbStatusMsg?.let { msg ->
-                                Text(
-                                    text = msg,
-                                    fontSize = 12.sp,
-                                    color = if (isAdbStatusOk) GreenOk else UltraOrange,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
                         }
                     }
                 }
-            }
 
-            // 8. COLLAPSIBLE PERMISSIONS CARD (Mirrors Watch Permissions Menu)
-            item(key = "permissions_collapsible") {
-                val grantedCount = WatchPermission.values().count { permissionStates[it] == true }
-                val totalPerms = WatchPermission.values().size
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(CardBg)
-                        .padding(horizontal = 14.dp, vertical = 12.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { isPermsExpanded = !isPermsExpanded }
-                            .padding(vertical = 4.dp)
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Permisos",
-                                color = Color.White,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = if (permissionStates.isEmpty()) {
-                                    "Conecta el reloj para ver permisos"
-                                } else {
-                                    "$grantedCount de $totalPerms activos"
-                                },
-                                color = if (grantedCount == totalPerms && totalPerms > 0) GreenOk else TextMuted,
-                                fontSize = 12.sp
-                            )
-                        }
-                        CollapseChevron(isExpanded = isPermsExpanded)
-                    }
-
-                    AnimatedVisibility(visible = isPermsExpanded) {
-                        Column(
-                            modifier = Modifier.padding(top = 10.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            WatchPermission.values().forEach { perm ->
-                                val isGranted = permissionStates[perm] == true
-                                val isThisLoading = activeLoadingItem == perm.key
-
-                                WatchToggleRow(
-                                    title = perm.title,
-                                    subtitle = perm.description,
-                                    checked = isGranted,
-                                    isLoading = isThisLoading,
-                                    enabled = true,
-                                    onToggle = {
-                                        val port = watchPort.toIntOrNull()
-                                        if (watchIp.isBlank() || port == null) {
-                                            isAdbExpanded = true
-                                            Toast.makeText(context, "Conecta primero por ADB al reloj", Toast.LENGTH_SHORT).show()
-                                            return@WatchToggleRow
-                                        }
-                                        val targetState = !isGranted
-                                        activeLoadingItem = perm.key
-                                        scope.launch {
-                                            try {
-                                                val cmd = if (targetState) perm.grantCmd else perm.revokeCmd
-                                                val res = adbHelper.executeCommand(watchIp, port, cmd)
-                                                if (res.startsWith("ERROR:")) {
-                                                    isAdbConnected = false
-                                                    isAdbExpanded = true
-                                                    Toast.makeText(context, res, Toast.LENGTH_SHORT).show()
-                                                } else {
-                                                    val checkOut = adbHelper.executeCommand(watchIp, port, perm.checkCmd)
-                                                    permissionStates[perm] = checkOut.contains(perm.expectedGrantedOutput)
-                                                    dataLayerBridge.requestSyncFromWatch()
-                                                }
-                                            } finally {
-                                                activeLoadingItem = null
-                                            }
-                                        }
-                                    }
-                                )
-                            }
-
-                            // Subtle secondary link to grant missing permissions if any are missing
-                            if (grantedCount < totalPerms) {
-                                OutlinedButton(
-                                    enabled = activeLoadingItem == null,
-                                    onClick = {
-                                        val port = watchPort.toIntOrNull()
-                                        if (watchIp.isBlank() || port == null) {
-                                            isAdbExpanded = true
-                                            Toast.makeText(context, "Conecta primero por ADB al reloj", Toast.LENGTH_SHORT).show()
-                                            return@OutlinedButton
-                                        }
-                                        scope.launch {
-                                            activeLoadingItem = "ALL_PERMS"
-                                            try {
-                                                for (perm in WatchPermission.values()) {
-                                                    adbHelper.executeCommand(watchIp, port, perm.grantCmd)
-                                                }
-                                                fetchFullWatchStateViaAdb(watchIp, port)
-                                            } finally {
-                                                activeLoadingItem = null
-                                            }
-                                        }
-                                    },
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = UltraOrange),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    if (activeLoadingItem == "ALL_PERMS") {
-                                        SwitchLoadingSpinner(color = UltraOrange)
-                                    } else {
-                                        Text("Activar permisos faltantes", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 9. SAMSUNG PAY FREEZE ROW (Mirrors Watch SettingsScreen)
-            item(key = "samsung_pay_row") {
-                val isPayLoading = activeLoadingItem == "SAMSUNG_PAY"
-                val payEnabled = isSamsungPayEnabled ?: true
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(CardBg)
-                        .padding(12.dp)
-                ) {
-                    WatchToggleRow(
-                        title = "Samsung Pay",
-                        subtitle = when (isSamsungPayEnabled) {
-                            true -> "Activo (Desactívalo para evitar conflictos con botón inferior)"
-                            false -> "Congelado (El botón inferior funciona al 100%)"
-                            null -> "Conecta el reloj para ver estado"
-                        },
-                        subtitleColor = if (isSamsungPayEnabled == false) UltraOrange else TextMuted,
-                        checked = payEnabled,
-                        isLoading = isPayLoading,
-                        enabled = true,
-                        onToggle = {
-                            val port = watchPort.toIntOrNull()
-                            if (watchIp.isBlank() || port == null) {
-                                isAdbExpanded = true
-                                Toast.makeText(context, "Conecta primero por ADB al reloj", Toast.LENGTH_SHORT).show()
-                                return@WatchToggleRow
-                            }
-                            val targetEnabled = !payEnabled
-                            activeLoadingItem = "SAMSUNG_PAY"
-                            samsungPayError = null
-                            scope.launch {
-                                try {
-                                    val cmd = if (targetEnabled) {
-                                        "pm enable $SAMSUNG_PAY_PKG; pm unhide $SAMSUNG_PAY_PKG; cmd package install-existing $SAMSUNG_PAY_PKG"
-                                    } else {
-                                        "pm disable-user --user 0 $SAMSUNG_PAY_PKG || pm disable-user $SAMSUNG_PAY_PKG || pm disable $SAMSUNG_PAY_PKG || pm hide $SAMSUNG_PAY_PKG"
-                                    }
-                                    val res = adbHelper.executeCommand(watchIp, port, cmd)
-                                    if (res.startsWith("ERROR:")) {
-                                        isAdbConnected = false
-                                        isAdbExpanded = true
-                                        samsungPayError = res
-                                    } else {
-                                        fetchFullWatchStateViaAdb(watchIp, port)
-                                    }
-                                } finally {
-                                    activeLoadingItem = null
-                                }
-                            }
-                        }
+                // 2. GENERAL SETTINGS HEADER
+                item(key = "hdr_settings_section") {
+                    Text(
+                        text = stringResource(R.string.hdr_general_settings),
+                        color = palette.textPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(top = 2.dp)
                     )
-
-                    samsungPayError?.let { err ->
-                        Text(
-                            text = err,
-                            color = RedAlert,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 6.dp, start = 4.dp)
-                        )
-                    }
                 }
-            }
 
-            // 10. DEVELOPER OPTIONS (If unlocked with 7 taps)
-            if (devOptionsUnlocked) {
-                item(key = "dev_options") {
+                // Master Remapper, Haptic & Theme Triple Switch
+                item(key = "master_haptic_card") {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(18.dp))
-                            .background(CardBg)
+                            .background(palette.cardBg)
+                            .border(1.dp, palette.border, RoundedCornerShape(18.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        WatchToggleRow(
+                            title = stringResource(R.string.master_switch_title),
+                            subtitle = if (isMasterEnabled) stringResource(R.string.master_switch_on) else stringResource(R.string.master_switch_off),
+                            checked = isMasterEnabled,
+                            enabled = watchConnectedAny,
+                            onToggle = { updateMasterSwitch(!isMasterEnabled) }
+                        )
+                        WatchToggleRow(
+                            title = stringResource(R.string.haptic_switch_title),
+                            subtitle = stringResource(R.string.haptic_switch_sub),
+                            checked = isHapticEnabled,
+                            enabled = watchConnectedAny,
+                            onToggle = { updateHapticSwitch(!isHapticEnabled) }
+                        )
+                        ThemeTripleSwitchRow(
+                            title = stringResource(R.string.theme_selector_title),
+                            subtitle = stringResource(R.string.theme_selector_sub),
+                            selectedMode = themeMode,
+                            onSelectMode = onThemeModeChange
+                        )
+                    }
+                }
+
+                // 3. COLLAPSIBLE ADB CONNECTION CARD
+                item(key = "adb_collapsible") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(palette.cardBg)
+                            .border(1.dp, palette.border, RoundedCornerShape(18.dp))
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { isAdbExpanded = !isAdbExpanded }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = stringResource(R.string.hdr_adb_wireless),
+                                    color = palette.textPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                val statusText = when {
+                                    isAdbConnecting -> stringResource(R.string.adb_status_connecting)
+                                    isAdbConnected -> stringResource(R.string.adb_status_connected, watchIp, watchPort)
+                                    isAdbPaired -> stringResource(R.string.adb_status_paired_tap)
+                                    else -> stringResource(R.string.adb_status_unpaired)
+                                }
+                                Text(
+                                    text = statusText,
+                                    color = when {
+                                        isAdbConnecting -> Color(0xFFFFB74D)
+                                        isAdbConnected -> GreenOk
+                                        isAdbPaired -> UltraOrange
+                                        else -> palette.textSecondary
+                                    },
+                                    fontSize = 12.sp
+                                )
+                            }
+                            CollapseChevron(isExpanded = isAdbExpanded)
+                        }
+
+                        AnimatedVisibility(visible = isAdbExpanded) {
+                            Column(
+                                modifier = Modifier.padding(top = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // 3-Step Progress Indicator Bar
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    for (s in 1..3) {
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(4.dp)
+                                                .clip(RoundedCornerShape(2.dp))
+                                                .background(
+                                                    when {
+                                                        s < adbWizardStep -> GreenOk
+                                                        s == adbWizardStep -> UltraOrange
+                                                        else -> palette.border
+                                                    }
+                                                )
+                                        )
+                                    }
+                                }
+
+                                // Step Header Badge
+                                Text(
+                                    text = when (adbWizardStep) {
+                                        1 -> stringResource(R.string.adb_wiz_step1_title)
+                                        2 -> stringResource(R.string.adb_wiz_step2_title)
+                                        else -> stringResource(R.string.adb_wiz_step3_title)
+                                    },
+                                    color = UltraOrange,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+
+                                Text(
+                                    text = when (adbWizardStep) {
+                                        1 -> if (installedWatchVersion != null) stringResource(R.string.adb_wiz_step1_instructions_installed) else stringResource(R.string.adb_wiz_step1_instructions)
+                                        2 -> stringResource(R.string.adb_wiz_step2_instructions)
+                                        else -> stringResource(R.string.adb_wiz_step3_instructions)
+                                    },
+                                    color = palette.textSecondary,
+                                    fontSize = 12.sp,
+                                    lineHeight = 17.sp
+                                )
+
+                                when (adbWizardStep) {
+                                    1 -> {
+                                        // STEP 1: ENABLE WIRELESS DEBUGGING ON WATCH
+                                        // Show 1-click button ONLY if watch app is already installed and listening
+                                        if (installedWatchVersion != null) {
+                                            Button(
+                                                enabled = !isPairing && !isAdbConnecting,
+                                                onClick = {
+                                                    dataLayerBridge.sendCommandToWatch(JSONObject().put("type", "open_wireless_adb"))
+                                                    Toast.makeText(
+                                                        context,
+                                                        context.getString(R.string.toast_opening_wireless_adb),
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                },
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = UltraOrange),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(
+                                                    text = stringResource(R.string.adb_open_on_watch_btn),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+
+                                        OutlinedButton(
+                                            enabled = !isPairing && !isAdbConnecting,
+                                            onClick = {
+                                                adbStatusMsg = null
+                                                adbWizardStep = 2
+                                                dataLayerBridge.requestSyncFromWatch()
+                                            },
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = stringResource(R.string.adb_wiz_step1_next),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+
+                                        OutlinedButton(
+                                            enabled = !isPairing && !isAdbConnecting,
+                                            onClick = {
+                                                adbHelper.setPaired(true, watchIp.ifBlank { null }, null)
+                                                isAdbPaired = true
+                                                adbStatusMsg = null
+                                                adbWizardStep = 3
+                                                dataLayerBridge.requestSyncFromWatch()
+                                            },
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = stringResource(R.string.adb_wiz_step1_skip),
+                                                fontSize = 12.sp,
+                                                color = palette.textSecondary
+                                            )
+                                        }
+                                    }
+
+                                    2 -> {
+                                        // STEP 2: PAIR WATCH WITH 6-DIGIT PIN
+                                        if (mdnsPairDetected && watchIp.isNotBlank() && pairPort.isNotBlank()) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .background(palette.mdnsBannerBg)
+                                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                                            ) {
+                                                Text(
+                                                    text = stringResource(R.string.adb_mdns_pair_found, watchIp, pairPort),
+                                                    fontSize = 12.sp,
+                                                    color = GreenOk,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            OutlinedTextField(
+                                                value = watchIp,
+                                                onValueChange = { watchIp = it },
+                                                label = { Text(stringResource(R.string.label_watch_ip), fontSize = 11.sp) },
+                                                placeholder = { Text("192.168.1.X") },
+                                                singleLine = true,
+                                                modifier = Modifier.weight(1.5f),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = UltraOrange,
+                                                    unfocusedBorderColor = palette.border,
+                                                    focusedTextColor = palette.textPrimary,
+                                                    unfocusedTextColor = palette.textPrimary
+                                                )
+                                            )
+                                            OutlinedTextField(
+                                                value = pairPort,
+                                                onValueChange = { pairPort = it.filter { c -> c.isDigit() } },
+                                                label = { Text(stringResource(R.string.label_pairing_port), fontSize = 11.sp) },
+                                                placeholder = { Text("38123") },
+                                                singleLine = true,
+                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                modifier = Modifier.weight(1f),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = UltraOrange,
+                                                    unfocusedBorderColor = palette.border,
+                                                    focusedTextColor = palette.textPrimary,
+                                                    unfocusedTextColor = palette.textPrimary
+                                                )
+                                            )
+                                        }
+
+                                        OutlinedTextField(
+                                            value = pairingCode,
+                                            onValueChange = { pairingCode = it.filter { c -> c.isDigit() }.take(6) },
+                                            label = { Text(stringResource(R.string.label_pairing_pin), fontSize = 11.sp) },
+                                            placeholder = { Text("000000") },
+                                            singleLine = true,
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = UltraOrange,
+                                                unfocusedBorderColor = palette.border,
+                                                focusedTextColor = palette.textPrimary,
+                                                unfocusedTextColor = palette.textPrimary
+                                            )
+                                        )
+
+                                        Button(
+                                            enabled = !isPairing && pairingCode.length == 6,
+                                            onClick = {
+                                                val pPort = pairPort.toIntOrNull()
+                                                if (watchIp.isBlank() || pPort == null) {
+                                                    Toast.makeText(context, context.getString(R.string.toast_enter_ip_pair_port), Toast.LENGTH_SHORT).show()
+                                                    return@Button
+                                                }
+                                                scope.launch {
+                                                    isPairing = true
+                                                    adbStatusMsg = context.getString(R.string.msg_adb_pairing)
+                                                    val (ok, msg) = adbHelper.pairDevice(watchIp, pPort, pairingCode)
+                                                    isPairing = false
+                                                    adbStatusMsg = msg
+                                                    isAdbStatusOk = ok
+                                                    if (ok) {
+                                                        dataLayerBridge.sendCommandToWatch(JSONObject().put("type", "clear_captured_adb"))
+                                                        isAdbPaired = true
+                                                        mdnsPairDetected = false
+                                                        pairingCode = ""
+                                                        pairPort = ""
+                                                        adbWizardStep = 3
+                                                        dataLayerBridge.requestSyncFromWatch()
+                                                        val cPort = watchPort.toIntOrNull()
+                                                        if (cPort != null) {
+                                                            isAdbConnecting = true
+                                                            val connOk = fetchFullWatchStateViaAdb(watchIp, cPort)
+                                                            isAdbConnecting = false
+                                                            if (connOk) {
+                                                                adbStatusMsg = context.getString(R.string.adb_status_connected, watchIp, cPort.toString())
+                                                                isAdbStatusOk = true
+                                                                isAdbExpanded = false
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = UltraOrange),
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            if (isPairing) {
+                                                SwitchLoadingSpinner()
+                                            } else {
+                                                Text(
+                                                    stringResource(R.string.btn_pair_with_pin),
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+
+                                        OutlinedButton(
+                                            enabled = !isPairing,
+                                            onClick = {
+                                                adbStatusMsg = null
+                                                adbWizardStep = 1
+                                            },
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                stringResource(R.string.adb_wiz_step2_back),
+                                                fontSize = 12.sp,
+                                                color = palette.textSecondary
+                                            )
+                                        }
+                                    }
+
+                                    else -> {
+                                        // STEP 3: CONNECT ADB SESSION (Watch IP + ADB Connection Port)
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(palette.mdnsBannerBg)
+                                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                        ) {
+                                            Text(
+                                                text = when {
+                                                    isAdbConnected -> stringResource(R.string.adb_wiz_connected_badge) + " ($watchIp:$watchPort)"
+                                                    mdnsConnectDetected && watchPort.isNotBlank() -> stringResource(R.string.adb_mdns_connect_found, watchIp, watchPort)
+                                                    else -> stringResource(R.string.adb_wiz_paired_badge)
+                                                },
+                                                fontSize = 12.sp,
+                                                color = GreenOk,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+
+                                        if (installedWatchVersion != null) {
+                                            OutlinedButton(
+                                                enabled = !isPairing && !isAdbConnecting,
+                                                onClick = {
+                                                    dataLayerBridge.sendCommandToWatch(JSONObject().put("type", "open_wireless_adb"))
+                                                    Toast.makeText(
+                                                        context,
+                                                        context.getString(R.string.toast_opening_wireless_adb),
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                },
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = UltraOrange),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(
+                                                    text = stringResource(R.string.adb_open_on_watch_btn),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            OutlinedTextField(
+                                                value = watchIp,
+                                                onValueChange = { watchIp = it },
+                                                label = { Text(stringResource(R.string.label_watch_ip), fontSize = 11.sp) },
+                                                placeholder = { Text("192.168.1.X") },
+                                                singleLine = true,
+                                                modifier = Modifier.weight(1.5f),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = UltraOrange,
+                                                    unfocusedBorderColor = palette.border,
+                                                    focusedTextColor = palette.textPrimary,
+                                                    unfocusedTextColor = palette.textPrimary
+                                                )
+                                            )
+                                            OutlinedTextField(
+                                                value = watchPort,
+                                                onValueChange = { watchPort = it.filter { c -> c.isDigit() } },
+                                                label = { Text(stringResource(R.string.label_adb_port), fontSize = 11.sp) },
+                                                placeholder = { Text("45183") },
+                                                singleLine = true,
+                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                modifier = Modifier.weight(1f),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = UltraOrange,
+                                                    unfocusedBorderColor = palette.border,
+                                                    focusedTextColor = palette.textPrimary,
+                                                    unfocusedTextColor = palette.textPrimary
+                                                )
+                                            )
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Button(
+                                                enabled = true,
+                                                onClick = {
+                                                    val port = watchPort.toIntOrNull()
+                                                    if (watchIp.isBlank() || port == null) {
+                                                        Toast.makeText(context, context.getString(R.string.toast_enter_ip_adb_port), Toast.LENGTH_SHORT).show()
+                                                        return@Button
+                                                    }
+                                                    scope.launch {
+                                                        isAdbConnecting = true
+                                                        adbStatusMsg = context.getString(R.string.msg_adb_connecting)
+                                                        val ok = withTimeoutOrNull(14000L) {
+                                                            fetchFullWatchStateViaAdb(watchIp, port, forceReconnect = true)
+                                                        } ?: false
+                                                        isAdbConnecting = false
+                                                        if (ok) {
+                                                            adbStatusMsg = context.getString(R.string.adb_status_connected, watchIp, port.toString())
+                                                            isAdbStatusOk = true
+                                                            delay(300)
+                                                            isAdbExpanded = false
+                                                        } else {
+                                                            // Stay on Step 3 (Connect) and show clear error message!
+                                                            adbWizardStep = 3
+                                                            val detail = adbHelper.lastConnectError?.let { "\n($it)" } ?: ""
+                                                            adbStatusMsg = context.getString(R.string.msg_adb_connect_failed, watchIp, port.toString()) + detail
+                                                            isAdbStatusOk = false
+                                                        }
+                                                    }
+                                                },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (isAdbConnected) palette.rowBg else UltraOrange
+                                                ),
+                                                shape = RoundedCornerShape(12.dp),
+                                                modifier = Modifier.weight(1.4f)
+                                            ) {
+                                                if (isAdbConnecting) {
+                                                    SwitchLoadingSpinner()
+                                                } else {
+                                                    Text(
+                                                        text = if (isAdbConnected) stringResource(R.string.btn_refresh_adb) else stringResource(R.string.btn_connect_adb),
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isAdbConnected) palette.textPrimary else Color.White,
+                                                        fontSize = 13.sp
+                                                    )
+                                                }
+                                            }
+
+                                            OutlinedButton(
+                                                enabled = !isAdbConnecting,
+                                                onClick = {
+                                                    adbHelper.unpair()
+                                                    dataLayerBridge.sendCommandToWatch(JSONObject().put("type", "clear_captured_adb"))
+                                                    isAdbPaired = false
+                                                    isAdbConnected = false
+                                                    lastAppliedPin = ""
+                                                    pairingCode = ""
+                                                    pairPort = ""
+                                                    adbWizardStep = 1
+                                                    adbStatusMsg = context.getString(R.string.msg_adb_unpaired)
+                                                    isAdbStatusOk = false
+                                                },
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = RedAlert),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text(stringResource(R.string.btn_unpair_adb), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                            }
+                                        }
+
+                                        OutlinedButton(
+                                            enabled = !isAdbConnecting,
+                                            onClick = {
+                                                dataLayerBridge.sendCommandToWatch(JSONObject().put("type", "clear_captured_adb"))
+                                                lastAppliedPin = ""
+                                                pairingCode = ""
+                                                pairPort = ""
+                                                adbStatusMsg = null
+                                                adbWizardStep = 2
+                                                dataLayerBridge.requestSyncFromWatch()
+                                            },
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                stringResource(R.string.btn_need_new_pin),
+                                                fontSize = 12.sp,
+                                                color = palette.textSecondary
+                                            )
+                                        }
+                                    }
+                                }
+
+                                adbStatusMsg?.let { msg ->
+                                    Text(
+                                        text = msg,
+                                        fontSize = 12.sp,
+                                        color = if (isAdbStatusOk) GreenOk else RedAlert,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 4. COLLAPSIBLE PERMISSIONS CARD
+                item(key = "permissions_collapsible") {
+                    val grantedCount = WatchPermission.values().count { permissionStates[it] == true }
+                    val totalPerms = WatchPermission.values().size
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(palette.cardBg)
+                            .border(1.dp, palette.border, RoundedCornerShape(18.dp))
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { isPermsExpanded = !isPermsExpanded }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = stringResource(R.string.hdr_permissions),
+                                    color = palette.textPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (permissionStates.isEmpty()) {
+                                        stringResource(R.string.perms_connect_to_view)
+                                    } else {
+                                        stringResource(R.string.perms_active_count, grantedCount, totalPerms)
+                                    },
+                                    color = if (grantedCount == totalPerms && totalPerms > 0) GreenOk else palette.textSecondary,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            CollapseChevron(isExpanded = isPermsExpanded)
+                        }
+
+                        AnimatedVisibility(visible = isPermsExpanded) {
+                            Column(
+                                modifier = Modifier.padding(top = 10.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                WatchPermission.values().forEach { perm ->
+                                    val isPermKnown = permissionStates.containsKey(perm)
+                                    val isGranted = permissionStates[perm] == true
+                                    val isThisLoading = activeLoadingItem == perm.key
+                                    val isAnyBusy = activeLoadingItem != null || isAdbConnecting || isPairing
+
+                                    WatchToggleRow(
+                                        title = stringResource(perm.titleRes),
+                                        subtitle = stringResource(perm.descRes),
+                                        checked = isGranted,
+                                        isUnknownState = !isPermKnown,
+                                        isLoading = isThisLoading,
+                                        enabled = !isAnyBusy,
+                                        onToggle = {
+                                            if (activeLoadingItem != null) return@WatchToggleRow
+                                            val port = watchPort.toIntOrNull()
+                                            if (watchIp.isBlank() || port == null) {
+                                                isAdbExpanded = true
+                                                Toast.makeText(context, context.getString(R.string.toast_connect_adb_first), Toast.LENGTH_SHORT).show()
+                                                return@WatchToggleRow
+                                            }
+                                            val targetState = !isGranted
+                                            activeLoadingItem = perm.key
+                                            scope.launch {
+                                                try {
+                                                    val cmd = if (targetState) perm.grantCmd else perm.revokeCmd
+                                                    val res = adbHelper.executeCommand(
+                                                        watchIp,
+                                                        port,
+                                                        "$cmd; ${perm.checkCmd}; am broadcast -a com.aaronhrndz.ultraremapper.ACTION_STATE_UPDATED -p $WATCH_APP_PKG"
+                                                    )
+                                                    if (res.startsWith("ERROR:")) {
+                                                        isAdbConnected = false
+                                                        isAdbPaired = adbHelper.isPaired()
+                                                        isAdbExpanded = true
+                                                        Toast.makeText(context, res, Toast.LENGTH_SHORT).show()
+                                                    } else {
+                                                        isAdbConnected = true
+                                                        permissionStates[perm] = res.contains(perm.expectedGrantedOutput)
+                                                        dataLayerBridge.requestSyncFromWatch()
+                                                    }
+                                                } finally {
+                                                    activeLoadingItem = null
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+
+                                if (grantedCount < totalPerms) {
+                                    OutlinedButton(
+                                        enabled = activeLoadingItem == null && !isAdbConnecting && !isPairing,
+                                        onClick = {
+                                            if (activeLoadingItem != null) return@OutlinedButton
+                                            val port = watchPort.toIntOrNull()
+                                            if (watchIp.isBlank() || port == null) {
+                                                isAdbExpanded = true
+                                                Toast.makeText(context, context.getString(R.string.toast_connect_adb_first), Toast.LENGTH_SHORT).show()
+                                                return@OutlinedButton
+                                            }
+                                            scope.launch {
+                                                activeLoadingItem = "ALL_PERMS"
+                                                try {
+                                                    val allCmds = WatchPermission.values().joinToString("; ") { it.grantCmd }
+                                                    adbHelper.executeCommand(watchIp, port, allCmds)
+                                                    fetchFullWatchStateViaAdb(watchIp, port)
+                                                } finally {
+                                                    activeLoadingItem = null
+                                                }
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = UltraOrange),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        if (activeLoadingItem == "ALL_PERMS") {
+                                            SwitchLoadingSpinner(color = UltraOrange)
+                                        } else {
+                                            Text(stringResource(R.string.btn_grant_missing_perms), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 5. SAMSUNG PAY FREEZE ROW
+                item(key = "samsung_pay_row") {
+                    val isPayLoading = activeLoadingItem == "SAMSUNG_PAY"
+                    val isPayStateKnown = isSamsungPayEnabled != null
+                    val payEnabled = isSamsungPayEnabled == true
+                    val isAnyBusy = activeLoadingItem != null || isAdbConnecting || isPairing
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(palette.cardBg)
+                            .border(1.dp, palette.border, RoundedCornerShape(18.dp))
                             .padding(12.dp)
                     ) {
                         WatchToggleRow(
-                            title = "Canal Pre-release",
-                            subtitle = "Recibir versiones preliminares desde GitHub",
-                            checked = isBetaEnabled,
-                            enabled = true,
+                            title = stringResource(R.string.hdr_samsung_pay),
+                            subtitle = when (isSamsungPayEnabled) {
+                                true -> stringResource(R.string.spay_status_active)
+                                false -> stringResource(R.string.spay_status_frozen)
+                                null -> stringResource(R.string.spay_status_unknown)
+                            },
+                            subtitleColor = if (isSamsungPayEnabled == false) UltraOrange else palette.textSecondary,
+                            checked = payEnabled,
+                            isUnknownState = !isPayStateKnown,
+                            isLoading = isPayLoading,
+                            enabled = !isAnyBusy,
                             onToggle = {
-                                val next = !isBetaEnabled
-                                isBetaEnabled = next
-                                UpdateChecker.setBetaChannel(context, next)
+                                if (activeLoadingItem != null) return@WatchToggleRow
+                                val port = watchPort.toIntOrNull()
+                                if (watchIp.isBlank() || port == null) {
+                                    isAdbExpanded = true
+                                    Toast.makeText(context, context.getString(R.string.toast_connect_adb_first), Toast.LENGTH_SHORT).show()
+                                    return@WatchToggleRow
+                                }
+                                val targetEnabled = !payEnabled
+                                activeLoadingItem = "SAMSUNG_PAY"
+                                samsungPayError = null
+                                scope.launch {
+                                    try {
+                                        val toggleCmd = if (targetEnabled) {
+                                            "pm enable $SAMSUNG_PAY_PKG; pm unhide $SAMSUNG_PAY_PKG; cmd package install-existing $SAMSUNG_PAY_PKG"
+                                        } else {
+                                            "pm disable-user --user 0 $SAMSUNG_PAY_PKG || pm disable-user $SAMSUNG_PAY_PKG || pm disable $SAMSUNG_PAY_PKG || pm hide $SAMSUNG_PAY_PKG"
+                                        }
+                                        val checkAndNotifyCmd = "$toggleCmd; pm list packages -d $SAMSUNG_PAY_PKG; dumpsys package $SAMSUNG_PAY_PKG | grep -E 'enabled=[234]|enabledSetting=[234]'; am broadcast -a com.aaronhrndz.ultraremapper.ACTION_STATE_UPDATED -p $WATCH_APP_PKG"
+                                        val res = adbHelper.executeCommand(watchIp, port, checkAndNotifyCmd)
+                                        if (res.startsWith("ERROR:")) {
+                                            isAdbConnected = false
+                                            isAdbPaired = adbHelper.isPaired()
+                                            isAdbExpanded = true
+                                            samsungPayError = res
+                                        } else {
+                                            isAdbConnected = true
+                                            val isSpayDisabled = res.contains("package:$SAMSUNG_PAY_PKG") ||
+                                                res.contains("enabled=2") ||
+                                                res.contains("enabled=3") ||
+                                                res.contains("enabled=4") ||
+                                                res.contains("enabledSetting=2") ||
+                                                res.contains("enabledSetting=3") ||
+                                                res.contains("enabledSetting=4")
+                                            isSamsungPayEnabled = !isSpayDisabled
+                                            dataLayerBridge.requestSyncFromWatch()
+                                        }
+                                    } finally {
+                                        activeLoadingItem = null
+                                    }
+                                }
                             }
+                        )
+
+                        samsungPayError?.let { err ->
+                            Text(
+                                text = err,
+                                color = RedAlert,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(top = 6.dp, start = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                // 6. VERSION CODE FOOTER AT BOTTOM OF SETTINGS (7 taps -> DevOptionsFullScreen)
+                item(key = "version_footer") {
+                    val footerText = if (isBetaEnabled) {
+                        stringResource(R.string.version_footer_beta, currentVersion)
+                    } else {
+                        stringResource(R.string.version_footer, currentVersion)
+                    }
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp, bottom = 8.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable {
+                                versionTapCount++
+                                if (versionTapCount >= 7) {
+                                    versionTapCount = 0
+                                    showDevOptionsScreen = true
+                                }
+                            }
+                            .padding(vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = footerText,
+                            fontSize = 12.sp,
+                            color = if (isBetaEnabled) UltraOrange else palette.textSecondary,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
@@ -1468,7 +1989,7 @@ fun CompanionHomeScreen() {
         }
     }
 
-    // MODAL BOTTOM SHEET FOR PICKING BUTTON / GESTURE ACTION (Same categories as Watch)
+    // MODAL BOTTOM SHEET FOR PICKING BUTTON / GESTURE ACTION
     val activeGesture = pickingGesture
     if (activeGesture != null) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -1477,8 +1998,8 @@ fun CompanionHomeScreen() {
         ModalBottomSheet(
             onDismissRequest = { pickingGesture = null },
             sheetState = sheetState,
-            containerColor = CardBg,
-            contentColor = Color.White
+            containerColor = palette.cardBg,
+            contentColor = palette.textPrimary
         ) {
             Column(
                 modifier = Modifier
@@ -1488,9 +2009,9 @@ fun CompanionHomeScreen() {
             ) {
                 Text(
                     text = if (pickingAppSublist) {
-                        "Seleccionar App del Reloj"
+                        stringResource(R.string.picker_select_watch_app)
                     } else {
-                        WatchActionCatalog.getGestureTitle(activeGesture)
+                        WatchActionCatalog.getGestureTitle(context, activeGesture)
                     },
                     color = UltraOrange,
                     fontWeight = FontWeight.Bold,
@@ -1507,17 +2028,17 @@ fun CompanionHomeScreen() {
                             OutlinedButton(
                                 onClick = { pickingAppSublist = false },
                                 shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.textPrimary),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("‹ Volver a acciones")
+                                Text(stringResource(R.string.picker_back_to_actions))
                             }
                         }
                         if (watchInstalledApps.isEmpty()) {
                             item(key = "no_apps_msg") {
                                 Text(
-                                    text = "Abre Ultra Remapper en el reloj para sincronizar la lista de aplicaciones instaladas por Bluetooth.",
-                                    color = TextMuted,
+                                    text = stringResource(R.string.picker_no_apps_synced),
+                                    color = palette.textSecondary,
                                     fontSize = 13.sp,
                                     modifier = Modifier.padding(vertical = 12.dp)
                                 )
@@ -1540,11 +2061,11 @@ fun CompanionHomeScreen() {
                         item(key = "pick_open_app") {
                             val isApp = currentAct.startsWith("app:")
                             ActionRadioRow(
-                                label = "Abrir App…",
+                                label = stringResource(R.string.action_open_app),
                                 subtitle = if (isApp) {
-                                    WatchActionCatalog.getActionLabel(currentAct, watchInstalledApps)
+                                    WatchActionCatalog.getActionLabel(context, currentAct, watchInstalledApps)
                                 } else {
-                                    "Elegir entre ${watchInstalledApps.size} apps del reloj ›"
+                                    stringResource(R.string.action_choose_from_apps, watchInstalledApps.size)
                                 },
                                 selected = isApp
                             ) {
@@ -1555,7 +2076,7 @@ fun CompanionHomeScreen() {
                         // None Row
                         item(key = "pick_none") {
                             ActionRadioRow(
-                                label = "Nada",
+                                label = stringResource(R.string.action_none),
                                 subtitle = null,
                                 selected = currentAct == "none"
                             ) {
@@ -1564,29 +2085,60 @@ fun CompanionHomeScreen() {
                             }
                         }
 
-                        // Categories
-                        val sections = listOf(
-                            "Samsung Health" to WatchActionCatalog.shealthActions,
-                            "Funciones Samsung" to WatchActionCatalog.samsungActions,
-                            "Desarrollo (ADB)" to WatchActionCatalog.devActions,
-                            "Utilidades" to WatchActionCatalog.utilityActions,
-                            "Home Assistant" to WatchActionCatalog.homeAssistantActions,
-                            "Multimedia y Volumen" to WatchActionCatalog.mediaActions
+                        // 1. SECTION: PHONE ACTIONS
+                        item(key = "section_phone_hdr") {
+                            Text(
+                                text = stringResource(R.string.hdr_section_phone),
+                                color = UltraOrange,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp, start = 4.dp)
+                            )
+                        }
+                        items(WatchActionCatalog.phoneActions, key = { it.first }) { (actKey, labelRes) ->
+                            ActionRadioRow(
+                                label = stringResource(labelRes),
+                                subtitle = null,
+                                selected = currentAct == actKey
+                            ) {
+                                updateWatchMapping(activeGesture, actKey)
+                                pickingGesture = null
+                            }
+                        }
+
+                        // 2. SECTION: WATCH ACTIONS (grouped by categories)
+                        item(key = "section_watch_hdr") {
+                            Text(
+                                text = stringResource(R.string.hdr_section_watch),
+                                color = UltraOrange,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(top = 18.dp, bottom = 4.dp, start = 4.dp)
+                            )
+                        }
+
+                        val watchSections = listOf(
+                            context.getString(R.string.cat_shealth) to WatchActionCatalog.shealthActions,
+                            context.getString(R.string.cat_samsung) to WatchActionCatalog.samsungActions,
+                            context.getString(R.string.cat_dev) to WatchActionCatalog.devActions,
+                            context.getString(R.string.cat_utility) to WatchActionCatalog.utilityActions,
+                            context.getString(R.string.cat_ha) to WatchActionCatalog.homeAssistantActions,
+                            context.getString(R.string.cat_media) to WatchActionCatalog.mediaActions
                         )
 
-                        for ((secTitle, itemsList) in sections) {
-                            item(key = "hdr_$secTitle") {
+                        for ((catTitle, actions) in watchSections) {
+                            item(key = "hdr_$catTitle") {
                                 Text(
-                                    text = secTitle,
-                                    color = Color.White,
+                                    text = catTitle,
+                                    color = palette.textSecondary,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    modifier = Modifier.padding(top = 12.dp, bottom = 4.dp, start = 4.dp)
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(top = 8.dp, bottom = 2.dp, start = 4.dp)
                                 )
                             }
-                            items(itemsList, key = { it.first }) { (actKey, actLabel) ->
+                            items(actions, key = { it.first }) { (actKey, labelRes) ->
                                 ActionRadioRow(
-                                    label = actLabel,
+                                    label = stringResource(labelRes),
                                     subtitle = null,
                                     selected = currentAct == actKey
                                 ) {
@@ -1603,31 +2155,96 @@ fun CompanionHomeScreen() {
 }
 
 @Composable
+private fun DevOptionsFullScreen(
+    isBetaEnabled: Boolean,
+    onToggleBeta: (Boolean) -> Unit,
+    onBack: () -> Unit
+) {
+    val palette = LocalPalette.current
+    Scaffold(
+        containerColor = palette.bg,
+        topBar = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(palette.bg)
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onBack,
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(stringResource(R.string.btn_back), color = palette.textPrimary)
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = stringResource(R.string.dev_options_title),
+                    color = palette.textPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            }
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(palette.cardBg)
+                    .border(1.dp, palette.border, RoundedCornerShape(18.dp))
+                    .padding(14.dp)
+            ) {
+                WatchToggleRow(
+                    title = stringResource(R.string.beta_channel_title),
+                    subtitle = stringResource(R.string.beta_channel_desc),
+                    checked = isBetaEnabled,
+                    enabled = true,
+                    onToggle = { onToggleBeta(!isBetaEnabled) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun StatusPill(
     label: String,
     active: Boolean,
-    activeColor: Color
+    activeColor: Color,
+    onClick: () -> Unit = {}
 ) {
+    val palette = LocalPalette.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(CardBg)
-            .border(1.dp, if (active) activeColor.copy(alpha = 0.45f) else CardBorder, RoundedCornerShape(50))
-            .padding(horizontal = 8.dp, vertical = 3.dp)
+            .background(palette.cardBg)
+            .border(1.dp, if (active) activeColor.copy(alpha = 0.5f) else palette.border, RoundedCornerShape(50))
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(6.dp)
+                .size(7.dp)
                 .clip(CircleShape)
-                .background(if (active) activeColor else TextMuted)
+                .background(if (active) activeColor else palette.textSecondary)
         )
         Text(
             text = label,
-            fontSize = 11.sp,
-            color = if (active) Color.White else TextMuted,
-            fontWeight = FontWeight.Medium
+            fontSize = 12.sp,
+            color = if (active) palette.textPrimary else palette.textSecondary,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }
@@ -1639,19 +2256,20 @@ private fun DiagBanner(
     badge: String,
     onClick: () -> Unit
 ) {
+    val palette = LocalPalette.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(RedBannerBg)
+            .background(palette.redBannerBg)
             .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            Text(subtitle, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp)
+            Text(subtitle, color = Color.White.copy(alpha = 0.88f), fontSize = 11.sp)
         }
         Spacer(modifier = Modifier.width(8.dp))
         Box(
@@ -1670,15 +2288,18 @@ private fun WatchSectionCollapsible(
     iconRes: Int,
     title: String,
     subtitle: String,
+    isHighlighted: Boolean,
     isExpanded: Boolean,
     onToggle: () -> Unit,
     content: @Composable () -> Unit
 ) {
+    val palette = LocalPalette.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(CardBg)
+            .background(palette.cardBg)
+            .border(1.dp, palette.border, RoundedCornerShape(18.dp))
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
         Row(
@@ -1700,14 +2321,15 @@ private fun WatchSectionCollapsible(
                 Column {
                     Text(
                         text = title,
-                        color = Color.White,
+                        color = palette.textPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = subtitle,
-                        color = if (subtitle.contains("configurados") || subtitle.contains("activo")) UltraOrange else TextMuted,
-                        fontSize = 11.sp
+                        color = if (isHighlighted) UltraOrange else palette.textSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = if (isHighlighted) FontWeight.SemiBold else FontWeight.Normal
                     )
                 }
             }
@@ -1733,26 +2355,27 @@ private fun GestureMappingRow(
     enabled: Boolean,
     onClick: () -> Unit
 ) {
+    val palette = LocalPalette.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(SlateButton)
+            .background(palette.rowBg)
             .clickable(enabled = enabled) { onClick() }
             .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = gestureName,
-                color = if (enabled) Color.White else TextMuted,
+                color = if (enabled) palette.textPrimary else palette.textSecondary,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp
             )
             Text(
                 text = actionLabel,
-                color = if (isConfigured) UltraOrange else TextMuted,
+                color = if (isConfigured) UltraOrange else palette.textSecondary,
                 fontSize = 12.sp,
                 fontWeight = if (isConfigured) FontWeight.SemiBold else FontWeight.Normal
             )
@@ -1765,46 +2388,65 @@ private fun GestureMappingRow(
 private fun WatchToggleRow(
     title: String,
     subtitle: String,
-    subtitleColor: Color = TextMuted,
+    subtitleColor: Color? = null,
     checked: Boolean,
+    isUnknownState: Boolean = false,
     isLoading: Boolean = false,
     enabled: Boolean = true,
     onToggle: () -> Unit
 ) {
+    val palette = LocalPalette.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(SlateButton)
+            .background(palette.rowBg)
             .clickable(enabled = enabled && !isLoading) { onToggle() }
             .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
             Text(
                 text = title,
-                color = Color.White,
+                color = if (isUnknownState || !enabled) palette.textSecondary else palette.textPrimary,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp
             )
             Text(
                 text = subtitle,
-                color = subtitleColor,
+                color = subtitleColor ?: palette.textSecondary,
                 fontSize = 11.sp,
                 lineHeight = 15.sp
             )
         }
         if (isLoading) {
-            SwitchLoadingSpinner()
+            SwitchLoadingSpinner(color = UltraOrange)
+        } else if (isUnknownState) {
+            Box(
+                modifier = Modifier
+                    .width(38.dp)
+                    .height(22.dp)
+                    .clip(CircleShape)
+                    .background(palette.border.copy(alpha = 0.65f))
+                    .padding(3.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .align(Alignment.Center)
+                        .clip(CircleShape)
+                        .background(palette.textSecondary.copy(alpha = 0.45f))
+                )
+            }
         } else {
             Box(
                 modifier = Modifier
-                    .width(36.dp)
-                    .height(20.dp)
+                    .width(38.dp)
+                    .height(22.dp)
                     .clip(CircleShape)
-                    .background(if (checked) UltraOrange else Color(0xFF383D47))
-                    .padding(2.dp)
+                    .background(if (checked) UltraOrange else palette.border)
+                    .padding(3.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -1819,18 +2461,173 @@ private fun WatchToggleRow(
 }
 
 @Composable
+private fun ThemeTripleSwitchRow(
+    title: String,
+    subtitle: String,
+    selectedMode: Int, // 0 = Light, 1 = Auto, 2 = Dark
+    onSelectMode: (Int) -> Unit
+) {
+    val palette = LocalPalette.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(palette.rowBg)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
+            Text(
+                text = title,
+                color = palette.textPrimary,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp
+            )
+            Text(
+                text = subtitle,
+                color = palette.textSecondary,
+                fontSize = 11.sp,
+                lineHeight = 15.sp
+            )
+        }
+
+        // Triple Segmented Switch: [ Sun (0) | Auto (1) | Moon (2) ]
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(palette.cardBg)
+                .border(1.dp, palette.border, RoundedCornerShape(50))
+                .padding(3.dp)
+        ) {
+            // 0 = Light (Sun Icon)
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(width = 34.dp, height = 28.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(if (selectedMode == 0) UltraOrange else Color.Transparent)
+                    .clickable { onSelectMode(0) }
+            ) {
+                ThemeSunIcon(color = if (selectedMode == 0) Color.White else palette.textSecondary)
+            }
+
+            // 1 = Auto (Half Sun / Half Moon or 'A' Circle Icon)
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(width = 36.dp, height = 28.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(if (selectedMode == 1) UltraOrange else Color.Transparent)
+                    .clickable { onSelectMode(1) }
+            ) {
+                ThemeAutoIcon(color = if (selectedMode == 1) Color.White else palette.textSecondary)
+            }
+
+            // 2 = Dark (Moon Icon)
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(width = 34.dp, height = 28.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(if (selectedMode == 2) UltraOrange else Color.Transparent)
+                    .clickable { onSelectMode(2) }
+            ) {
+                ThemeMoonIcon(color = if (selectedMode == 2) Color.White else palette.textSecondary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeSunIcon(color: Color) {
+    Canvas(modifier = Modifier.size(16.dp)) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val r = size.minDimension * 0.24f
+        val stroke = 1.7.dp.toPx()
+        drawCircle(color = color, radius = r, center = Offset(cx, cy), style = Stroke(width = stroke))
+        val rayIn = size.minDimension * 0.34f
+        val rayOut = size.minDimension * 0.47f
+        for (i in 0 until 8) {
+            val rad = Math.toRadians((i * 45).toDouble())
+            val cos = kotlin.math.cos(rad).toFloat()
+            val sin = kotlin.math.sin(rad).toFloat()
+            drawLine(
+                color = color,
+                start = Offset(cx + cos * rayIn, cy + sin * rayIn),
+                end = Offset(cx + cos * rayOut, cy + sin * rayOut),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThemeAutoIcon(color: Color) {
+    val stroke = 1.6.dp
+    Box(contentAlignment = Alignment.Center) {
+        Canvas(modifier = Modifier.size(16.dp)) {
+            val r = size.minDimension * 0.44f
+            drawCircle(
+                color = color,
+                radius = r,
+                style = Stroke(width = stroke.toPx())
+            )
+        }
+        Text(
+            text = "A",
+            color = color,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.ExtraBold,
+            lineHeight = 9.sp
+        )
+    }
+}
+
+@Composable
+private fun ThemeMoonIcon(color: Color) {
+    Canvas(modifier = Modifier.size(16.dp)) {
+        val w = size.width
+        val h = size.height
+        val path = androidx.compose.ui.graphics.Path().apply {
+            val r = w * 0.40f
+            val cx = w * 0.50f
+            val cy = h * 0.50f
+            addOval(androidx.compose.ui.geometry.Rect(cx - r, cy - r, cx + r, cy + r))
+        }
+        val cutout = androidx.compose.ui.graphics.Path().apply {
+            val r = w * 0.34f
+            val cx = w * 0.68f
+            val cy = h * 0.34f
+            addOval(androidx.compose.ui.geometry.Rect(cx - r, cy - r, cx + r, cy + r))
+        }
+        val crescent = androidx.compose.ui.graphics.Path.combine(
+            androidx.compose.ui.graphics.PathOperation.Difference,
+            path,
+            cutout
+        )
+        drawPath(path = crescent, color = color)
+    }
+}
+
+@Composable
 private fun ActionRadioRow(
     label: String,
     subtitle: String?,
     selected: Boolean,
     onSelect: () -> Unit
 ) {
+    val palette = LocalPalette.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(SlateButton)
+            .background(palette.rowBg)
             .clickable { onSelect() }
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
@@ -1839,21 +2636,21 @@ private fun ActionRadioRow(
             onClick = onSelect,
             colors = RadioButtonDefaults.colors(
                 selectedColor = UltraOrange,
-                unselectedColor = TextMuted
+                unselectedColor = palette.textSecondary
             )
         )
         Spacer(modifier = Modifier.width(6.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = label,
-                color = Color.White,
+                color = palette.textPrimary,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                 fontSize = 14.sp
             )
             if (!subtitle.isNullOrBlank()) {
                 Text(
                     text = subtitle,
-                    color = if (selected) UltraOrange else TextMuted,
+                    color = if (selected) UltraOrange else palette.textSecondary,
                     fontSize = 11.sp
                 )
             }
@@ -1862,11 +2659,31 @@ private fun ActionRadioRow(
 }
 
 @Composable
+private fun ButtonsTabIcon(color: Color) {
+    Image(
+        painter = painterResource(id = R.drawable.ic_launcher_foreground),
+        contentDescription = null,
+        modifier = Modifier.size(30.dp)
+    )
+}
+
+@Composable
+private fun SettingsTabIcon(color: Color) {
+    Icon(
+        imageVector = Icons.Rounded.Settings,
+        contentDescription = null,
+        tint = color,
+        modifier = Modifier.size(24.dp)
+    )
+}
+
+@Composable
 private fun CollapseChevron(
     isExpanded: Boolean,
-    modifier: Modifier = Modifier,
-    color: Color = Color(0xFF8A93A2)
+    modifier: Modifier = Modifier
 ) {
+    val palette = LocalPalette.current
+    val color = palette.textSecondary
     Canvas(modifier = modifier.size(16.dp)) {
         val w = size.width
         val h = size.height
@@ -1883,9 +2700,10 @@ private fun CollapseChevron(
 
 @Composable
 private fun ForwardChevron(
-    modifier: Modifier = Modifier,
-    color: Color = Color(0xFF8A93A2)
+    modifier: Modifier = Modifier
 ) {
+    val palette = LocalPalette.current
+    val color = palette.textSecondary
     Canvas(modifier = modifier.size(18.dp)) {
         val w = size.width
         val h = size.height

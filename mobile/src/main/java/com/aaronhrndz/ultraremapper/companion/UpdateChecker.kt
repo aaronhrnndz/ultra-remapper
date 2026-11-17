@@ -25,8 +25,10 @@ data class ReleaseUpdate(
 object UpdateChecker {
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
-    private const val LATEST_RELEASE_API = "https://api.github.com/repos/Aaronhrndz/ultra-remapper/releases/latest"
-    private const val ALL_RELEASES_API = "https://api.github.com/repos/Aaronhrndz/ultra-remapper/releases?per_page=5"
+    private val REPOS = listOf(
+        "Aaronhrndz/ultra-remapper",
+        "Aaronhrnndz/ultra-remapper"
+    )
     private const val PREFS_NAME = "companion_update_checker"
     private const val KEY_BETA_CHANNEL = "beta_channel_enabled"
 
@@ -62,49 +64,73 @@ object UpdateChecker {
         executor.execute {
             var companionUpd: ReleaseUpdate? = null
             var latestRel: ReleaseUpdate? = null
-            try {
-                val apiUrl = if (isBeta) ALL_RELEASES_API else LATEST_RELEASE_API
-                val url = URL(apiUrl)
-                val conn = (url.openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 8000
-                    readTimeout = 8000
-                    setRequestProperty("Accept", "application/vnd.github+json")
-                    setRequestProperty("User-Agent", "UltraRemapperCompanion/$currentVersion")
-                }
-                if (conn.responseCode == 200) {
-                    val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    if (isBeta) {
-                        val arr = JSONArray(body)
-                        var foundCompanionRel: ReleaseUpdate? = null
-                        var foundWatchRel: ReleaseUpdate? = null
-                        for (i in 0 until arr.length()) {
-                            val parsed = parseRelease(arr.optJSONObject(i)) ?: continue
-                            if (foundCompanionRel == null && parsed.companionApkUrl != null) {
-                                foundCompanionRel = parsed
-                            }
-                            if (foundWatchRel == null && parsed.watchApkUrl != null) {
-                                foundWatchRel = parsed
-                            }
-                            if (foundCompanionRel != null && foundWatchRel != null) break
-                        }
-                        latestRel = foundWatchRel ?: foundCompanionRel
-                        if (foundCompanionRel != null &&
-                            isNewerVersion(foundCompanionRel.versionName, currentVersion.removePrefix("v"))
-                        ) {
-                            companionUpd = foundCompanionRel
-                        }
+            for (repo in REPOS) {
+                if (latestRel != null) break
+                try {
+                    val apiUrl = if (isBeta) {
+                        "https://api.github.com/repos/$repo/releases?per_page=5"
                     } else {
-                        latestRel = parseRelease(JSONObject(body))
-                        if (latestRel != null &&
-                            latestRel.companionApkUrl != null &&
-                            isNewerVersion(latestRel.versionName, currentVersion.removePrefix("v"))
-                        ) {
-                            companionUpd = latestRel
+                        "https://api.github.com/repos/$repo/releases/latest"
+                    }
+                    val url = URL(apiUrl)
+                    val conn = (url.openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 8000
+                        readTimeout = 8000
+                        setRequestProperty("Accept", "application/vnd.github+json")
+                        setRequestProperty("User-Agent", "UltraRemapperCompanion/$currentVersion")
+                    }
+                    if (conn.responseCode == 200) {
+                        val body = conn.inputStream.bufferedReader().use { it.readText() }
+                        if (isBeta) {
+                            val arr = JSONArray(body)
+                            var foundCompanionRel: ReleaseUpdate? = null
+                            var foundWatchRel: ReleaseUpdate? = null
+                            for (i in 0 until arr.length()) {
+                                val parsed = parseRelease(arr.optJSONObject(i)) ?: continue
+                                if (foundCompanionRel == null && parsed.companionApkUrl != null) {
+                                    foundCompanionRel = parsed
+                                }
+                                if (foundWatchRel == null && parsed.watchApkUrl != null) {
+                                    foundWatchRel = parsed
+                                }
+                                if (foundCompanionRel != null && foundWatchRel != null) break
+                            }
+                            latestRel = foundWatchRel ?: foundCompanionRel
+                            if (foundCompanionRel != null &&
+                                isNewerVersion(foundCompanionRel.versionName, currentVersion.removePrefix("v"))
+                            ) {
+                                companionUpd = foundCompanionRel
+                            }
+                        } else {
+                            latestRel = parseRelease(JSONObject(body))
+                            if (latestRel != null &&
+                                latestRel.companionApkUrl != null &&
+                                isNewerVersion(latestRel.versionName, currentVersion.removePrefix("v"))
+                            ) {
+                                companionUpd = latestRel
+                            }
                         }
                     }
+                } catch (_: Exception) {
                 }
-            } catch (_: Exception) {
             }
+
+            // Fallback to embedded Watch APK in assets when GitHub is unavailable or older than embedded
+            try {
+                val assets = appContext.assets.list("")
+                if (assets != null && assets.contains("watch-release.apk")) {
+                    val embeddedVer = currentVersion.removePrefix("v")
+                    if (latestRel == null || isNewerVersion(embeddedVer, latestRel.versionName)) {
+                        latestRel = ReleaseUpdate(
+                            versionName = embeddedVer,
+                            htmlUrl = "https://github.com/Aaronhrnndz/ultra-remapper",
+                            companionApkUrl = null,
+                            watchApkUrl = "asset://watch-release.apk",
+                            releaseNotes = "Embedded Watch APK v$embeddedVer"
+                        )
+                    }
+                }
+            } catch (_: Exception) {}
 
             mainHandler.post { onResult(companionUpd, latestRel) }
         }
@@ -175,6 +201,25 @@ object UpdateChecker {
         val appCtx = context.applicationContext
         executor.execute {
             try {
+                val cacheDir = File(appCtx.cacheDir, "updates").apply { mkdirs() }
+                val apkFile = File(cacheDir, targetFileName)
+                if (apkFile.exists()) apkFile.delete()
+
+                if (apkUrl.startsWith("asset://")) {
+                    val assetName = apkUrl.removePrefix("asset://")
+                    mainHandler.post { onProgress(0.2f, "Preparando APK local…") }
+                    appCtx.assets.open(assetName).use { input ->
+                        apkFile.outputStream().use { output ->
+                            input.copyTo(output, 16 * 1024)
+                        }
+                    }
+                    mainHandler.post {
+                        onProgress(1f, "APK listo")
+                        onComplete(apkFile)
+                    }
+                    return@execute
+                }
+
                 mainHandler.post { onProgress(0f, "Descargando APK…") }
                 var conn = (URL(apkUrl).openConnection() as HttpURLConnection).apply {
                     instanceFollowRedirects = true
@@ -190,10 +235,6 @@ object UpdateChecker {
                         }
                     }
                 }
-
-                val cacheDir = File(appCtx.cacheDir, "updates").apply { mkdirs() }
-                val apkFile = File(cacheDir, targetFileName)
-                if (apkFile.exists()) apkFile.delete()
 
                 val total = conn.contentLength.toLong()
                 var downloaded = 0L

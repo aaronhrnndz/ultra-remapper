@@ -1,0 +1,218 @@
+<resources>
+    <string name="app_name">Ultra Remapper Companion</string>
+
+    <!-- Navigation Tabs -->
+    <string name="nav_buttons">Tasten</string>
+    <string name="nav_settings">Einstellungen</string>
+    <string name="btn_back">‹ Zurück</string>
+
+    <!-- Status Bar Pills -->
+    <string name="status_bt_connected">BT: %1$s</string>
+    <string name="status_bt_synced">BT: Verbunden</string>
+    <string name="status_bt_waiting">BT: Getrennt</string>
+    <string name="status_adb_connected">ADB: Verbunden</string>
+    <string name="status_adb_paired">ADB: Gekoppelt</string>
+    <string name="status_adb_unpaired">ADB: Getrennt</string>
+
+    <!-- OTA Updates -->
+    <string name="companion_update_title">App-Update verfügbar: v%1$s</string>
+    <string name="companion_update_btn">Smartphone-App aktualisieren</string>
+    <string name="watch_install_title">Ultra Remapper auf der Uhr installieren</string>
+    <string name="watch_update_title">Uhr-Update verfügbar: v%1$s</string>
+    <string name="watch_ver_installed">Installiert: v%1$s</string>
+    <string name="watch_ver_not_installed">Nicht installiert</string>
+    <string name="btn_install_watch">v%1$s herunterladen &amp; auf Uhr installieren</string>
+    <string name="btn_update_watch">Uhr auf v%1$s aktualisieren</string>
+    <string name="toast_connect_adb_first">Zuerst per ADB mit der Uhr verbinden</string>
+    <string name="msg_downloading_ver">v%1$s wird heruntergeladen…</string>
+    <string name="msg_download_error">Fehler beim Herunterladen von GitHub.</string>
+
+    <!-- Diagnostic Banners -->
+    <string name="diag_header_status">Erforderliche Aktionen</string>
+    <string name="diag_route_title">Aktionstasten-Routing inaktiv</string>
+    <string name="diag_route_sub">Tippen, um die Aktionstaste in den Einstellungen zu aktivieren</string>
+    <string name="diag_overlay_title">Überlagerungsberechtigung fehlt</string>
+    <string name="diag_overlay_sub">Erforderlich zum Starten von Apps &amp; RGBW-Taschenlampe</string>
+    <string name="diag_secure_title">Secure Settings fehlen</string>
+    <string name="diag_secure_sub">Erforderlich für LTE, Anklopfen &amp; obere Taste</string>
+    <string name="diag_media_title">Mediensteuerung inaktiv</string>
+    <string name="diag_media_sub">Benachrichtigungszugriff in Berechtigungen aktivieren</string>
+    <string name="diag_a11y_title">Bedienungshilfen auf der Uhr aktivieren</string>
+    <string name="diag_a11y_sub">Tippen, um Einstellungen auf der Uhr zu öffnen</string>
+    <string name="diag_assistant_title">Als Sprachassistent festlegen</string>
+    <string name="diag_assistant_sub">Tippen, um Assistent-Auswahl auf der Uhr zu öffnen</string>
+    <string name="diag_toctoc_title">Anklopfen-Geste konfigurieren</string>
+    <string name="diag_toctoc_sub">Tippen, um Tasten &amp; Gesten auf der Uhr zu öffnen</string>
+    <string name="diag_spay_title">Konflikt mit Samsung Pay</string>
+    <string name="diag_spay_sub">Samsung Pay in den Einstellungen einfrieren für zuverlässige untere Taste</string>
+    <string name="badge_adb">ADB</string>
+    <string name="badge_watch">UHR</string>
+    <string name="toast_opening_a11y">Bedienungshilfen auf der Uhr werden geöffnet…</string>
+    <string name="toast_select_assistant">Ultra Remapper auf der Uhr auswählen</string>
+    <string name="toast_select_toctoc">Ultra Remapper in Anklopfen auf der Uhr auswählen</string>
+
+    <!-- Buttons & Gestures Section -->
+    <string name="hdr_buttons_gestures">Tasten &amp; Gesten der Uhr</string>
+    <string name="sub_connect_to_configure">Uhr verbinden zum Konfigurieren</string>
+    <string name="btn_top_title">Obere Taste</string>
+    <string name="btn_center_title">Mittlere Taste (Aktion)</string>
+    <string name="btn_center_note">Wenn Samsung Health geöffnet ist, pausiert die Belegung für native Trainingssteuerungen.</string>
+    <string name="btn_bottom_title">Untere Taste</string>
+    <string name="btn_gestures_title">Gesten</string>
+    <string name="count_configured">%1$d konfiguriert</string>
+    <string name="status_unassigned">Nicht zugewiesen</string>
+    <string name="status_toctoc_active">Anklopfen aktiv</string>
+
+    <!-- Gesture Names -->
+    <string name="gesture_single">Einmal drücken</string>
+    <string name="gesture_double">Doppelt drücken</string>
+    <string name="gesture_triple">Dreifach drücken</string>
+    <string name="gesture_long">Lange drücken</string>
+    <string name="gesture_toctoc">Anklopfen (Handgelenkgeste)</string>
+
+    <!-- Action Categories & Names -->
+    <string name="picker_select_watch_app">Uhr-App auswählen</string>
+    <string name="picker_back_to_actions">‹ Zurück zu Aktionen</string>
+    <string name="picker_no_apps_synced">Ultra Remapper auf der Uhr öffnen, um App-Liste über Bluetooth zu synchronisieren.</string>
+    <string name="action_open_app">App öffnen…</string>
+    <string name="action_choose_from_apps">Aus %1$d Uhr-Apps wählen ›</string>
+    <string name="action_none">Keine</string>
+
+    <string name="hdr_section_watch">UHR-AKTIONEN</string>
+    <string name="hdr_section_phone">SMARTPHONE-AKTIONEN</string>
+    <string name="cat_shealth">Samsung Health</string>
+    <string name="cat_samsung">Samsung-Funktionen</string>
+    <string name="cat_dev">Entwicklung (ADB)</string>
+    <string name="cat_utility">Dienstprogramme</string>
+    <string name="cat_phone">Smartphone-Aktionen</string>
+    <string name="cat_ha">Home Assistant</string>
+    <string name="cat_media">Medien &amp; Lautstärke</string>
+
+    <string name="action_shealth_workout">Meine Trainings</string>
+    <string name="action_shealth_route">Routen-Modus (Samsung Health)</string>
+    <string name="action_recents">Zuletzt geöffnete Apps (Multitasking)</string>
+    <string name="action_stopwatch">Stoppuhr</string>
+    <string name="action_water_lock">Wassersperre</string>
+    <string name="action_assistant">Sprachassistent</string>
+    <string name="action_wireless_debugging">Drahtlose ADB-Fehlerbehebung</string>
+    <string name="action_adb_mode">Bildschirm wachhalten</string>
+    <string name="action_flashlight">Taschenlampe</string>
+    <string name="action_red_flashlight">RGBW Taschenlampe</string>
+    <string name="action_dnd_toggle">Nicht stören</string>
+    <string name="action_save_parking">Parkplatz speichern</string>
+    <string name="action_nav_parking">Zum Auto navigieren (zu Fuß)</string>
+    <string name="action_water_eject">Wasser auswerfen (Lautsprecher)</string>
+    <string name="action_lte_toggle">LTE &amp; Mobile Daten</string>
+    <string name="action_phone_find">Smartphone klingeln lassen</string>
+    <string name="action_phone_torch">Smartphone-Taschenlampe</string>
+    <string name="action_phone_camera">Smartphone-Kamera (Auslöser)</string>
+    <string name="action_phone_ringer">Smartphone Ton / Vibration</string>
+    <string name="action_phone_lock">Smartphone-Bildschirm sperren</string>
+    <string name="action_phone_dnd">Smartphone Nicht stören</string>
+    <string name="action_phone_ha_event">Home Assistant Event auslösen</string>
+    <string name="action_ha_assist">Home Assistant Assist (Sprache)</string>
+    <string name="action_play_pause">Wiedergabe / Pause</string>
+    <string name="action_next">Nächster Titel</string>
+    <string name="action_previous">Vorheriger Titel</string>
+    <string name="action_vol_up">Lauter</string>
+    <string name="action_vol_down">Leiser</string>
+    <string name="action_open_media_player">Mediensteuerung öffnen</string>
+
+    <!-- Settings Tab -->
+    <string name="hdr_general_settings">Allgemeine Einstellungen</string>
+    <string name="theme_selector_title">App-Design</string>
+    <string name="theme_selector_sub">Hell, System-Standard oder Dunkel</string>
+    <string name="master_switch_title">Tasten neu belegen</string>
+    <string name="master_switch_on">Aktiv auf der Uhr</string>
+    <string name="master_switch_off">Pausiert</string>
+    <string name="haptic_switch_title">Haptische Vibration</string>
+    <string name="haptic_switch_sub">Feedback beim Tastendruck</string>
+
+    <!-- ADB Section -->
+    <string name="hdr_adb_wireless">Drahtlose ADB-Verbindung</string>
+    <string name="adb_status_connecting">Verbindung zur Uhr wird hergestellt…</string>
+    <string name="adb_status_connected">Verbunden (%1$s:%2$s)</string>
+    <string name="adb_status_paired_tap">Gekoppelt • Tippen zum Verbinden</string>
+    <string name="adb_status_unpaired">Nicht gekoppelt • Erforderlich für Berechtigungen</string>
+    <string name="adb_wiz_step1_title">SCHRITT 1 VON 3 • Drahtlose Fehlerbehebung aktivieren</string>
+    <string name="adb_wiz_step1_instructions">1. Uhr und Smartphone mit demselben WLAN verbinden.\n2. Auf der Uhr: Einstellungen → Info zur Uhr → Softwareinfo → 7x auf \'Softwareversion\' tippen, um Entwickleroptionen zu aktivieren.\n3. Entwickleroptionen öffnen → \'Drahtlose Fehlerbehebung\' aktivieren.\n4. \'Neues Gerät koppeln\' antippen (Code und Port).</string>
+    <string name="adb_wiz_step1_instructions_installed">1. Uhr und Smartphone mit demselben WLAN verbinden.\n2. Tippe unten auf \'Drahtlose Fehlerbehebung auf Uhr öffnen\'.\n3. Tippe auf der Uhr auf \'Neues Gerät koppeln\' (Code und Port werden automatisch erkannt).</string>
+    <string name="adb_wiz_step1_next">Nächster Schritt: Mit PIN koppeln ›</string>
+    <string name="adb_wiz_step1_skip">Bereits gekoppelt? Zu Verbinden ›</string>
+    <string name="adb_wiz_step2_title">SCHRITT 2 VON 3 • Mit 6-stelliger PIN koppeln</string>
+    <string name="adb_wiz_step2_instructions">Öffne \'Neues Gerät koppeln\' auf der Uhr. Der Dienst füllt IP, Port und PIN automatisch aus.</string>
+    <string name="adb_wiz_step2_back">‹ Zurück zu Schritt 1</string>
+    <string name="adb_wiz_step3_title">SCHRITT 3 VON 3 • ADB-Sitzung verbinden</string>
+    <string name="adb_wiz_step3_instructions">Verlasse den Kopplungsbildschirm auf der Uhr. Der Haupt-ADB-Port wird automatisch übernommen.</string>
+    <string name="adb_wiz_paired_badge">✓ Uhr gekoppelt</string>
+    <string name="adb_wiz_connected_badge">✓ ADB-Sitzung aktiv</string>
+    <string name="adb_step1_title">Schritt 1: Uhr koppeln (6-stellige PIN)</string>
+    <string name="adb_step1_instructions">1. Uhr und Smartphone mit demselben WLAN verbinden.\n2. Tippe auf \'Drahtlose Fehlerbehebung auf Uhr öffnen\' und wähle \'Neues Gerät koppeln\'.</string>
+    <string name="adb_step1_skip_already_paired">Bereits gekoppelt? Zu Verbinden ›</string>
+    <string name="adb_step2_title">Schritt 2: ADB-Sitzung verbinden</string>
+    <string name="adb_step2_instructions">Stelle sicher, dass drahtlose Fehlerbehebung aktiv ist, und gib den ADB-Port der Uhr ein.</string>
+    <string name="adb_instructions">1. Uhr und Smartphone mit demselben WLAN verbinden.\n2. Entwickleroptionen › Drahtlose Fehlerbehebung auf der Uhr öffnen.</string>
+    <string name="adb_mdns_pair_found">✓ Uhr im Kopplungsmodus erkannt (%1$s:%2$s)</string>
+    <string name="adb_mdns_connect_found">✓ Uhr im Netzwerk erkannt (%1$s:%2$s)</string>
+    <string name="adb_open_on_watch_btn">Drahtlose Fehlerbehebung auf Uhr öffnen</string>
+    <string name="adb_autofill_btn">IP &amp; Ports automatisch ausfüllen</string>
+    <string name="adb_autofill_scanning">Suche nach Uhr im Netzwerk…</string>
+    <string name="toast_opening_wireless_adb">Drahtlose Fehlerbehebung auf der Uhr wird geöffnet…</string>
+    <string name="label_watch_ip">Uhr-IP</string>
+    <string name="label_adb_port">ADB-Port</string>
+    <string name="label_pairing_pin">6-stellige PIN</string>
+    <string name="label_pairing_port">Kopplungs-Port</string>
+    <string name="btn_pair_with_pin">Uhr mit PIN koppeln</string>
+    <string name="btn_need_new_pin">Mit neuer 6-stelliger PIN koppeln</string>
+    <string name="btn_refresh_adb">ADB aktualisieren</string>
+    <string name="btn_connect_adb">ADB verbinden</string>
+    <string name="btn_unpair_adb">ADB vergessen</string>
+    <string name="msg_adb_pairing">Kopplung mit der Uhr wird durchgeführt…</string>
+    <string name="msg_adb_connecting">Verbindung wird aufgebaut und Status gelesen…</string>
+    <string name="msg_adb_connect_failed">Verbindung zu %1$s:%2$s fehlgeschlagen. Prüfe, ob drahtlose Fehlerbehebung aktiv ist.</string>
+    <string name="msg_adb_unpaired">ADB-Kopplung gelöscht.</string>
+    <string name="toast_enter_ip_pair_port">Uhr-IP und Kopplungs-Port eingeben</string>
+    <string name="toast_enter_ip_adb_port">Uhr-IP und ADB-Port eingeben</string>
+
+    <!-- Permissions Section -->
+    <string name="hdr_permissions">Uhr-Berechtigungen</string>
+    <string name="perms_connect_to_view">Uhr verbinden, um Berechtigungen zu sehen</string>
+    <string name="perms_active_count">%1$d von %2$d aktiv</string>
+    <string name="btn_grant_missing_perms">Fehlende Berechtigungen erteilen</string>
+
+    <string name="perm_overlay_title">Überlagerung</string>
+    <string name="perm_overlay_desc">Hintergrund-Start &amp; RGBW-Taschenlampe</string>
+    <string name="perm_secure_title">Secure Settings</string>
+    <string name="perm_secure_desc">Systemeinstellungen, LTE, Nicht stören &amp; Tasten</string>
+    <string name="perm_action_title">Aktionstasten-Routing</string>
+    <string name="perm_action_desc">Hardware-Routing für mittlere Taste</string>
+    <string name="perm_media_title">Benachrichtigungen</string>
+    <string name="perm_media_desc">Mediensteuerung &amp; Trainingserkennung</string>
+    <string name="perm_battery_title">Uneingeschränkte Batterie</string>
+    <string name="perm_battery_desc">Verhindert Beenden im Ruhemodus (Doze)</string>
+
+    <!-- Samsung Pay Section -->
+    <string name="hdr_samsung_pay">Samsung Pay</string>
+    <string name="spay_status_active">Aktiv (Einfrieren empfohlen, um Konflikte zu vermeiden)</string>
+    <string name="spay_status_frozen">Eingefroren (Untere Taste funktioniert zu 100%)</string>
+    <string name="spay_status_unknown">Uhr verbinden, um Status zu sehen</string>
+
+    <!-- Developer Options Screen -->
+    <string name="dev_options_title">Entwickleroptionen</string>
+    <string name="beta_channel_title">Beta-Kanal</string>
+    <string name="beta_channel_desc">Vorabversionen für Smartphone und Uhr erhalten</string>
+    <string name="version_footer">v%1$s</string>
+    <string name="version_footer_beta">v%1$s [Beta-Kanal]</string>
+
+    <string name="toast_phone_ringing">Smartphone wird gesucht: Klingelt mit voller Lautstärke…</string>
+    <string name="toast_phone_ring_stopped">Alarm des Smartphones gestoppt</string>
+    <string name="toast_phone_vibrate">Smartphone auf Vibration gestellt</string>
+    <string name="toast_phone_sound">Smartphone auf Ton gestellt</string>
+    <string name="toast_enable_phone_a11y">Ultra Remapper Companion in den Bedienungshilfen aktivieren</string>
+    <string name="toast_grant_phone_dnd">Berechtigung für Nicht stören in den Einstellungen erteilen</string>
+    <string name="toast_phone_dnd_on">Smartphone Nicht stören: EIN</string>
+    <string name="toast_phone_dnd_off">Smartphone Nicht stören: AUS</string>
+    <string name="toast_ha_event_fired">Home Assistant Event gesendet!</string>
+    <string name="toast_ha_not_installed">Home Assistant Companion nicht installiert</string>
+    <string name="phone_a11y_desc">Erforderlich, um den Smartphone-Bildschirm direkt von der Uhr aus zu sperren.</string>
+</resources>

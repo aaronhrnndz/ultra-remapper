@@ -56,9 +56,19 @@ object AdbLocalManager {
 
     fun isSamsungPayEnabled(context: Context): Boolean {
         return try {
-            val appInfo = context.packageManager.getApplicationInfo(SAMSUNG_PAY_PACKAGE, 0)
-            appInfo.enabled
+            val setting = context.packageManager.getApplicationEnabledSetting(SAMSUNG_PAY_PACKAGE)
+            if (setting == PackageManager.COMPONENT_ENABLED_STATE_DISABLED ||
+                setting == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER ||
+                setting == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_UNTIL_USED
+            ) {
+                false
+            } else {
+                val appInfo = context.packageManager.getApplicationInfo(SAMSUNG_PAY_PACKAGE, 0)
+                appInfo.enabled
+            }
         } catch (_: PackageManager.NameNotFoundException) {
+            false
+        } catch (_: Exception) {
             false
         }
     }

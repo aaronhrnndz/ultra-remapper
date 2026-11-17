@@ -6,6 +6,9 @@ import android.util.Log
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataMapItem
+import com.google.android.gms.wearable.MessageClient
+import com.google.android.gms.wearable.MessageEvent
+import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import org.json.JSONObject
 
@@ -20,7 +23,12 @@ data class WatchSyncedState(
     val hapticEnabled: Boolean,
     val mappings: Map<String, String>,
     val permissions: Map<String, Boolean>,
-    val installedApps: List<WatchAppEntry>
+    val installedApps: List<WatchAppEntry>,
+    val wirelessAdbEnabled: Boolean = false,
+    val capturedPin: String? = null,
+    val capturedHostIp: String? = null,
+    val capturedPairingPort: Int? = null,
+    val capturedConnectPort: Int? = null
 )
 
 /**
@@ -29,8 +37,9 @@ data class WatchSyncedState(
  */
 class WatchDataLayerBridge(
     private val context: Context,
+    private val onNodeConnected: (String) -> Unit = {},
     private val onStateReceived: (WatchSyncedState, String?) -> Unit
-) : DataClient.OnDataChangedListener {
+) : DataClient.OnDataChangedListener, MessageClient.OnMessageReceivedListener {
 
     private val dataClient = Wearable.getDataClient(context)
     private val messageClient = Wearable.getMessageClient(context)
@@ -38,6 +47,7 @@ class WatchDataLayerBridge(
 
     fun start() {
         dataClient.addListener(this)
+        messageClient.addListener(this)
         fetchCurrentDataItem()
         requestSyncFromWatch()
     }
@@ -45,6 +55,7 @@ class WatchDataLayerBridge(
     fun stop() {
         try {
             dataClient.removeListener(this)
+            messageClient.removeListener(this)
         } catch (_: Exception) {}
     }
 
@@ -52,9 +63,17 @@ class WatchDataLayerBridge(
         nodeClient.connectedNodes.addOnSuccessListener { nodes ->
             val watchNode = nodes.firstOrNull()
             if (watchNode != null) {
+                onNodeConnected(watchNode.displayName)
                 messageClient.sendMessage(watchNode.id, PATH_REQUEST_SYNC, ByteArray(0))
             }
         }
+        try {
+            val req = PutDataMapRequest.create(PATH_REQUEST_SYNC).apply {
+                dataMap.putLong("ts", System.currentTimeMillis())
+            }.asPutDataRequest().setUrgent()
+            dataClient.putDataItem(req)
+        } catch (_: Exception) {}
+        fetchCurrentDataItem()
     }
 
     fun sendCommandToWatch(json: JSONObject, onSent: ((Boolean) -> Unit)? = null) {
@@ -62,6 +81,7 @@ class WatchDataLayerBridge(
         nodeClient.connectedNodes.addOnSuccessListener { nodes ->
             val watchNode = nodes.firstOrNull()
             if (watchNode != null) {
+                onNodeConnected(watchNode.displayName)
                 messageClient.sendMessage(watchNode.id, PATH_CMD, bytes)
                     .addOnSuccessListener { onSent?.invoke(true) }
                     .addOnFailureListener { onSent?.invoke(false) }
@@ -71,11 +91,23 @@ class WatchDataLayerBridge(
         }.addOnFailureListener {
             onSent?.invoke(false)
         }
+
+        // Also write to DataItem as backup in case appId differs
+        try {
+            val req = PutDataMapRequest.create(PATH_CMD).apply {
+                dataMap.putString("cmd_json", json.toString())
+                dataMap.putLong("ts", System.currentTimeMillis())
+            }.asPutDataRequest().setUrgent()
+            dataClient.putDataItem(req)
+        } catch (_: Exception) {}
     }
 
     private fun fetchCurrentDataItem() {
         nodeClient.connectedNodes.addOnSuccessListener { nodes ->
             val nodeName = nodes.firstOrNull()?.displayName
+            if (!nodeName.isNullOrBlank()) {
+                onNodeConnected(nodeName)
+            }
             val uri = Uri.Builder().scheme("wear").path(PATH_STATE).build()
             dataClient.getDataItems(uri).addOnSuccessListener { buffer ->
                 try {
@@ -102,7 +134,8 @@ class WatchDataLayerBridge(
     override fun onDataChanged(dataEvents: DataEventBuffer) {
         try {
             for (event in dataEvents) {
-                if (event.dataItem.uri.path == PATH_STATE) {
+                val path = event.dataItem.uri.path
+                if (path == PATH_STATE) {
                     val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
                     val jsonStr = dataMap.getString("state_json")
                     if (!jsonStr.isNullOrBlank()) {
@@ -112,9 +145,30 @@ class WatchDataLayerBridge(
                             }
                         }
                     }
+                } else if (path == PhoneActionListenerService.PATH_PHONE_ACTION) {
+                    val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
+                    val action = dataMap.getString("action")
+                    val ts = dataMap.getLong("ts", 0L)
+                    if (!action.isNullOrBlank()) {
+                        PhoneActionListenerService.executePhoneAction(context.applicationContext, action, ts)
+                    }
                 }
             }
         } catch (_: Exception) {}
+    }
+
+    override fun onMessageReceived(event: MessageEvent) {
+        if (event.path == PATH_STATE) {
+            val jsonStr = String(event.data, Charsets.UTF_8)
+            parseStateJson(jsonStr)?.let { parsed ->
+                nodeClient.connectedNodes.addOnSuccessListener { nodes ->
+                    onStateReceived(parsed, nodes.firstOrNull()?.displayName)
+                }
+            }
+        } else if (event.path == PhoneActionListenerService.PATH_PHONE_ACTION) {
+            val payload = String(event.data, Charsets.UTF_8).trim()
+            PhoneActionListenerService.executePhoneAction(context.applicationContext, payload)
+        }
     }
 
     companion object {
@@ -159,13 +213,24 @@ class WatchDataLayerBridge(
                     }
                 }
 
+                val wirelessAdbEnabled = root.optBoolean("wirelessAdbEnabled", false)
+                val capturedPin = root.optString("capturedPin", "").takeIf { it.isNotBlank() }
+                val capturedHostIp = root.optString("capturedHostIp", "").takeIf { it.isNotBlank() }
+                val capturedPairingPort = root.optInt("capturedPairingPort", -1).takeIf { it > 0 }
+                val capturedConnectPort = root.optInt("capturedConnectPort", -1).takeIf { it > 0 }
+
                 WatchSyncedState(
                     versionName = versionName,
                     masterEnabled = masterEnabled,
                     hapticEnabled = hapticEnabled,
                     mappings = mappings,
                     permissions = perms,
-                    installedApps = apps
+                    installedApps = apps,
+                    wirelessAdbEnabled = wirelessAdbEnabled,
+                    capturedPin = capturedPin,
+                    capturedHostIp = capturedHostIp,
+                    capturedPairingPort = capturedPairingPort,
+                    capturedConnectPort = capturedConnectPort
                 )
             } catch (_: Exception) {
                 null

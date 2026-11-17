@@ -5,8 +5,8 @@
 <h1 align="center">Ultra Remapper</h1>
 
 <p align="center">
-  <b>Hardware Button Remapper for Samsung Galaxy Watch Ultra, Ultra 2, Watch 8 Classic & Wear OS Watches</b><br/>
-  <sub>Dynamic Hardware Detection · Quick Button & Bottom Button Mapping · Samsung Flashlight (Auto-Max / Boost) · Samsung Health Workouts & Favorites · Standalone OTA</sub>
+  <b>Complete Hardware Button Remapper for Samsung Galaxy Watch Ultra, Ultra 2, Watch 8 Classic, Watch 7, Watch 6 & Wear OS Watches</b><br/>
+  <sub>Dynamic Hardware Detection · Quick Button, Bottom Button & Top Button · Phone Companion App & Seamless Bluetooth Bridge · Local In-Watch ADB · Samsung Health Handover · Standalone OTA</sub>
 </p>
 
 <p align="center">
@@ -19,126 +19,103 @@
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License: GPL-3.0" />
   </a>
-  <img src="https://img.shields.io/badge/platform-Wear%20OS%205%2B-3DDC84?style=flat-square" alt="Wear OS" />
+  <img src="https://img.shields.io/badge/platform-Wear%20OS%205%2B%20%7C%20Android%208%2B-3DDC84?style=flat-square" alt="Wear OS & Android" />
 </p>
 
 <p align="center">
-  <img src="docs/captura2.png" width="180" alt="Quick Button Mapping" />
-  <img src="docs/captura4.png" width="180" alt="Action Selector" />
-  <img src="docs/captura3.png" width="180" alt="Bottom Button Mapping" />
-  <img src="docs/captura.png" width="180" alt="OTA Update Detection" />
-  <img src="docs/captura1.png" width="180" alt="In-Watch Installer" />
+  <img src="docs/captura2.png" width="160" alt="Quick Button Mapping" />
+  <img src="docs/captura4.png" width="160" alt="Action Selector" />
+  <img src="docs/captura3.png" width="160" alt="Bottom Button Mapping" />
+  <img src="docs/captura.png" width="160" alt="OTA Update Detection" />
+  <img src="docs/captura1.png" width="160" alt="In-Watch Installer" />
 </p>
+
+---
+
+## 🌟 What's New in v2.3.9
+
+- **📱 Ultra Remapper Phone Companion App**: Modern, lightweight Material 3 companion app for your phone with zero idle battery drain. Configures your watch buttons, toggles options, and syncs states over native Bluetooth DataLayer.
+- **⚡ Guided 3-Step Wireless ADB Wizard**:
+  - **Automatic Port & PIN Detection**: The watch accessibility service reads the watch IP, 6-digit PIN, and ADB ports straight from Wear OS Developer Settings and streams them to the phone companion via Bluetooth. No manual typing or port scanning needed!
+  - **Persistent Pairing State**: No accidental jumps back to pairing fields when reconnecting or if connection drops.
+- **📱 Remote Phone Actions (Zero Idle Battery)**: Map wrist buttons to trigger phone features instantly without touching your phone:
+  - **Find My Phone**: Rings your phone at maximum volume with vibration (stops on second tap).
+  - **Phone Flashlight**: Toggles your phone's rear camera LED.
+  - **Phone Camera Shutter**: Opens camera and fires hardware shutter.
+  - **Phone Sound / Vibrate**: Toggles phone ringer mode.
+- **🌍 100% Complete Multilingual Support**: Both Watch and Phone Companion apps fully translated into **English**, **Español**, **Deutsch**, and **Français**.
 
 ---
 
 ## Capabilities Overview
 
-- **Physical Button Remapping**: Independent single, double, and long press customization for the **Quick / Center Button** (Galaxy Watch Ultra, Watch 8 Classic), **Bottom (Back) Button**, and **Top (Home) Button** (Hold) across Wear OS Samsung watches.
-- **In-Watch Local ADB Wizard**: Pair and connect wireless ADB directly on the watch using native TLS 1.3 / SPAKE2 and mDNS discovery. Grant elevated permissions and manage system tweaks completely on-device without a PC or phone.
-- **Samsung Pay / Wallet Freeze**: One-tap toggle to freeze or disable Samsung Pay (pm disable-user --user 0 com.samsung.android.samsungpay.gear), eliminating system intercept conflicts for 100% reliable bottom-button long press gestures.
-- **Dedicated Permissions Management**: Clean, focused permissions screen with auto-centering to grant Overlay, Secure Settings, Action Route, Notification Listener, and Battery Whitelist privileges via local ADB.
-- **Samsung Health & System Actions**: Instant shortcuts to pinned workouts, official Flashlight (with automatic hardware Max/Boost and retry loop), Stopwatch, Water Lock, and Digital Assistant.
-- **Smart Utilities**: One-click Wireless ADB toggle, GPS parking saver & walking navigation, water eject speaker sweep, LTE toggle, and tactical red flashlight.
-- **Phone Media Controls**: Wrist-based media playback and volume control bridging local and phone sessions (Spotify, YouTube, KDE Connect).
-- **Autonomous In-Watch OTA**: Background release checks with in-watch installer and live progress bar — no PC or phone app required for updates.
-- **Smart Diagnostics & Marquee Text**: Warning banners only appear when an active shortcut needs attention; text automatically marquees across circular watch displays to avoid truncation.
-
-> [!TIP]
-> For the complete breakdown of every action and tool, explore the [**Full Feature List**](docs/FEATURES.md).
+- **Physical Button Remapping**:
+  - **Quick / Action Button** (Galaxy Watch Ultra, Watch 8 Classic): Single press, double press, and hold.
+  - **Bottom (Back) Button**: Single tap (with stock Recents/Back preservation), double tap, triple tap, and long press.
+  - **Top (Home) Button**: Double press and hold (via Digital Assistant routing).
+  - **Wrist Gestures**: Samsung Knock knock (Toc toc) gesture routing.
+- **Pure Event-Driven Phone Actions**: Launch phone actions from the watch with 0.0% standby battery consumption using the OS WearableListenerService.
+- **In-Watch & In-Phone ADB Pairing Wizards**: Pair locally on your wrist or pair via the phone companion using native TLS 1.3 / SPAKE2. Grant privileges and manage system tweaks without a PC.
+- **Samsung Pay / Wallet Freeze**: One-tap toggle to freeze Samsung Pay (`pm disable-user --user 0 com.samsung.android.samsungpay.gear`), eliminating system intercept conflicts for 100% reliable bottom-button long press gestures.
+- **Smart Diagnostics**: Warning banners only appear when an active shortcut needs attention, with direct jump-to-fix shortcuts.
+- **Samsung Health Foreground Handover**: When Samsung Health is actively recording an exercise, the Action button yields seamlessly to native workout controls (pause/lap).
+- **RGBW Tactical Flashlight**: Touch wheel and bezel-based continuous hue tuning + auto Max/Boost hardware cycling for Samsung's native white flashlight.
+- **Smart Utilities**: Water lock, speaker water ejection sweep, LTE toggle, GPS parking saver & walking navigation back to car, DND sync, and Home Assistant voice assist.
+- **Autonomous OTA Updates**: Background release checks with in-watch and in-companion direct installers.
 
 ---
 
 ## Download & Installation
 
-Download the latest prebuilt APK from the [**Releases**](https://github.com/Aaronhrndz/ultra-remapper/releases/latest) page (`ultra-remapper-vX.X.X.apk`).
-
-> [!IMPORTANT]
-> **Charging State Note**: When placed on the magnetic charger dock, Wear OS enters battery charging mode and suspends accessibility and button remapping to prevent phantom touches. Button remapping resumes automatically once taken off the charger.
-
-> [!NOTE]
-> **Samsung Health Foreground Coexistence**: Button remapping remains active across the system. When Samsung Health is actively on screen, custom actions execute seamlessly alongside native exercise tracking.
-
-> [!WARNING]
-> **Upgrading from older versions**: Starting in **v1.3.22**, the package name changed to `com.aaronhrndz.ultraremapper`. If you previously had **v1.3.21 or older** installed, **uninstall it completely before installing this version** to prevent duplicate apps or permission conflicts.
+Download the latest prebuilt APKs from the [**Releases**](https://github.com/Aaronhrndz/ultra-remapper/releases/latest) page:
+- **`UltraRemapper-Watch-vX.X.X.apk`**: App for your Wear OS smartwatch.
+- **`UltraRemapper-Companion-Mobile-vX.X.X.apk`**: Companion app for your Android phone.
 
 > [!TIP]
-> For the complete breakdown of which features need elevated permissions, check the [**Permissions & Actions Reference**](docs/PERMISSIONS.md).
+> You can install the **Phone Companion App** first, and it will automatically guide you through pairing, installing, and configuring Ultra Remapper on your watch with 1 click over Wireless ADB!
 
 ---
 
-### ⌚ Standalone Setup directly on the Watch (No PC or Phone required)
+### 📱 Method A: Setup via Phone Companion (Recommended)
 
-Starting in **v2.2.0**, Ultra Remapper features an **integrated Local ADB Wizard**:
+1. Install `UltraRemapper-Companion-Mobile-vX.X.X.apk` on your Android phone.
+2. Open the Companion app. It connects to your watch immediately via Bluetooth.
+3. Open **Settings › Wireless ADB Connection** inside the app.
+4. Follow the **3-Step Wizard**:
+   - Tap **Open Wireless Debugging on Watch**.
+   - Tap **Pair new device** on the watch. The companion automatically receives the IP, port, and 6-digit PIN and pairs.
+   - Tap **Install / Update Watch App** to deploy Ultra Remapper directly to your watch!
+
+---
+
+### ⌚ Method B: Standalone Setup on the Watch (No PC or Phone required)
+
 1. Connect the watch to Wi-Fi.
 2. In watch **Settings › Developer options › Wireless debugging**, enable it and tap **Pair new device**.
-3. Open Ultra Remapper, go to **Settings › ADB Settings › Pair / Connect ADB**, and enter the 6-digit code shown on screen.
-4. Go to **Settings › ADB Settings › Permissions** to grant all elevated permissions (Overlay, Secure Settings, Action Route, Notification Listener, Battery Whitelist) and freeze Samsung Pay with 1 tap directly on your wrist!
+3. Open Ultra Remapper on the watch, go to **Settings › ADB Settings › Local ADB Pairing Wizard**, and enter the 6-digit PIN.
+4. Go to **Settings › Permissions** to grant all elevated permissions (Overlay, Secure Settings, Action Route, Notification Listener, Battery Whitelist) and freeze Samsung Pay with 1 tap.
 
 ---
 
-### ⚡ Alternative: Quick Setup via PC / Terminal Wireless ADB
+### 💻 Method C: Setup via PC Wireless ADB
 
 1. Enable **Settings → Developer options → ADB debugging** and **Wireless debugging** on your watch, then pair and connect:
    ```bash
    adb pair <WATCH_IP>:<PAIRING_PORT>
    adb connect <WATCH_IP>:<CONNECTION_PORT>
    ```
-2. Install the downloaded APK:
+2. Install the watch APK:
    ```bash
-   adb install -r ultra-remapper-*.apk
+   adb install -r UltraRemapper-Watch-*.apk
+   ```
+3. **All-In-One Megacommand** (grants all elevated permissions in 1 second):
+   ```bash
+   adb shell "settings put global setting_action_button_press com.aaronhrndz.ultraremapper/com.aaronhrndz.ultraremapper.ActionButtonService && settings put global setting_home_key_long_press googlevoiceassistant/googlevoiceassistant && settings put secure assistant com.aaronhrndz.ultraremapper/.AppVoiceInteractionService && settings put secure voice_interaction_service com.aaronhrndz.ultraremapper/.AppVoiceInteractionService && settings put secure enabled_accessibility_services com.aaronhrndz.ultraremapper/com.aaronhrndz.ultraremapper.BottomButtonService && settings put secure accessibility_enabled 1 && appops set com.aaronhrndz.ultraremapper SYSTEM_ALERT_WINDOW allow && cmd notification allow_listener com.aaronhrndz.ultraremapper/com.aaronhrndz.ultraremapper.MediaControlService && pm grant com.aaronhrndz.ultraremapper android.permission.WRITE_SECURE_SETTINGS && pm grant com.aaronhrndz.ultraremapper android.permission.ACCESS_FINE_LOCATION && cmd deviceidle whitelist +com.aaronhrndz.ultraremapper"
    ```
 
-> [!TIP]
-> ### 🚀 Recommended: All-In-One Megacommand
-> Run this single command block in your terminal (PowerShell, CMD or Bash) to **automatically grant all 4 elevated permissions and configure hardware buttons in one second**:
->
-> ```bash
-> adb shell "settings put global setting_action_button_press com.aaronhrndz.ultraremapper/com.aaronhrndz.ultraremapper.ActionButtonService && settings put global setting_home_key_long_press googlevoiceassistant/googlevoiceassistant && settings put secure assistant com.aaronhrndz.ultraremapper/.AppVoiceInteractionService && settings put secure voice_interaction_service com.aaronhrndz.ultraremapper/.AppVoiceInteractionService && settings put secure enabled_accessibility_services com.aaronhrndz.ultraremapper/com.aaronhrndz.ultraremapper.BottomButtonService && settings put secure accessibility_enabled 1 && appops set com.aaronhrndz.ultraremapper SYSTEM_ALERT_WINDOW allow && cmd notification allow_listener com.aaronhrndz.ultraremapper/com.aaronhrndz.ultraremapper.MediaControlService && pm grant com.aaronhrndz.ultraremapper android.permission.WRITE_SECURE_SETTINGS && pm grant com.aaronhrndz.ultraremapper android.permission.ACCESS_FINE_LOCATION && cmd deviceidle whitelist +com.aaronhrndz.ultraremapper"
-> ```
-> *This automatically enroutes the Action Button, enables Accessibility for the Back key, unlocks Overlays and Media Listener, and grants Secure Settings with zero manual steps.*
-
-<details>
-<summary><b>🔧 Advanced: Grant permissions individually (Step-by-Step)</b></summary>
-
-If you prefer to grant permissions manually one by one instead of using the megacommand:
-
-- **1. Route Quick / Action Button**:
-  ```bash
-  adb shell settings put global setting_action_button_press com.aaronhrndz.ultraremapper/com.aaronhrndz.ultraremapper.ActionButtonService
-  ```
-- **2. Enable Accessibility Service** (Bottom / Back button remapping):
-  ```bash
-  adb shell settings put secure enabled_accessibility_services com.aaronhrndz.ultraremapper/com.aaronhrndz.ultraremapper.BottomButtonService
-  adb shell settings put secure accessibility_enabled 1
-  ```
-- **4. Allow Overlay Permission** (floating UI & full-screen red flashlight):
-  ```bash
-  adb shell appops set com.aaronhrndz.ultraremapper SYSTEM_ALERT_WINDOW allow
-  ```
-- **5. Enable Media Bridge** (phone media controls & volume sync):
-  ```bash
-  adb shell cmd notification allow_listener com.aaronhrndz.ultraremapper/com.aaronhrndz.ultraremapper.MediaControlService
-  ```
-- **6. Grant Secure Settings & GPS Location** (LTE toggle, glove mode, parking GPS):
-  ```bash
-  adb shell pm grant com.aaronhrndz.ultraremapper android.permission.WRITE_SECURE_SETTINGS
-  adb shell pm grant com.aaronhrndz.ultraremapper android.permission.ACCESS_FINE_LOCATION
-  ```
-- **7. Battery Whitelist** (prevent service sleep):
-  ```bash
-  adb shell cmd deviceidle whitelist +com.aaronhrndz.ultraremapper
-  ```
-
-> **Note:** Changing the Quick Button mapping inside Samsung's native Watch Settings will overwrite the Action Button routing. To restore Samsung's default Quick Button behavior at any time:
-> ```bash
-> adb shell settings put global setting_action_button_press com.samsung.android.wear.shealth/com.samsung.android.wear.shealth.service.ActionButtonService
-> ```
-
-</details>
 ---
 
-## â˜• Support & Donations
+## ☕ Support & Donations
 
 If Ultra Remapper made your Galaxy Watch experience significantly better, consider supporting future development with a coffee:
 

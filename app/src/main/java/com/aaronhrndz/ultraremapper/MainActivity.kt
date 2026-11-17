@@ -350,7 +350,29 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    val dataLayerListener = remember {
+                        com.google.android.gms.wearable.DataClient.OnDataChangedListener { dataEvents ->
+                            try {
+                                for (event in dataEvents) {
+                                    val path = event.dataItem.uri.path
+                                    if (path == CompanionSyncService.PATH_REQUEST_SYNC) {
+                                        CompanionSyncService.syncStateToDataLayer(context)
+                                    } else if (path == CompanionSyncService.PATH_CMD) {
+                                        val dataMap = com.google.android.gms.wearable.DataMapItem.fromDataItem(event.dataItem).dataMap
+                                        val cmdJson = dataMap.getString("cmd_json")
+                                        if (!cmdJson.isNullOrBlank()) {
+                                            CompanionSyncService.handlePhoneCommandFromService(context, cmdJson)
+                                        }
+                                    }
+                                }
+                            } catch (_: Exception) {}
+                        }
+                    }
+
                     DisposableEffect(lifecycleOwner) {
+                        try {
+                            com.google.android.gms.wearable.Wearable.getDataClient(context).addListener(dataLayerListener)
+                        } catch (_: Exception) {}
                         val observer = LifecycleEventObserver { _, event ->
                             if (event == Lifecycle.Event.ON_RESUME) {
                                 isActionButtonRouted(context)
@@ -382,6 +404,9 @@ class MainActivity : ComponentActivity() {
                         }
                         lifecycleOwner.lifecycle.addObserver(observer)
                         onDispose {
+                            try {
+                                com.google.android.gms.wearable.Wearable.getDataClient(context).removeListener(dataLayerListener)
+                            } catch (_: Exception) {}
                             lifecycleOwner.lifecycle.removeObserver(observer)
                             try { context.unregisterReceiver(receiver) } catch (_: Exception) {}
                         }
@@ -707,7 +732,7 @@ private fun Home(
         (actionRows.map { it.third.first } + bottomRows.map { it.third.first } + topRows.map { it.third.first } + gestureRows.map { it.third.first }).toSet()
     }
 
-    var isMasterEnabled by remember { mutableStateOf(Mapping.isEnabled(context)) }
+    var isMasterEnabled by remember(mappingVersion) { mutableStateOf(Mapping.isEnabled(context)) }
 
     val needsA11y = remember(allConfiguredActions, bottomRows) {
         bottomRows.any { it.third.first != "none" } || allConfiguredActions.contains("flashlight")
@@ -748,7 +773,7 @@ private fun Home(
             needsSamsungPayFreeze
 
     ScreenScaffold(scrollState = columnState) { _ ->
-        var isHapticEnabled by remember { mutableStateOf(Mapping.isHapticFeedbackEnabled(context)) }
+        var isHapticEnabled by remember(mappingVersion) { mutableStateOf(Mapping.isHapticFeedbackEnabled(context)) }
         var isTopExpanded by remember { mutableStateOf(false) }
         var isActionExpanded by remember { mutableStateOf(false) }
         var isBottomExpanded by remember { mutableStateOf(false) }
@@ -1150,6 +1175,7 @@ private fun Home(
             }
 
             item(key = "card_top_section") {
+                val topCount = topRows.count { it.third.first != "none" }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1169,19 +1195,27 @@ private fun Home(
                             }
                             .padding(horizontal = 6.dp, vertical = 6.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                             Image(
                                 painter = painterResource(id = R.drawable.ic_watch_top_button),
                                 contentDescription = null,
                                 modifier = Modifier.size(38.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = context.getString(R.string.hdr_top_button),
-                                color = Color.White,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Column {
+                                Text(
+                                    text = context.getString(R.string.hdr_top_button),
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (topCount > 0) context.getString(R.string.count_configured, topCount) else context.getString(R.string.status_unassigned),
+                                    color = if (topCount > 0) UltraOrange else Color(0xFF9EA7B8),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (topCount > 0) FontWeight.SemiBold else FontWeight.Normal
+                                )
+                            }
                         }
                         CollapseChevron(isExpanded = isTopExpanded)
                     }
@@ -1221,6 +1255,7 @@ private fun Home(
             if (setup.hasActionButton) {
                 // Action Button Collapsible Section Card
                 item(key = "card_action_section") {
+                    val actionCount = actionRows.count { it.third.first != "none" }
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1240,19 +1275,27 @@ private fun Home(
                                 }
                                 .padding(horizontal = 6.dp, vertical = 6.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                 Image(
                                     painter = painterResource(id = R.drawable.ic_watch_quick_button),
                                     contentDescription = null,
                                     modifier = Modifier.size(38.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = context.getString(R.string.hdr_center_button),
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Column {
+                                    Text(
+                                        text = context.getString(R.string.hdr_center_button),
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = if (actionCount > 0) context.getString(R.string.count_configured, actionCount) else context.getString(R.string.status_unassigned),
+                                        color = if (actionCount > 0) UltraOrange else Color(0xFF9EA7B8),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = if (actionCount > 0) FontWeight.SemiBold else FontWeight.Normal
+                                    )
+                                }
                             }
                             CollapseChevron(isExpanded = isActionExpanded)
                         }
@@ -1299,6 +1342,7 @@ private fun Home(
 
             // Bottom Button Collapsible Section Card
             item(key = "card_bottom_section") {
+                val bottomCount = bottomRows.count { it.third.first != "none" }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1318,19 +1362,27 @@ private fun Home(
                             }
                             .padding(horizontal = 6.dp, vertical = 6.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                             Image(
                                 painter = painterResource(id = R.drawable.ic_watch_bottom_button),
                                 contentDescription = null,
                                 modifier = Modifier.size(38.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = context.getString(R.string.hdr_bottom_button),
-                                color = Color.White,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Column {
+                                Text(
+                                    text = context.getString(R.string.hdr_bottom_button),
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (bottomCount > 0) context.getString(R.string.count_configured, bottomCount) else context.getString(R.string.status_unassigned),
+                                    color = if (bottomCount > 0) UltraOrange else Color(0xFF9EA7B8),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (bottomCount > 0) FontWeight.SemiBold else FontWeight.Normal
+                                )
+                            }
                         }
                         CollapseChevron(isExpanded = isBottomExpanded)
                     }
@@ -1373,6 +1425,7 @@ private fun Home(
             }
 
             item(key = "card_gestures_section") {
+                val gestureCount = gestureRows.count { it.third.first != "none" }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1392,19 +1445,27 @@ private fun Home(
                             }
                             .padding(horizontal = 6.dp, vertical = 6.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                             Image(
                                 painter = painterResource(id = R.drawable.ic_wrist_gesture),
                                 contentDescription = null,
                                 modifier = Modifier.size(38.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = context.getString(R.string.hdr_gestures),
-                                color = Color.White,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Column {
+                                Text(
+                                    text = context.getString(R.string.hdr_gestures),
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (gestureCount > 0) context.getString(R.string.status_toctoc_active) else context.getString(R.string.status_unassigned),
+                                    color = if (gestureCount > 0) UltraOrange else Color(0xFF9EA7B8),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (gestureCount > 0) FontWeight.SemiBold else FontWeight.Normal
+                                )
+                            }
                         }
                         CollapseChevron(isExpanded = isGesturesExpanded)
                     }
@@ -1591,6 +1652,64 @@ private fun ActionPicker(
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
                 )
+            }
+
+            // ==================== SECTION: PHONE ACTIONS ====================
+            item(key = "section_hdr_phone") {
+                ListHeader(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 22.dp, bottom = 4.dp)
+                        .transformedHeight(this, transformationSpec),
+                    transformation = SurfaceTransformation(transformationSpec)
+                ) {
+                    Text(
+                        context.getString(R.string.hdr_section_phone),
+                        color = UltraOrange,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+            }
+
+            items(Mapping.phoneActions, key = { "phone_${it.first}" }) { (action, labelRes) ->
+                val selected = action == current
+                RadioButton(
+                    selected = selected,
+                    onSelect = { onSelect(action) },
+                    label = {
+                        Text(
+                            context.getString(labelRes),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                            modifier = Modifier.basicMarquee()
+                        )
+                    },
+                    colors = radioColors,
+                    transformation = SurfaceTransformation(transformationSpec),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .transformedHeight(this, transformationSpec)
+                )
+            }
+
+            // ==================== SECTION: WATCH ACTIONS ====================
+            item(key = "section_hdr_watch") {
+                ListHeader(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 24.dp, bottom = 4.dp)
+                        .transformedHeight(this, transformationSpec),
+                    transformation = SurfaceTransformation(transformationSpec)
+                ) {
+                    Text(
+                        context.getString(R.string.hdr_section_watch),
+                        color = UltraOrange,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Black
+                    )
+                }
             }
 
             // Samsung Health Section

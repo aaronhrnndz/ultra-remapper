@@ -20,8 +20,28 @@ class BottomButtonService : AccessibilityService() {
         var instance: BottomButtonService? = null
             private set
 
+        private val dataLayerListener = com.google.android.gms.wearable.DataClient.OnDataChangedListener { dataEvents ->
+            val svc = instance ?: return@OnDataChangedListener
+            try {
+                for (event in dataEvents) {
+                    val path = event.dataItem.uri.path
+                    if (path == CompanionSyncService.PATH_REQUEST_SYNC) {
+                        CompanionSyncService.syncStateToDataLayer(svc.applicationContext)
+                    } else if (path == CompanionSyncService.PATH_CMD) {
+                        val dataMap = com.google.android.gms.wearable.DataMapItem.fromDataItem(event.dataItem).dataMap
+                        val cmdJson = dataMap.getString("cmd_json")
+                        if (!cmdJson.isNullOrBlank()) {
+                            CompanionSyncService.handlePhoneCommandFromService(svc.applicationContext, cmdJson)
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
         @Volatile
         var isReadingAdbScreen = false
+        @Volatile
+        var capturedHostIp: String? = null
         @Volatile
         var capturedPin: String? = null
         @Volatile
@@ -30,6 +50,7 @@ class BottomButtonService : AccessibilityService() {
         var capturedConnectPort: Int? = null
 
         fun clearCapturedAdb() {
+            capturedHostIp = null
             capturedPin = null
             capturedPairingPort = null
             capturedConnectPort = null
@@ -150,9 +171,16 @@ class BottomButtonService : AccessibilityService() {
             info.flags = info.flags or android.accessibilityservice.AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
             serviceInfo = info
         }
+        try {
+            com.google.android.gms.wearable.Wearable.getDataClient(applicationContext).addListener(dataLayerListener)
+            CompanionSyncService.syncStateToDataLayer(applicationContext)
+        } catch (_: Exception) {}
     }
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
+        try {
+            com.google.android.gms.wearable.Wearable.getDataClient(applicationContext).removeListener(dataLayerListener)
+        } catch (_: Exception) {}
         if (instance === this) instance = null
         isFlashlightWindowActive = false
         pendingBoostFromAction = false
@@ -280,13 +308,8 @@ class BottomButtonService : AccessibilityService() {
             currentActiveClass = cls
 
             // Inspect screen text when user is on Wireless Debugging or Pairing screen
-            if (isReadingAdbScreen && (pkg.contains("settings", ignoreCase = true) || cls?.contains("wireless", ignoreCase = true) == true || cls?.contains("pair", ignoreCase = true) == true)) {
-                try {
-                    val root = rootInActiveWindow
-                    if (root != null) {
-                        extractAdbInfoFromNode(root)
-                    }
-                } catch (_: Exception) {}
+            if ((pkg.contains("settings", ignoreCase = true) || cls?.contains("wireless", ignoreCase = true) == true || cls?.contains("pair", ignoreCase = true) == true)) {
+                scanAdbScreenAndSync(retriesLeft = 4)
             }
 
             // Dynamic Action Button handover ONLY during active ExerciseActivity
@@ -553,43 +576,80 @@ class BottomButtonService : AccessibilityService() {
         setWindowTrackingEnabled(false)
     }
 
-    private fun extractAdbInfoFromNode(node: android.view.accessibility.AccessibilityNodeInfo?) {
-        if (node == null) return
-        val text = node.text?.toString() ?: node.contentDescription?.toString()
-        if (!text.isNullOrBlank()) {
-            val trimmed = text.trim()
-
-            // 1. If text is exactly a 6-digit number, it's the pairing code
-            if (trimmed.matches(Regex("^\\d{6}$"))) {
-                capturedPin = trimmed
-            } else {
-                val pinMatch = Regex("(?:código|pin|code)?[\\s:]*(\\b\\d{6}\\b)", RegexOption.IGNORE_CASE).find(trimmed)
-                if (pinMatch != null) {
-                    capturedPin = pinMatch.groupValues[1]
+    fun scanAdbScreenAndSync(retriesLeft: Int = 3) {
+        try {
+            val root = rootInActiveWindow
+            if (root != null) {
+                val prevPin = capturedPin
+                val prevPairPort = capturedPairingPort
+                val prevConnPort = capturedConnectPort
+                val prevIp = capturedHostIp
+                val allTexts = mutableListOf<String>()
+                collectNodeTexts(root, allTexts)
+                parseAdbTexts(allTexts)
+                if (capturedPin != prevPin || capturedPairingPort != prevPairPort || capturedConnectPort != prevConnPort || capturedHostIp != prevIp) {
+                    CompanionSyncService.syncStateToDataLayer(applicationContext)
                 }
             }
+        } catch (_: Exception) {}
 
-            // 2. IP:Port pattern (e.g. 192.168.1.185:33205 or [fe80::...]:33205 or :33205)
-            val ipPortMatch = Regex("(?:(?:\\d{1,3}\\.){3}\\d{1,3}|(?:\\[?[a-fA-F0-9:]+\\]?))?:(\\d{4,5})").find(trimmed)
-            if (ipPortMatch != null) {
-                val port = ipPortMatch.groupValues[1].toIntOrNull()
-                if (port != null && port in 1024..65535) {
-                    // Check if current text or current screen state indicates pairing
-                    val isPairingContext = capturedPin != null ||
-                            currentActiveClass?.contains("pair", ignoreCase = true) == true ||
-                            trimmed.contains("vincular", ignoreCase = true) ||
-                            trimmed.contains("pair", ignoreCase = true)
+        if (retriesLeft > 0) {
+            handler.postDelayed({
+                scanAdbScreenAndSync(retriesLeft - 1)
+            }, 450L)
+        }
+    }
 
-                    if (isPairingContext) {
-                        capturedPairingPort = port
-                    } else {
-                        capturedConnectPort = port
-                    }
-                }
+    private fun collectNodeTexts(node: android.view.accessibility.AccessibilityNodeInfo?, out: MutableList<String>) {
+        if (node == null) return
+        node.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let { out.add(it) }
+        node.contentDescription?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let { out.add(it) }
+        for (i in 0 until node.childCount) {
+            collectNodeTexts(node.getChild(i), out)
+        }
+    }
+
+    fun parseAdbTexts(texts: List<String>) {
+        val fullText = texts.joinToString("\n")
+        val isPairingScreen = currentActiveClass?.contains("pair", ignoreCase = true) == true ||
+            texts.any { it.matches(Regex("^\\d{6}$")) } ||
+            fullText.contains("código de vinculación", ignoreCase = true) ||
+            fullText.contains("pairing code", ignoreCase = true)
+
+        var foundPin: String? = null
+        for (t in texts) {
+            if (t.matches(Regex("^\\d{6}$"))) {
+                foundPin = t
+                break
+            }
+            val m = Regex("(?:código|pin|code)[\\s:]*(\\b\\d{6}\\b)", RegexOption.IGNORE_CASE).find(t)
+            if (m != null) {
+                foundPin = m.groupValues[1]
+                break
             }
         }
-        for (i in 0 until node.childCount) {
-            extractAdbInfoFromNode(node.getChild(i))
+        if (foundPin != null) {
+            capturedPin = foundPin
+        }
+
+        val ipPortRegex = Regex("((?:\\d{1,3}\\.){3}\\d{1,3}):(\\d{4,5})")
+        for (m in ipPortRegex.findAll(fullText)) {
+            val ip = m.groupValues[1]
+            val port = m.groupValues[2].toIntOrNull()
+            if (ip != "127.0.0.1" && ip != "0.0.0.0") {
+                capturedHostIp = ip
+            }
+            if (port != null && port in 1024..65535) {
+                if (isPairingScreen || foundPin != null) {
+                    capturedPairingPort = port
+                } else if (fullText.contains("depuración inalámbrica", ignoreCase = true) ||
+                    fullText.contains("wireless debugging", ignoreCase = true) ||
+                    fullText.contains("dirección ip", ignoreCase = true) ||
+                    fullText.contains("ip address", ignoreCase = true)
+                ) {
+                    capturedConnectPort = port
+                }
+            }
         }
     }
 

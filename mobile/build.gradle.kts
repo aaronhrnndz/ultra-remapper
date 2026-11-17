@@ -10,11 +10,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.aaronhrndz.ultraremapper.companion"
+        applicationId = "com.aaronhrndz.ultraremapper"
         minSdk = 26
         targetSdk = 37
-        versionCode = 223
-        versionName = "2.2.3"
+        versionCode = 246
+        versionName = "2.4.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -30,7 +30,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -38,7 +38,7 @@ android {
             )
         }
         debug {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {

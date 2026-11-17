@@ -75,7 +75,17 @@ object Mapping {
         "open_media_player" to R.string.action_open_media_player,
     )
 
-    val actionDefinitions = (shealthActions + samsungActions + devActions + utilityActions + homeAssistantActions + mediaActions)
+    val phoneActions = listOf(
+        "phone_find" to R.string.action_phone_find,
+        "phone_torch" to R.string.action_phone_torch,
+        "phone_camera" to R.string.action_phone_camera,
+        "phone_ringer" to R.string.action_phone_ringer,
+        "phone_lock" to R.string.action_phone_lock,
+        "phone_dnd" to R.string.action_phone_dnd,
+        "phone_ha_event" to R.string.action_phone_ha_event,
+    )
+
+    val actionDefinitions = (shealthActions + samsungActions + devActions + utilityActions + phoneActions + homeAssistantActions + mediaActions)
 
     private val defaults = emptyMap<String, String>()
 
@@ -129,6 +139,7 @@ object Mapping {
         samsungActions.any { it.first == action } -> "Samsung"
         devActions.any { it.first == action } -> "Dev"
         utilityActions.any { it.first == action } -> "Utility"
+        phoneActions.any { it.first == action } -> "Phone"
         homeAssistantActions.any { it.first == action } -> "HA"
         mediaActions.any { it.first == action } -> "Media"
         else -> ""
@@ -175,6 +186,9 @@ object Mapping {
             "vol_up" -> audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
             "vol_down" -> audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
             "open_media_player" -> openMediaPlayer(context, backToHome)
+            "phone_find", "phone_torch", "phone_camera", "phone_ringer", "phone_lock", "phone_dnd", "phone_ha_event" -> {
+                CompanionSyncService.sendPhoneAction(context, action)
+            }
             else -> if (action.startsWith("app:")) {
                 context.packageManager.getLaunchIntentForPackage(action.removePrefix("app:"))
                     ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

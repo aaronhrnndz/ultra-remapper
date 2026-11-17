@@ -63,7 +63,11 @@ object AdbKeyManager {
             } catch (_: Exception) {}
         }
 
-        val kpg = KeyPairGenerator.getInstance("RSA")
+        val kpg = try {
+            KeyPairGenerator.getInstance("RSA", "AndroidOpenSSL")
+        } catch (_: Exception) {
+            KeyPairGenerator.getInstance("RSA")
+        }
         kpg.initialize(2048, SecureRandom())
         val newPair = kpg.generateKeyPair()
 
@@ -73,7 +77,7 @@ object AdbKeyManager {
         prefs.edit()
             .putString(KEY_PRIVATE, privBase64)
             .putString(KEY_PUBLIC, pubBase64)
-            .apply()
+            .commit()
 
         cachedKeyPair = newPair
         return newPair
@@ -101,7 +105,7 @@ object AdbKeyManager {
         val certBase64 = Base64.getEncoder().encodeToString(cert.encoded)
         prefs.edit()
             .putString(KEY_CERT, certBase64)
-            .apply()
+            .commit()
 
         cachedCert = cert
         return cert

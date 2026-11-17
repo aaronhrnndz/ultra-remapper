@@ -129,16 +129,38 @@ fun SettingsScreen(
     val perms = remember(permVersion, isAdbConnected) { readPermissionItems(context) }
     val mainHandler = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
 
-    // Re-check pairing and connection state on resume
+    // Re-check pairing, connection state, and listen to remote phone sync updates
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isAdbPaired = LocalAdbClient.isPaired(context)
                 connectedClientState = client ?: LocalAdbClient.activeInstance
+                isMasterEnabled = Mapping.isEnabled(context)
+                isHapticEnabled = Mapping.isHapticFeedbackEnabled(context)
+                isSamsungPayEnabled = AdbLocalManager.isSamsungPayEnabled(context)
+                permVersion++
             }
         }
+        val stateReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: android.content.Intent?) {
+                isMasterEnabled = Mapping.isEnabled(context)
+                isHapticEnabled = Mapping.isHapticFeedbackEnabled(context)
+                isSamsungPayEnabled = AdbLocalManager.isSamsungPayEnabled(context)
+                permVersion++
+                onRefreshPermissions()
+            }
+        }
+        val filter = android.content.IntentFilter(com.aaronhrndz.ultraremapper.CompanionSyncService.ACTION_STATE_UPDATED)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(stateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            context.registerReceiver(stateReceiver, filter)
+        }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            try { context.unregisterReceiver(stateReceiver) } catch (_: Exception) {}
+        }
     }
 
     // Track handled target to avoid re-scrolling on back navigation
@@ -665,9 +687,9 @@ fun SettingsScreen(
             item(key = "app_version_footer") {
                 val installedVersion = remember {
                     try {
-                        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.3.4"
+                        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.3.6"
                     } catch (e: Exception) {
-                        "2.3.4"
+                        "2.3.6"
                     }
                 }
                 var tapCount by remember { mutableStateOf(0) }

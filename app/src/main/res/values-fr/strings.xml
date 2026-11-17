@@ -4,12 +4,19 @@
     <!-- Master Switch -->
     <string name="master_switch_title">Remapper les boutons</string>
 
+    <string name="haptic_switch_title">Vibration haptique</string>
+    <string name="haptic_switch_subtitle">Retour tactile lors de l’appui</string>
+
+    <string name="hdr_section_watch">ACTIONS DE LA MONTRE</string>
+    <string name="hdr_section_phone">ACTIONS DU TÉLÉPHONE</string>
     <string name="hdr_center_button">Bouton Central</string>
+    <string name="hdr_center_button_note">Lorsque Samsung Health est à l’écran, le remappage se met en pause pour laisser les contrôles natifs.</string>
     <string name="hdr_bottom_button">Bouton Inférieur</string>
     <string name="hdr_shealth">Samsung Health</string>
     <string name="hdr_samsung">Fonctions Samsung</string>
     <string name="hdr_dev">Développement (ADB)</string>
     <string name="hdr_utility">Utilitaires</string>
+    <string name="hdr_phone">Actions du Téléphone</string>
     <string name="hdr_home_assistant">Home Assistant</string>
     <string name="hdr_media">Médias et Volume</string>
     <string name="open_app">Ouvrir une app…</string>
@@ -69,6 +76,13 @@
     <string name="action_wireless_debugging">Débogage sans fil (ADB)</string>
     <string name="action_water_eject">Éjection d’eau (Haut-parleur)</string>
     <string name="action_lte_toggle">LTE et Données mobiles</string>
+    <string name="action_phone_find">Faire sonner mon téléphone</string>
+    <string name="action_phone_torch">Lampe torche du téléphone</string>
+    <string name="action_phone_camera">Appareil photo du téléphone</string>
+    <string name="action_phone_ringer">Téléphone Sonnerie / Vibreur</string>
+    <string name="action_phone_lock">Verrouiller l’écran du téléphone</string>
+    <string name="action_phone_dnd">Téléphone Ne pas déranger</string>
+    <string name="action_phone_ha_event">Déclencher un événement Home Assistant</string>
 
     <string name="action_ha_assist">Home Assistant Assist</string>
     <string name="action_ha_open">Ouvrir Home Assistant</string>
@@ -97,8 +111,22 @@
     <string name="toast_ha_not_installed">Application Home Assistant Companion non installée</string>
     <string name="app_version">v%s</string>
     <string name="flashlight_hud_title">Lampe RGBW</string>
-    <string name="flashlight_hud_sub"><string name="flashlight_hud_sub">Touchez et glissez pour la roue
-Tournez la lunette pour la teinte</string></string>
+    <string name="flashlight_hud_sub">Touchez pour la couleur • Lunette pour la teinte</string>
+    <string name="dev_options_title">Options pour les développeurs</string>
+    <string name="dev_beta_title">Canal Bêta</string>
+    <string name="dev_beta_desc">Recevoir les versions bêta préliminaires</string>
+    <string name="dev_unlocked">Options pour les développeurs activées !</string>
+    <string name="dev_steps_remaining">Encore %d appuis pour le mode développeur</string>
+    <string name="reboot_required_title">Redémarrage de la montre requis</string>
+    <string name="reboot_required_desc">Redémarrez votre montre depuis les paramètres rapides pour restaurer le remappage des boutons après cette mise à jour.</string>
+    <string name="hdr_general_settings">Paramètres Généraux</string>
+    <string name="hdr_adb_section">Paramètres ADB</string>
+    <string name="hdr_samsung_pay_section">Samsung Pay</string>
+    <string name="update_banner_title_beta">Mise à jour Bêta v%s disponible</string>
+    <string name="update_details_title_beta">Mise à jour Bêta v%s</string>
+    <string name="count_configured">%1$d configurés</string>
+    <string name="status_unassigned">Non attribué</string>
+    <string name="status_toctoc_active">Toc toc actif</string>
     <string name="hdr_top_button">Bouton Supérieur</string>
     <string name="gesture_top_double">Double appui</string>
     <string name="gesture_top_long">Appui prolongé</string>

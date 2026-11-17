@@ -263,13 +263,14 @@ object UtilityActions {
         )
 
         var launched = false
+        val launchCtx: Context = BottomButtonService.instance ?: appCtx
         for (intent in devIntents) {
             try {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 if (backToHome) {
                     intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 }
-                appCtx.startActivity(intent)
+                launchCtx.startActivity(intent)
                 launched = true
                 break
             } catch (_: Exception) {}

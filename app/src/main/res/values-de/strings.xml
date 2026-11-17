@@ -4,12 +4,19 @@
     <!-- Master Switch -->
     <string name="master_switch_title">Tasten neu belegen</string>
 
+    <string name="haptic_switch_title">Haptische Vibration</string>
+    <string name="haptic_switch_subtitle">Feedback beim Tastendruck</string>
+
+    <string name="hdr_section_watch">UHR-AKTIONEN</string>
+    <string name="hdr_section_phone">SMARTPHONE-AKTIONEN</string>
     <string name="hdr_center_button">Mittlere Taste</string>
+    <string name="hdr_center_button_note">Wenn Samsung Health geöffnet ist, pausiert die Neubelegung für native Trainingssteuerungen.</string>
     <string name="hdr_bottom_button">Untere Taste</string>
     <string name="hdr_shealth">Samsung Health</string>
     <string name="hdr_samsung">Samsung-Funktionen</string>
     <string name="hdr_dev">Entwicklung (ADB)</string>
     <string name="hdr_utility">Dienstprogramme</string>
+    <string name="hdr_phone">Smartphone-Aktionen</string>
     <string name="hdr_home_assistant">Home Assistant</string>
     <string name="hdr_media">Medien &amp; Lautstärke</string>
     <string name="open_app">App öffnen…</string>
@@ -69,6 +76,13 @@
     <string name="action_wireless_debugging">Drahtlose ADB-Fehlerbehebung</string>
     <string name="action_water_eject">Wasser auswerfen (Lautsprecher)</string>
     <string name="action_lte_toggle">LTE &amp; Mobile Daten</string>
+    <string name="action_phone_find">Smartphone klingeln lassen</string>
+    <string name="action_phone_torch">Smartphone-Taschenlampe</string>
+    <string name="action_phone_camera">Smartphone-Kamera (Auslöser)</string>
+    <string name="action_phone_ringer">Smartphone Ton / Vibration</string>
+    <string name="action_phone_lock">Smartphone-Bildschirm sperren</string>
+    <string name="action_phone_dnd">Smartphone Nicht stören</string>
+    <string name="action_phone_ha_event">Home Assistant Event auslösen</string>
 
     <string name="action_ha_assist">Home Assistant Assist</string>
     <string name="action_ha_open">Home Assistant öffnen</string>
@@ -97,8 +111,22 @@
     <string name="toast_ha_not_installed">Home Assistant Companion nicht installiert</string>
     <string name="app_version">v%s</string>
     <string name="flashlight_hud_title">RGBW Taschenlampe</string>
-    <string name="flashlight_hud_sub"><string name="flashlight_hud_sub">Tippen &amp; ziehen für Farbrad
-Lünette drehen für Farbton</string></string>
+    <string name="flashlight_hud_sub">Tippen für Farbe • Lünette ändert Farbton</string>
+    <string name="dev_options_title">Entwickleroptionen</string>
+    <string name="dev_beta_title">Beta-Kanal</string>
+    <string name="dev_beta_desc">Vorabversionen (Pre-Releases) erhalten</string>
+    <string name="dev_unlocked">Entwickleroptionen freigeschaltet!</string>
+    <string name="dev_steps_remaining">Noch %d Mal tippen für Entwickleroptionen</string>
+    <string name="reboot_required_title">Neustart der Uhr erforderlich</string>
+    <string name="reboot_required_desc">Starte deine Uhr über die Schnelleinstellungen neu, um die Tastenbelegung nach diesem Update wiederherzustellen.</string>
+    <string name="hdr_general_settings">Allgemeine Einstellungen</string>
+    <string name="hdr_adb_section">ADB-Einstellungen</string>
+    <string name="hdr_samsung_pay_section">Samsung Pay</string>
+    <string name="update_banner_title_beta">Beta-Update v%s verfügbar</string>
+    <string name="update_details_title_beta">Beta-Update v%s</string>
+    <string name="count_configured">%1$d konfiguriert</string>
+    <string name="status_unassigned">Nicht zugewiesen</string>
+    <string name="status_toctoc_active">Anklopfen aktiv</string>
     <string name="hdr_top_button">Obere Taste</string>
     <string name="gesture_top_double">Doppelt drücken</string>
     <string name="gesture_top_long">Gedrückt halten</string>

@@ -1,0 +1,218 @@
+<resources>
+    <string name="app_name">Ultra Remapper Companion</string>
+
+    <!-- Navigation Tabs -->
+    <string name="nav_buttons">Boutons</string>
+    <string name="nav_settings">Paramètres</string>
+    <string name="btn_back">‹ Retour</string>
+
+    <!-- Status Bar Pills -->
+    <string name="status_bt_connected">BT : %1$s</string>
+    <string name="status_bt_synced">BT : Connecté</string>
+    <string name="status_bt_waiting">BT : Déconnecté</string>
+    <string name="status_adb_connected">ADB : Connecté</string>
+    <string name="status_adb_paired">ADB : Jumelé</string>
+    <string name="status_adb_unpaired">ADB : Déconnecté</string>
+
+    <!-- OTA Updates -->
+    <string name="companion_update_title">Mise à jour disponible : v%1$s</string>
+    <string name="companion_update_btn">Mettre à jour l’application mobile</string>
+    <string name="watch_install_title">Installer Ultra Remapper sur la montre</string>
+    <string name="watch_update_title">Mise à jour de la montre : v%1$s</string>
+    <string name="watch_ver_installed">Installée : v%1$s</string>
+    <string name="watch_ver_not_installed">Non installée</string>
+    <string name="btn_install_watch">Télécharger et installer v%1$s sur la montre</string>
+    <string name="btn_update_watch">Mettre à jour la montre vers v%1$s</string>
+    <string name="toast_connect_adb_first">Connectez d’abord la montre via ADB</string>
+    <string name="msg_downloading_ver">Téléchargement de v%1$s…</string>
+    <string name="msg_download_error">Échec du téléchargement depuis GitHub.</string>
+
+    <!-- Diagnostic Banners -->
+    <string name="diag_header_status">Actions requises</string>
+    <string name="diag_route_title">Routage du bouton Action inactif</string>
+    <string name="diag_route_sub">Touchez pour activer la route du bouton dans les paramètres</string>
+    <string name="diag_overlay_title">Permission de superposition manquante</string>
+    <string name="diag_overlay_sub">Requis pour ouvrir des apps et la lampe RGBW</string>
+    <string name="diag_secure_title">Paramètres sécurisés manquants</string>
+    <string name="diag_secure_sub">Requis pour LTE, Toc toc et le bouton supérieur</string>
+    <string name="diag_media_title">Contrôle multimédia inactif</string>
+    <string name="diag_media_sub">Activer l’accès aux notifications dans les autorisations</string>
+    <string name="diag_a11y_title">Activer l’accessibilité sur la montre</string>
+    <string name="diag_a11y_sub">Touchez pour ouvrir les paramètres sur la montre</string>
+    <string name="diag_assistant_title">Définir comme Assistant vocal</string>
+    <string name="diag_assistant_sub">Touchez pour ouvrir le sélecteur d’assistant sur la montre</string>
+    <string name="diag_toctoc_title">Configurer le geste Toc toc</string>
+    <string name="diag_toctoc_sub">Touchez pour ouvrir Boutons et Gestes sur la montre</string>
+    <string name="diag_spay_title">Conflit avec Samsung Pay</string>
+    <string name="diag_spay_sub">Gelez Samsung Pay dans les paramètres pour un bouton inférieur fiable</string>
+    <string name="badge_adb">ADB</string>
+    <string name="badge_watch">MONTRE</string>
+    <string name="toast_opening_a11y">Ouverture de l’accessibilité sur la montre…</string>
+    <string name="toast_select_assistant">Sélectionnez Ultra Remapper sur la montre</string>
+    <string name="toast_select_toctoc">Sélectionnez Ultra Remapper dans Toc toc sur la montre</string>
+
+    <!-- Buttons & Gestures Section -->
+    <string name="hdr_buttons_gestures">Boutons et Gestes de la montre</string>
+    <string name="sub_connect_to_configure">Connectez la montre pour configurer</string>
+    <string name="btn_top_title">Bouton Supérieur</string>
+    <string name="btn_center_title">Bouton Central (Action)</string>
+    <string name="btn_center_note">Lorsque Samsung Health est à l’écran, le remappage se met en pause pour laisser les contrôles natifs.</string>
+    <string name="btn_bottom_title">Bouton Inférieur</string>
+    <string name="btn_gestures_title">Gestes</string>
+    <string name="count_configured">%1$d configurés</string>
+    <string name="status_unassigned">Non attribué</string>
+    <string name="status_toctoc_active">Toc toc actif</string>
+
+    <!-- Gesture Names -->
+    <string name="gesture_single">Simple appui</string>
+    <string name="gesture_double">Double appui</string>
+    <string name="gesture_triple">Triple appui</string>
+    <string name="gesture_long">Appui long</string>
+    <string name="gesture_toctoc">Toc toc (Geste du poignet)</string>
+
+    <!-- Action Categories & Names -->
+    <string name="picker_select_watch_app">Sélectionner une app de la montre</string>
+    <string name="picker_back_to_actions">‹ Retour aux actions</string>
+    <string name="picker_no_apps_synced">Ouvrez Ultra Remapper sur la montre pour synchroniser la liste par Bluetooth.</string>
+    <string name="action_open_app">Ouvrir une app…</string>
+    <string name="action_choose_from_apps">Choisir parmi %1$d apps ›</string>
+    <string name="action_none">Aucune</string>
+
+    <string name="hdr_section_watch">ACTIONS DE LA MONTRE</string>
+    <string name="hdr_section_phone">ACTIONS DU TÉLÉPHONE</string>
+    <string name="cat_shealth">Samsung Health</string>
+    <string name="cat_samsung">Fonctions Samsung</string>
+    <string name="cat_dev">Développement (ADB)</string>
+    <string name="cat_utility">Utilitaires</string>
+    <string name="cat_phone">Actions du Téléphone</string>
+    <string name="cat_ha">Home Assistant</string>
+    <string name="cat_media">Médias et Volume</string>
+
+    <string name="action_shealth_workout">Mes entraînements</string>
+    <string name="action_shealth_route">Mode Itinéraire (Samsung Health)</string>
+    <string name="action_recents">Multitâche (Applications récentes)</string>
+    <string name="action_stopwatch">Chronomètre</string>
+    <string name="action_water_lock">Mode Eau</string>
+    <string name="action_assistant">Assistant vocal</string>
+    <string name="action_wireless_debugging">Débogage sans fil (ADB)</string>
+    <string name="action_adb_mode">Garder écran actif</string>
+    <string name="action_flashlight">Lampe torche</string>
+    <string name="action_red_flashlight">Lampe RGBW</string>
+    <string name="action_dnd_toggle">Ne pas déranger</string>
+    <string name="action_save_parking">Enregistrer le stationnement</string>
+    <string name="action_nav_parking">Retourner à la voiture (à pied)</string>
+    <string name="action_water_eject">Éjection d’eau (Haut-parleur)</string>
+    <string name="action_lte_toggle">LTE et Données mobiles</string>
+    <string name="action_phone_find">Faire sonner mon téléphone</string>
+    <string name="action_phone_torch">Lampe torche du téléphone</string>
+    <string name="action_phone_camera">Appareil photo du téléphone</string>
+    <string name="action_phone_ringer">Téléphone Sonnerie / Vibreur</string>
+    <string name="action_phone_lock">Verrouiller l’écran du téléphone</string>
+    <string name="action_phone_dnd">Téléphone Ne pas déranger</string>
+    <string name="action_phone_ha_event">Déclencher un événement Home Assistant</string>
+    <string name="action_ha_assist">Home Assistant Assist (Vocal)</string>
+    <string name="action_play_pause">Lecture / Pause</string>
+    <string name="action_next">Piste suivante</string>
+    <string name="action_previous">Piste précédente</string>
+    <string name="action_vol_up">Volume haut</string>
+    <string name="action_vol_down">Volume bas</string>
+    <string name="action_open_media_player">Ouvrir le contrôleur média</string>
+
+    <!-- Settings Tab -->
+    <string name="hdr_general_settings">Paramètres Généraux</string>
+    <string name="theme_selector_title">Thème de l’application</string>
+    <string name="theme_selector_sub">Clair, Système ou Sombre</string>
+    <string name="master_switch_title">Remapper les boutons</string>
+    <string name="master_switch_on">Actif sur la montre</string>
+    <string name="master_switch_off">En pause</string>
+    <string name="haptic_switch_title">Vibration haptique</string>
+    <string name="haptic_switch_sub">Retour tactile lors de l’appui</string>
+
+    <!-- ADB Section -->
+    <string name="hdr_adb_wireless">Connexion ADB sans fil</string>
+    <string name="adb_status_connecting">Connexion à la montre en cours…</string>
+    <string name="adb_status_connected">Connecté (%1$s:%2$s)</string>
+    <string name="adb_status_paired_tap">Jumelé • Touchez pour connecter</string>
+    <string name="adb_status_unpaired">Non jumelé • Requis pour accorder les autorisations</string>
+    <string name="adb_wiz_step1_title">ÉTAPE 1 SUR 3 • Activer le débogage sans fil</string>
+    <string name="adb_wiz_step1_instructions">1. Connectez la montre et le téléphone au même réseau Wi-Fi.\n2. Sur la montre : Paramètres → À propos de la montre → Infos logiciel → appuyez 7 fois sur \'Version du logiciel\' pour activer les Options de développement.\n3. Ouvrez Options de développement → activez \'Débogage sans fil\'.\n4. Touchez \'Jumeler un nouvel appareil\' (code et port).</string>
+    <string name="adb_wiz_step1_instructions_installed">1. Connectez la montre et le téléphone au même réseau Wi-Fi.\n2. Touchez \'Ouvrir débogage sans fil sur la montre\' ci-dessous.\n3. Sur la montre, touchez \'Jumeler un nouvel appareil\' (code et port détectés automatiquement).</string>
+    <string name="adb_wiz_step1_next">Étape suivante : Jumeler avec code PIN ›</string>
+    <string name="adb_wiz_step1_skip">Déjà jumelé ? Aller à Connexion ›</string>
+    <string name="adb_wiz_step2_title">ÉTAPE 2 SUR 3 • Jumeler avec code PIN à 6 chiffres</string>
+    <string name="adb_wiz_step2_instructions">Ouvrez \'Jumeler un nouvel appareil\' sur la montre. L’accessibilité remplit automatiquement l’IP, le port et le code.</string>
+    <string name="adb_wiz_step2_back">‹ Retour à l’étape 1</string>
+    <string name="adb_wiz_step3_title">ÉTAPE 3 SUR 3 • Connecter la session ADB</string>
+    <string name="adb_wiz_step3_instructions">Quittez l’écran de jumelage sur la montre. Le port ADB principal est détecté automatiquement.</string>
+    <string name="adb_wiz_paired_badge">✓ Montre jumelée</string>
+    <string name="adb_wiz_connected_badge">✓ Session ADB active</string>
+    <string name="adb_step1_title">Étape 1 : Jumeler la montre (Code PIN à 6 chiffres)</string>
+    <string name="adb_step1_instructions">1. Connectez montre et téléphone au même Wi-Fi.\n2. Touchez \'Ouvrir débogage sans fil sur la montre\' et choisissez \'Jumeler un nouvel appareil\'.</string>
+    <string name="adb_step1_skip_already_paired">Déjà jumelé ? Aller à Connexion ›</string>
+    <string name="adb_step2_title">Étape 2 : Connecter la session ADB</string>
+    <string name="adb_step2_instructions">Vérifiez que le débogage sans fil est activé sur la montre, puis saisissez le port ADB.</string>
+    <string name="adb_instructions">1. Connectez montre et téléphone au même Wi-Fi.\n2. Ouvrez Options de développement › Débogage sans fil sur la montre.</string>
+    <string name="adb_mdns_pair_found">✓ Montre détectée en mode jumelage (%1$s:%2$s)</string>
+    <string name="adb_mdns_connect_found">✓ Montre détectée sur le réseau (%1$s:%2$s)</string>
+    <string name="adb_open_on_watch_btn">Ouvrir débogage sans fil sur la montre</string>
+    <string name="adb_autofill_btn">Remplir IP et ports automatiquement</string>
+    <string name="adb_autofill_scanning">Recherche de la montre sur le réseau…</string>
+    <string name="toast_opening_wireless_adb">Ouverture du débogage sans fil sur la montre…</string>
+    <string name="label_watch_ip">IP de la montre</string>
+    <string name="label_adb_port">Port ADB</string>
+    <string name="label_pairing_pin">Code PIN 6 chiffres</string>
+    <string name="label_pairing_port">Port de jumelage</string>
+    <string name="btn_pair_with_pin">Jumeler la montre avec le PIN</string>
+    <string name="btn_need_new_pin">Jumeler avec un nouveau code PIN</string>
+    <string name="btn_refresh_adb">Rafraîchir ADB</string>
+    <string name="btn_connect_adb">Connecter ADB</string>
+    <string name="btn_unpair_adb">Oublier ADB</string>
+    <string name="msg_adb_pairing">Jumelage avec la montre en cours…</string>
+    <string name="msg_adb_connecting">Connexion et lecture de l’état de la montre…</string>
+    <string name="msg_adb_connect_failed">Impossible de se connecter à %1$s:%2$s. Vérifiez que le débogage sans fil est actif.</string>
+    <string name="msg_adb_unpaired">Jumelage ADB supprimé.</string>
+    <string name="toast_enter_ip_pair_port">Saisissez l’IP et le port de jumelage</string>
+    <string name="toast_enter_ip_adb_port">Saisissez l’IP et le port ADB</string>
+
+    <!-- Permissions Section -->
+    <string name="hdr_permissions">Autorisations de la montre</string>
+    <string name="perms_connect_to_view">Connectez la montre pour voir les autorisations</string>
+    <string name="perms_active_count">%1$d sur %2$d actives</string>
+    <string name="btn_grant_missing_perms">Accorder les autorisations manquantes</string>
+
+    <string name="perm_overlay_title">Superposition</string>
+    <string name="perm_overlay_desc">Lancement en arrière-plan et lampe RGBW</string>
+    <string name="perm_secure_title">Paramètres sécurisés</string>
+    <string name="perm_secure_desc">Réglages système, LTE, Ne pas déranger et routes</string>
+    <string name="perm_action_title">Routage du bouton Action</string>
+    <string name="perm_action_desc">Routage matériel du bouton central</string>
+    <string name="perm_media_title">Notifications</string>
+    <string name="perm_media_desc">Contrôleur média et détection d’entraînement</string>
+    <string name="perm_battery_title">Batterie sans restriction</string>
+    <string name="perm_battery_desc">Empêche la fermeture en veille prolongée (Doze)</string>
+
+    <!-- Samsung Pay Section -->
+    <string name="hdr_samsung_pay">Samsung Pay</string>
+    <string name="spay_status_active">Actif (Désactivation recommandée pour éviter les conflits)</string>
+    <string name="spay_status_frozen">Gelé (Le bouton inférieur fonctionne à 100%)</string>
+    <string name="spay_status_unknown">Connectez la montre pour voir l’état</string>
+
+    <!-- Developer Options Screen -->
+    <string name="dev_options_title">Options pour les développeurs</string>
+    <string name="beta_channel_title">Canal Bêta</string>
+    <string name="beta_channel_desc">Recevoir les versions préliminaires pour le téléphone et la montre</string>
+    <string name="version_footer">v%1$s</string>
+    <string name="version_footer_beta">v%1$s [Canal Bêta]</string>
+
+    <string name="toast_phone_ringing">Recherche du téléphone : Sonnerie au volume maximal…</string>
+    <string name="toast_phone_ring_stopped">Alarme du téléphone arrêtée</string>
+    <string name="toast_phone_vibrate">Téléphone réglé sur Vibreur</string>
+    <string name="toast_phone_sound">Téléphone réglé sur Sonnerie</string>
+    <string name="toast_enable_phone_a11y">Activez Ultra Remapper Companion dans l’accessibilité pour verrouiller</string>
+    <string name="toast_grant_phone_dnd">Accordez l’accès à Ne pas déranger dans les paramètres</string>
+    <string name="toast_phone_dnd_on">Téléphone Ne pas déranger : ACTIVÉ</string>
+    <string name="toast_phone_dnd_off">Téléphone Ne pas déranger : DÉSACTIVÉ</string>
+    <string name="toast_ha_event_fired">Événement envoyé à Home Assistant !</string>
+    <string name="toast_ha_not_installed">Application Home Assistant Companion non installée</string>
+    <string name="phone_a11y_desc">Requis pour verrouiller l’écran du téléphone depuis la montre.</string>
+</resources>

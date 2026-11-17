@@ -73,7 +73,7 @@ class AdbHelper private constructor(private val context: Context) {
         }
 
         try {
-            val keyGen = KeyPairGenerator.getInstance("RSA")
+            val keyGen = KeyPairGenerator.getInstance("RSA", "AndroidOpenSSL")
             keyGen.initialize(2048, SecureRandom())
             val keyPair = keyGen.generateKeyPair()
             mPrivateKey = keyPair.private
@@ -84,9 +84,22 @@ class AdbHelper private constructor(private val context: Context) {
             prefs.edit()
                 .putString(KEY_PRIV, Base64.encodeToString(keyPair.private.encoded, Base64.NO_WRAP))
                 .putString(KEY_CERT, Base64.encodeToString(cert.encoded, Base64.NO_WRAP))
-                .apply()
+                .commit()
         } catch (e: Exception) {
-            Log.e(TAG, "Error generating persistent keys: ${e.message}", e)
+            try {
+                val keyGen = KeyPairGenerator.getInstance("RSA")
+                keyGen.initialize(2048, SecureRandom())
+                val keyPair = keyGen.generateKeyPair()
+                mPrivateKey = keyPair.private
+                val cert = generateCertificate(keyPair)
+                mCertificate = cert
+                prefs.edit()
+                    .putString(KEY_PRIV, Base64.encodeToString(keyPair.private.encoded, Base64.NO_WRAP))
+                    .putString(KEY_CERT, Base64.encodeToString(cert.encoded, Base64.NO_WRAP))
+                    .commit()
+            } catch (e2: Exception) {
+                Log.e(TAG, "Error generating persistent keys: ${e2.message}", e2)
+            }
         }
     }
 
@@ -121,7 +134,7 @@ class AdbHelper private constructor(private val context: Context) {
         val editor = prefs.edit().putBoolean(KEY_IS_PAIRED, paired)
         if (!host.isNullOrBlank()) editor.putString(KEY_LAST_HOST, host)
         if (port != null && port > 0) editor.putInt(KEY_LAST_PORT, port)
-        editor.apply()
+        editor.commit()
     }
 
     fun getLastHost(): String {
@@ -189,42 +202,80 @@ class AdbHelper private constructor(private val context: Context) {
             }
         }
 
-    private fun ensureConnectedUnlocked(host: String, connectPort: Int): Boolean {
+    var lastConnectError: String? = null
+        private set
+
+    private fun ensureConnectedUnlocked(host: String, connectPort: Int, forceReconnect: Boolean = false): Boolean {
         val cleanHost = host.trim()
         val current = activeConnection
         if (current != null && current.isConnectionEstablished && connectedHost == cleanHost && connectedPort == connectPort) {
-            return true
+            // Verify socket is still alive with a quick noop before tearing down a healthy TLS session
+            try {
+                val testStream = current.open("shell:true")
+                testStream.close()
+                lastConnectError = null
+                return true
+            } catch (_: Exception) {
+                Log.w(TAG, "Existing ADB socket stale, reconnecting...")
+            }
         }
         closeConnectionInternal()
-        return try {
-            if (mPrivateKey == null || mCertificate == null) initOrLoadKeys()
-            val conn = AdbConnection.Builder(cleanHost, connectPort)
-                .setPrivateKey(mPrivateKey!!)
-                .setCertificate(mCertificate!!)
-                .setDeviceName("UltraRemapperCompanion")
-                .build()
-
-            conn.connect(6000L, TimeUnit.MILLISECONDS, false)
-            if (conn.isConnectionEstablished) {
-                activeConnection = conn
-                connectedHost = cleanHost
-                connectedPort = connectPort
-                setPaired(true, cleanHost, connectPort)
-                true
-            } else {
-                conn.close()
-                false
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Connect failed to $cleanHost:$connectPort -> ${e.message}")
-            closeConnectionInternal()
-            false
+        if (forceReconnect) {
+            try { Thread.sleep(200) } catch (_: Exception) {}
         }
+
+        var lastEx: Exception? = null
+        for (attempt in 1..2) {
+            try {
+                if (mPrivateKey == null || mCertificate == null) initOrLoadKeys()
+                val conn = AdbConnection.Builder(cleanHost, connectPort)
+                    .setPrivateKey(mPrivateKey!!)
+                    .setCertificate(mCertificate!!)
+                    .setDeviceName("UltraRemapperCompanion")
+                    .build()
+
+                conn.connect(6000L, TimeUnit.MILLISECONDS, false)
+                if (conn.isConnectionEstablished) {
+                    activeConnection = conn
+                    connectedHost = cleanHost
+                    connectedPort = connectPort
+                    lastConnectError = null
+                    setPaired(true, cleanHost, connectPort)
+                    return true
+                } else {
+                    conn.close()
+                    lastConnectError = "Handshake ADB incompleto"
+                }
+            } catch (e: Exception) {
+                lastEx = e
+                Log.e(TAG, "Connect attempt $attempt failed to $cleanHost:$connectPort -> ${e.javaClass.simpleName}: ${e.message}")
+                closeConnectionInternal()
+                if (e is io.github.muntashirakon.adb.AdbPairingRequiredException ||
+                    e is io.github.muntashirakon.adb.AdbAuthenticationFailedException
+                ) {
+                    break
+                }
+                if (attempt == 1) {
+                    try { Thread.sleep(400) } catch (_: Exception) {}
+                }
+            }
+        }
+
+        if (lastEx != null) {
+            lastConnectError = when (lastEx) {
+                is io.github.muntashirakon.adb.AdbPairingRequiredException,
+                is io.github.muntashirakon.adb.AdbAuthenticationFailedException -> {
+                    "Reloj pide vincular de nuevo (${lastEx.javaClass.simpleName})"
+                }
+                else -> "${lastEx.javaClass.simpleName}: ${lastEx.message ?: "sin detalle"}"
+            }
+        }
+        return false
     }
 
-    suspend fun ensureConnected(host: String, connectPort: Int): Boolean = withContext(Dispatchers.IO) {
+    suspend fun ensureConnected(host: String, connectPort: Int, forceReconnect: Boolean = false): Boolean = withContext(Dispatchers.IO) {
         adbMutex.withLock {
-            ensureConnectedUnlocked(host, connectPort)
+            ensureConnectedUnlocked(host, connectPort, forceReconnect)
         }
     }
 
@@ -233,28 +284,26 @@ class AdbHelper private constructor(private val context: Context) {
         val output = StringBuilder()
         val inStream = stream.openInputStream()
         val buffer = ByteArray(2048)
-        val startTime = System.currentTimeMillis()
 
         try {
-            while (!stream.isClosed) {
-                val available = inStream.available()
-                if (available > 0) {
-                    val readBytes = inStream.read(buffer, 0, minOf(available, buffer.size))
-                    if (readBytes > 0) {
-                        output.append(String(buffer, 0, readBytes, Charsets.UTF_8))
+            val readerThread = Thread {
+                try {
+                    var readBytes: Int
+                    while (inStream.read(buffer).also { readBytes = it } != -1) {
+                        if (readBytes > 0) {
+                            synchronized(output) {
+                                output.append(String(buffer, 0, readBytes, Charsets.UTF_8))
+                            }
+                        }
                     }
-                } else {
-                    if (System.currentTimeMillis() - startTime > timeoutMs) {
-                        break
-                    }
-                    Thread.sleep(30)
-                }
+                } catch (_: Exception) {}
             }
-            while (inStream.available() > 0) {
-                val readBytes = inStream.read(buffer, 0, minOf(inStream.available(), buffer.size))
-                if (readBytes > 0) {
-                    output.append(String(buffer, 0, readBytes, Charsets.UTF_8))
-                }
+            readerThread.isDaemon = true
+            readerThread.start()
+            readerThread.join(timeoutMs)
+            if (readerThread.isAlive) {
+                try { stream.close() } catch (_: Exception) {}
+                readerThread.interrupt()
             }
         } catch (_: Exception) {
         } finally {
@@ -263,7 +312,7 @@ class AdbHelper private constructor(private val context: Context) {
             } catch (_: Exception) {}
         }
 
-        val res = output.toString().trim()
+        val res = synchronized(output) { output.toString().trim() }
         Log.d(TAG, "exec('$command') -> '$res'")
         return res
     }
@@ -362,6 +411,14 @@ class AdbHelper private constructor(private val context: Context) {
                 )
 
                 return@withLock if (installOut.contains("Success", ignoreCase = true)) {
+                    // Launch Ultra Remapper on the watch immediately after install/update
+                    try {
+                        runStreamCommandUnlocked(
+                            conn,
+                            "am start -n com.aaronhrndz.ultraremapper/.MainActivity >/dev/null 2>&1",
+                            3000L
+                        )
+                    } catch (_: Exception) {}
                     onProgress(1.0f, "¡Instalación completada!")
                     Pair(true, "Ultra Remapper actualizado correctamente en el reloj.")
                 } else {

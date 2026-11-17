@@ -54,11 +54,12 @@ class LocalAdbClient(
 
         fun unpair(context: Context) {
             try {
-                // If connected, try to revoke our key on the device so it disappears from Android Settings
+                // Only remove UltraRemapper's own localhost key, NEVER delete /data/misc/adb/adb_keys
+                // because that wipes the Phone Companion's pairing key as well!
                 activeInstance?.let { client ->
                     if (client.isConnected) {
                         try {
-                            client.exec("rm -f /data/misc/adb/adb_keys")
+                            client.exec("sed -i '/UltraRemapper@localhost/d' /data/misc/adb/adb_keys 2>/dev/null || true")
                         } catch (_: Exception) {}
                     }
                 }
@@ -152,29 +153,26 @@ class LocalAdbClient(
         val output = StringBuilder()
         val inStream = stream.openInputStream()
         val buffer = ByteArray(1024)
-        val startTime = System.currentTimeMillis()
 
         try {
-            while (!stream.isClosed) {
-                val available = inStream.available()
-                if (available > 0) {
-                    val readBytes = inStream.read(buffer, 0, minOf(available, buffer.size))
-                    if (readBytes > 0) {
-                        output.append(String(buffer, 0, readBytes, Charsets.UTF_8))
+            val readerThread = Thread {
+                try {
+                    var readBytes: Int
+                    while (inStream.read(buffer).also { readBytes = it } != -1) {
+                        if (readBytes > 0) {
+                            synchronized(output) {
+                                output.append(String(buffer, 0, readBytes, Charsets.UTF_8))
+                            }
+                        }
                     }
-                } else {
-                    if (System.currentTimeMillis() - startTime > timeoutMs) {
-                        break
-                    }
-                    Thread.sleep(50)
-                }
+                } catch (_: Exception) {}
             }
-            // Read any final remaining bytes after close
-            while (inStream.available() > 0) {
-                val readBytes = inStream.read(buffer, 0, minOf(inStream.available(), buffer.size))
-                if (readBytes > 0) {
-                    output.append(String(buffer, 0, readBytes, Charsets.UTF_8))
-                }
+            readerThread.isDaemon = true
+            readerThread.start()
+            readerThread.join(timeoutMs)
+            if (readerThread.isAlive) {
+                try { stream.close() } catch (_: Exception) {}
+                readerThread.interrupt()
             }
         } catch (_: Exception) {
         } finally {
@@ -183,7 +181,7 @@ class LocalAdbClient(
             } catch (_: Exception) {}
         }
 
-        val result = output.toString().trim()
+        val result = synchronized(output) { output.toString().trim() }
         android.util.Log.d("LocalAdbClient", "exec('$command') -> '$result'")
         return result
     }

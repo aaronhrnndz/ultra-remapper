@@ -8,6 +8,8 @@
     <string name="haptic_switch_subtitle">Respuesta táctil al pulsar</string>
 
     
+    <string name="hdr_section_watch">ACCIONES DEL RELOJ</string>
+    <string name="hdr_section_phone">ACCIONES DEL TELÉFONO</string>
     <string name="hdr_center_button">Botón Central</string>
     <string name="hdr_center_button_note">Con Samsung Health en pantalla la app se pausa para permitir los controles nativos.</string>
     <string name="hdr_bottom_button">Botón Inferior</string>
@@ -15,6 +17,7 @@
     <string name="hdr_samsung">Funciones Samsung</string>
     <string name="hdr_dev">Desarrollo (ADB)</string>
     <string name="hdr_utility">Utilidades</string>
+    <string name="hdr_phone">Acciones del Teléfono</string>
     <string name="hdr_home_assistant">Home Assistant</string>
     <string name="hdr_media">Multimedia y Volumen</string>
     <string name="open_app">Abrir App…</string>
@@ -83,6 +86,13 @@
     <string name="action_wireless_debugging">Depuración Inalámbrica (ADB)</string>
     <string name="action_water_eject">Expulsar Agua (Altavoz)</string>
     <string name="action_lte_toggle">LTE y Datos Móviles</string>
+    <string name="action_phone_find">Hacer sonar mi teléfono</string>
+    <string name="action_phone_torch">Linterna del teléfono</string>
+    <string name="action_phone_camera">Cámara del teléfono (Disparar)</string>
+    <string name="action_phone_ringer">Teléfono Sonido / Vibración</string>
+    <string name="action_phone_lock">Bloquear pantalla del teléfono</string>
+    <string name="action_phone_dnd">Teléfono No Molestar</string>
+    <string name="action_phone_ha_event">Disparar evento en Home Assistant</string>
 
     
     <string name="action_ha_assist">Home Assistant Assist (Voz)</string>
@@ -162,4 +172,7 @@ La solución definitiva para que funcione siempre de forma fiable es congelar Sa
     <string name="settings_adb_unpair_button">Borrar vinculación ADB</string>
     <string name="settings_adb_unpair_desc">Restablecer emparejamiento y claves</string>
     <string name="settings_adb_unpair_confirm">Vinculación eliminada</string>
+    <string name="count_configured">%1$d configurados</string>
+    <string name="status_unassigned">Sin asignar</string>
+    <string name="status_toctoc_active">Toc toc activo</string>
 </resources>

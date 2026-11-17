@@ -8,6 +8,8 @@
     <string name="haptic_switch_subtitle">Feedback on button press</string>
 
     
+    <string name="hdr_section_watch">WATCH ACTIONS</string>
+    <string name="hdr_section_phone">PHONE ACTIONS</string>
     <string name="hdr_center_button">Center Button</string>
     <string name="hdr_center_button_note">With Samsung Health on screen, remapping pauses to allow native controls.</string>
     <string name="hdr_bottom_button">Bottom Button</string>
@@ -15,6 +17,7 @@
     <string name="hdr_samsung">Samsung Functions</string>
     <string name="hdr_dev">Development (ADB)</string>
     <string name="hdr_utility">Utilities</string>
+    <string name="hdr_phone">Phone Actions</string>
     <string name="hdr_home_assistant">Home Assistant</string>
     <string name="hdr_media">Media &amp; Volume</string>
     <string name="open_app">Open App…</string>
@@ -83,6 +86,13 @@
     <string name="action_wireless_debugging">Wireless Debugging (ADB)</string>
     <string name="action_water_eject">Water Eject Speaker</string>
     <string name="action_lte_toggle">LTE &amp; Mobile Data</string>
+    <string name="action_phone_find">Find My Phone (Ring)</string>
+    <string name="action_phone_torch">Phone Flashlight</string>
+    <string name="action_phone_camera">Phone Camera (Shutter)</string>
+    <string name="action_phone_ringer">Phone Sound / Vibrate</string>
+    <string name="action_phone_lock">Lock Phone Screen</string>
+    <string name="action_phone_dnd">Phone Do Not Disturb</string>
+    <string name="action_phone_ha_event">Fire Home Assistant Event</string>
 
     
     <string name="action_ha_assist">Home Assistant Assist</string>
@@ -162,4 +172,7 @@ The definitive fix to make it work reliably is to freeze Samsung Pay from Ultra 
     <string name="settings_adb_unpair_button">Forget ADB Pairing</string>
     <string name="settings_adb_unpair_desc">Reset local pairing &amp; keys</string>
     <string name="settings_adb_unpair_confirm">Pairing removed</string>
+    <string name="count_configured">%1$d configured</string>
+    <string name="status_unassigned">Unassigned</string>
+    <string name="status_toctoc_active">Knock knock active</string>
 </resources>
