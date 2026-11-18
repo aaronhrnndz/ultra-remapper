@@ -35,7 +35,7 @@
 
 ---
 
-## 🌟 What's New in v2.4.7
+## 🌟 Highlights
 
 - **📱 Ultra Remapper Phone Companion App**: Modern, lightweight Material 3 companion app for your phone with zero idle battery drain. Configures your watch buttons, toggles options, and syncs states over native Bluetooth DataLayer.
 - **⚡ Guided 3-Step Wireless ADB Wizard**:
@@ -71,7 +71,7 @@
 ## Download & Installation
 
 > [!IMPORTANT]
-> **Migrating from v2.4.5 or older?** The previous GitHub repository is offline, so older versions cannot receive OTA updates automatically. Please download and install **v2.4.7** manually once—from this version onward, automatic OTA updates work seamlessly across **Codeberg** and **GitHub**.
+> **Migrating from an older version?** The previous GitHub repository is offline, so older versions cannot receive OTA updates automatically. Please download and install the **latest release** manually once—from there onward, automatic OTA updates work seamlessly across **Codeberg** and **GitHub**.
 
 Download the latest prebuilt APKs from the [**GitHub Releases**](https://github.com/aaronhrnndz/ultra-remapper/releases/latest) page (or [**Codeberg Mirror**](https://codeberg.org/Aaronhrndz/ultra-remapper/releases)):
 - **`ultra-remapper-watch-vX.X.X.apk`**: App for your Wear OS smartwatch.
