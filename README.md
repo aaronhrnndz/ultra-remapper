@@ -121,6 +121,16 @@ Download the latest prebuilt APKs from the [**GitHub Releases**](https://github.
 
 ---
 
+## ⚠️ Beta Channel & Disclaimer
+
+> [!WARNING]
+> **Beta Channel (7-Tap Unlock):** You can opt into pre-release/beta builds by tapping the **App Version** 7 times in **Settings** (on either the watch or the phone companion). Beta builds are **work-in-progress, unstable snapshots**—features may break, crash, or stop working unexpectedly. If you prefer a smooth, reliable experience, stay on the **stable channel** (beta disabled).
+
+> [!CAUTION]
+> **Disclaimer:** This software is provided **"AS IS"**, without warranty of any kind, under the GPL-3.0 license. The author assumes **no responsibility or liability** for any issues, data loss, battery drain, device behavior, or damages arising from using either stable or beta builds. Use at your own risk.
+
+---
+
 ## ☕ Support & Donations
 
 If Ultra Remapper made your Galaxy Watch experience significantly better, consider supporting future development with a coffee:
