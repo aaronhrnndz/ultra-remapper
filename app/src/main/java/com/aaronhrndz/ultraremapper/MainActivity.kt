@@ -350,35 +350,13 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    val dataLayerListener = remember {
-                        com.google.android.gms.wearable.DataClient.OnDataChangedListener { dataEvents ->
-                            try {
-                                for (event in dataEvents) {
-                                    val path = event.dataItem.uri.path
-                                    if (path == CompanionSyncService.PATH_REQUEST_SYNC) {
-                                        CompanionSyncService.syncStateToDataLayer(context)
-                                    } else if (path == CompanionSyncService.PATH_CMD) {
-                                        val dataMap = com.google.android.gms.wearable.DataMapItem.fromDataItem(event.dataItem).dataMap
-                                        val cmdJson = dataMap.getString("cmd_json")
-                                        if (!cmdJson.isNullOrBlank()) {
-                                            CompanionSyncService.handlePhoneCommandFromService(context, cmdJson)
-                                        }
-                                    }
-                                }
-                            } catch (_: Exception) {}
-                        }
-                    }
-
                     DisposableEffect(lifecycleOwner) {
-                        try {
-                            com.google.android.gms.wearable.Wearable.getDataClient(context).addListener(dataLayerListener)
-                        } catch (_: Exception) {}
                         val observer = LifecycleEventObserver { _, event ->
                             if (event == Lifecycle.Event.ON_RESUME) {
                                 isActionButtonRouted(context)
                                 syncTopButtonRoute(context)
                                 setup = readSetupState(context)
-                                CompanionSyncService.syncStateToDataLayer(context)
+                                CompanionSyncService.syncStateToDataLayer(context, includeApps = false)
                                 UpdateChecker.check(context) { info ->
                                     updateInfo = info
                                 }
@@ -404,9 +382,6 @@ class MainActivity : ComponentActivity() {
                         }
                         lifecycleOwner.lifecycle.addObserver(observer)
                         onDispose {
-                            try {
-                                com.google.android.gms.wearable.Wearable.getDataClient(context).removeListener(dataLayerListener)
-                            } catch (_: Exception) {}
                             lifecycleOwner.lifecycle.removeObserver(observer)
                             try { context.unregisterReceiver(receiver) } catch (_: Exception) {}
                         }

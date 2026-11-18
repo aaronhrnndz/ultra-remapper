@@ -20,24 +20,6 @@ class BottomButtonService : AccessibilityService() {
         var instance: BottomButtonService? = null
             private set
 
-        private val dataLayerListener = com.google.android.gms.wearable.DataClient.OnDataChangedListener { dataEvents ->
-            val svc = instance ?: return@OnDataChangedListener
-            try {
-                for (event in dataEvents) {
-                    val path = event.dataItem.uri.path
-                    if (path == CompanionSyncService.PATH_REQUEST_SYNC) {
-                        CompanionSyncService.syncStateToDataLayer(svc.applicationContext)
-                    } else if (path == CompanionSyncService.PATH_CMD) {
-                        val dataMap = com.google.android.gms.wearable.DataMapItem.fromDataItem(event.dataItem).dataMap
-                        val cmdJson = dataMap.getString("cmd_json")
-                        if (!cmdJson.isNullOrBlank()) {
-                            CompanionSyncService.handlePhoneCommandFromService(svc.applicationContext, cmdJson)
-                        }
-                    }
-                }
-            } catch (_: Exception) {}
-        }
-
         @Volatile
         var isReadingAdbScreen = false
         @Volatile
@@ -172,15 +154,11 @@ class BottomButtonService : AccessibilityService() {
             serviceInfo = info
         }
         try {
-            com.google.android.gms.wearable.Wearable.getDataClient(applicationContext).addListener(dataLayerListener)
             CompanionSyncService.syncStateToDataLayer(applicationContext)
         } catch (_: Exception) {}
     }
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
-        try {
-            com.google.android.gms.wearable.Wearable.getDataClient(applicationContext).removeListener(dataLayerListener)
-        } catch (_: Exception) {}
         if (instance === this) instance = null
         isFlashlightWindowActive = false
         pendingBoostFromAction = false
@@ -574,6 +552,15 @@ class BottomButtonService : AccessibilityService() {
     private fun finishWirelessAdbAutoToggle() {
         pendingWirelessAdbAutoToggle = false
         setWindowTrackingEnabled(false)
+    }
+
+    fun scanAdbScreenPassive() {
+        try {
+            val root = rootInActiveWindow ?: return
+            val allTexts = mutableListOf<String>()
+            collectNodeTexts(root, allTexts)
+            parseAdbTexts(allTexts)
+        } catch (_: Exception) {}
     }
 
     fun scanAdbScreenAndSync(retriesLeft: Int = 3) {

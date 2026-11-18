@@ -90,6 +90,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -410,27 +413,37 @@ fun CompanionAppRoot(
         )
     }
 
-    DisposableEffect(Unit) {
-        dataLayerBridge.start()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isAppInForeground by remember { mutableStateOf(true) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    isAppInForeground = true
+                    dataLayerBridge.start(includeApps = watchInstalledApps.isEmpty())
+                }
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
+                    isAppInForeground = false
+                    dataLayerBridge.stop()
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
             dataLayerBridge.stop()
         }
     }
 
-    // Periodic Bluetooth sync heartbeat so connection state stays fresh
-    LaunchedEffect(Unit) {
-        try {
-            val pm = context.getSystemService(android.os.PowerManager::class.java)
-            if (pm != null && !pm.isIgnoringBatteryOptimizations(context.packageName)) {
-                val intent = android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                    data = android.net.Uri.parse("package:${context.packageName}")
-                }
-                context.startActivity(intent)
+    // Foreground-only Bluetooth polling while ADB Connection Wizard is actively expanded & disconnected
+    LaunchedEffect(isAppInForeground, activeTab, isAdbExpanded, isAdbConnected) {
+        if (isAppInForeground && activeTab == CompanionTab.SETTINGS && isAdbExpanded && !isAdbConnected) {
+            while (true) {
+                delay(4000L)
+                dataLayerBridge.requestSyncFromWatch(includeApps = false)
             }
-        } catch (_: Exception) {}
-        while (true) {
-            dataLayerBridge.requestSyncFromWatch()
-            delay(5000L)
         }
     }
 
@@ -2129,6 +2142,9 @@ fun CompanionAppRoot(
                                     selected = isApp
                                 ) {
                                     pickingAppSublist = true
+                                    if (watchInstalledApps.isEmpty()) {
+                                        dataLayerBridge.requestSyncFromWatch(includeApps = true)
+                                    }
                                 }
                             }
 

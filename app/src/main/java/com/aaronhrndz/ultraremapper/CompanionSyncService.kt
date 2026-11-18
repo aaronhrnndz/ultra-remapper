@@ -28,7 +28,8 @@ class CompanionSyncService : WearableListenerService() {
         super.onMessageReceived(event)
         when (event.path) {
             PATH_REQUEST_SYNC -> {
-                syncStateToDataLayer(applicationContext, targetNodeId = event.sourceNodeId)
+                val reqApps = String(event.data, Charsets.UTF_8).contains("apps", ignoreCase = true)
+                syncStateToDataLayer(applicationContext, targetNodeId = event.sourceNodeId, includeApps = reqApps)
             }
             PATH_CMD -> {
                 val payload = String(event.data, Charsets.UTF_8)
@@ -43,7 +44,8 @@ class CompanionSyncService : WearableListenerService() {
             for (event in dataEvents) {
                 val path = event.dataItem.uri.path
                 if (path == PATH_REQUEST_SYNC) {
-                    syncStateToDataLayer(applicationContext)
+                    val reqApps = DataMapItem.fromDataItem(event.dataItem).dataMap.getBoolean("includeApps", false)
+                    syncStateToDataLayer(applicationContext, includeApps = reqApps)
                 } else if (path == PATH_CMD) {
                     val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
                     val cmdJson = dataMap.getString("cmd_json")
@@ -63,6 +65,17 @@ class CompanionSyncService : WearableListenerService() {
         const val ACTION_STATE_UPDATED = "com.aaronhrndz.ultraremapper.ACTION_STATE_UPDATED"
 
         private val executor = Executors.newSingleThreadExecutor()
+
+        @Volatile
+        private var lastSyncTimeMs = 0L
+        @Volatile
+        private var lastLightStatePayload = ""
+        @Volatile
+        private var cachedAppsArray: JSONArray? = null
+        @Volatile
+        private var cachedAppsCount = -1
+        @Volatile
+        private var hasSentAppsOnce = false
 
         fun sendPhoneAction(context: Context, action: String) {
             val appCtx = context.applicationContext
@@ -88,27 +101,50 @@ class CompanionSyncService : WearableListenerService() {
             }
         }
 
-        fun syncStateToDataLayer(context: Context, targetNodeId: String? = null) {
+        fun syncStateToDataLayer(
+            context: Context,
+            targetNodeId: String? = null,
+            includeApps: Boolean = false,
+            force: Boolean = false
+        ) {
             val appCtx = context.applicationContext
             executor.execute {
                 try {
-                    val jsonBytes = buildWatchStateJson(appCtx).toString().toByteArray(Charsets.UTF_8)
-                    val req = PutDataMapRequest.create(PATH_STATE).apply {
-                        dataMap.putString("state_json", String(jsonBytes, Charsets.UTF_8))
-                        dataMap.putLong("ts", System.currentTimeMillis())
-                    }.asPutDataRequest().setUrgent()
+                    val now = System.currentTimeMillis()
+                    val wantApps = includeApps || !hasSentAppsOnce
+                    if (!force && !wantApps && (now - lastSyncTimeMs) < 1000L) {
+                        return@execute
+                    }
+                    lastSyncTimeMs = now
 
-                    Wearable.getDataClient(appCtx).putDataItem(req)
+                    val fullJson = buildWatchStateJson(appCtx, includeApps = wantApps)
+                    if (wantApps && fullJson.has("installedApps")) {
+                        hasSentAppsOnce = true
+                    }
+                    val fullBytes = fullJson.toString().toByteArray(Charsets.UTF_8)
 
-                    // Also push direct instant message to connected phone nodes
+                    // Push direct instant message to requesting or connected phone nodes
                     if (targetNodeId != null) {
-                        Wearable.getMessageClient(appCtx).sendMessage(targetNodeId, PATH_STATE, jsonBytes)
+                        Wearable.getMessageClient(appCtx).sendMessage(targetNodeId, PATH_STATE, fullBytes)
                     } else {
                         Wearable.getNodeClient(appCtx).connectedNodes.addOnSuccessListener { nodes ->
                             for (node in nodes) {
-                                Wearable.getMessageClient(appCtx).sendMessage(node.id, PATH_STATE, jsonBytes)
+                                Wearable.getMessageClient(appCtx).sendMessage(node.id, PATH_STATE, fullBytes)
                             }
                         }
+                    }
+
+                    // Only persist lightweight state DataItem when state actually changed (no iconB64 bloat)
+                    val lightJson = JSONObject(fullJson.toString()).apply {
+                        remove("installedApps")
+                    }.toString()
+                    if (lightJson != lastLightStatePayload) {
+                        lastLightStatePayload = lightJson
+                        val req = PutDataMapRequest.create(PATH_STATE).apply {
+                            dataMap.putString("state_json", lightJson)
+                            dataMap.putLong("ts", now)
+                        }.asPutDataRequest()
+                        Wearable.getDataClient(appCtx).putDataItem(req)
                     }
                 } catch (_: Exception) {
                 }
@@ -181,7 +217,7 @@ class CompanionSyncService : WearableListenerService() {
                     // Notify watch UI if open
                     context.sendBroadcast(Intent(ACTION_STATE_UPDATED).setPackage(context.packageName))
                     // Immediately push updated state back to phone
-                    syncStateToDataLayer(context, targetNodeId = sourceNodeId)
+                    syncStateToDataLayer(context, targetNodeId = sourceNodeId, includeApps = false, force = true)
                 } catch (_: Exception) {
                 }
             }
@@ -246,7 +282,7 @@ class CompanionSyncService : WearableListenerService() {
             }
         }
 
-        fun buildWatchStateJson(context: Context): JSONObject {
+        fun buildWatchStateJson(context: Context, includeApps: Boolean = false): JSONObject {
             val root = JSONObject()
             val versionName = try {
                 context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.3.6"
@@ -267,7 +303,7 @@ class CompanionSyncService : WearableListenerService() {
                 val svc = BottomButtonService.instance
                 val activePkg = BottomButtonService.currentActivePackage ?: ""
                 if (activePkg.contains("settings", ignoreCase = true)) {
-                    svc?.scanAdbScreenAndSync(retriesLeft = 0)
+                    svc?.scanAdbScreenPassive()
                 }
             } catch (_: Exception) {}
 
@@ -367,17 +403,30 @@ class CompanionSyncService : WearableListenerService() {
             }
             root.put("permissions", permsObj)
 
-            // Installed launcher apps on watch (package + label + cached 48px PNG icon)
-            val appsArr = JSONArray()
+            if (includeApps) {
+                root.put("installedApps", getOrBuildInstalledAppsArray(context))
+            }
+
+            return root
+        }
+
+        private fun getOrBuildInstalledAppsArray(context: Context): JSONArray {
             try {
                 val pm = context.packageManager
-                val apps = pm.queryIntentActivities(
+                val pkgNames = pm.queryIntentActivities(
                     Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),
                     0
                 )
                     .map { it.activityInfo.packageName }
                     .filter { it != context.packageName }
                     .distinct()
+
+                val cached = cachedAppsArray
+                if (cached != null && cachedAppsCount == pkgNames.size) {
+                    return cached
+                }
+
+                val apps = pkgNames
                     .map { pkg ->
                         val label = try {
                             pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
@@ -388,6 +437,7 @@ class CompanionSyncService : WearableListenerService() {
                     }
                     .sortedBy { it.second.lowercase() }
 
+                val appsArr = JSONArray()
                 for ((pkg, label) in apps) {
                     val iconB64 = getCachedAppIconBase64(pm, pkg)
                     appsArr.put(JSONObject().apply {
@@ -396,11 +446,12 @@ class CompanionSyncService : WearableListenerService() {
                         if (iconB64 != null) put("iconB64", iconB64)
                     })
                 }
+                cachedAppsArray = appsArr
+                cachedAppsCount = pkgNames.size
+                return appsArr
             } catch (_: Exception) {
+                return cachedAppsArray ?: JSONArray()
             }
-            root.put("installedApps", appsArr)
-
-            return root
         }
     }
 }

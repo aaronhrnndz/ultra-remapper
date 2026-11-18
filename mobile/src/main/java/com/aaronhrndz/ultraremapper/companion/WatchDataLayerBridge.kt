@@ -45,62 +45,91 @@ class WatchDataLayerBridge(
     private val dataClient = Wearable.getDataClient(context)
     private val messageClient = Wearable.getMessageClient(context)
     private val nodeClient = Wearable.getNodeClient(context)
+    @Volatile
+    private var isStarted = false
+    @Volatile
+    private var lastRequestTs = 0L
 
-    fun start() {
-        dataClient.addListener(this)
-        messageClient.addListener(this)
+    fun start(includeApps: Boolean = true) {
+        if (!isStarted) {
+            isStarted = true
+            dataClient.addListener(this)
+            messageClient.addListener(this)
+        }
         fetchCurrentDataItem()
-        requestSyncFromWatch()
+        requestSyncFromWatch(includeApps = includeApps)
     }
 
     fun stop() {
+        isStarted = false
         try {
             dataClient.removeListener(this)
             messageClient.removeListener(this)
         } catch (_: Exception) {}
     }
 
-    fun requestSyncFromWatch() {
+    fun requestSyncFromWatch(includeApps: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!includeApps && now - lastRequestTs < 1200L) return
+        lastRequestTs = now
+        val payloadBytes = (if (includeApps) "apps" else "").toByteArray(Charsets.UTF_8)
+
+        fun fallbackDataItem() {
+            try {
+                val req = PutDataMapRequest.create(PATH_REQUEST_SYNC).apply {
+                    dataMap.putBoolean("includeApps", includeApps)
+                    dataMap.putLong("ts", System.currentTimeMillis())
+                }.asPutDataRequest()
+                dataClient.putDataItem(req)
+            } catch (_: Exception) {}
+        }
+
         nodeClient.connectedNodes.addOnSuccessListener { nodes ->
             val watchNode = nodes.firstOrNull()
             if (watchNode != null) {
                 onNodeConnected(watchNode.displayName)
-                messageClient.sendMessage(watchNode.id, PATH_REQUEST_SYNC, ByteArray(0))
+                messageClient.sendMessage(watchNode.id, PATH_REQUEST_SYNC, payloadBytes)
+                    .addOnFailureListener { fallbackDataItem() }
+            } else {
+                fallbackDataItem()
             }
+        }.addOnFailureListener {
+            fallbackDataItem()
         }
-        try {
-            val req = PutDataMapRequest.create(PATH_REQUEST_SYNC).apply {
-                dataMap.putLong("ts", System.currentTimeMillis())
-            }.asPutDataRequest().setUrgent()
-            dataClient.putDataItem(req)
-        } catch (_: Exception) {}
         fetchCurrentDataItem()
     }
 
     fun sendCommandToWatch(json: JSONObject, onSent: ((Boolean) -> Unit)? = null) {
         val bytes = json.toString().toByteArray(Charsets.UTF_8)
+
+        fun fallbackDataItem() {
+            try {
+                val req = PutDataMapRequest.create(PATH_CMD).apply {
+                    dataMap.putString("cmd_json", json.toString())
+                    dataMap.putLong("ts", System.currentTimeMillis())
+                }.asPutDataRequest()
+                dataClient.putDataItem(req)
+            } catch (_: Exception) {}
+        }
+
         nodeClient.connectedNodes.addOnSuccessListener { nodes ->
             val watchNode = nodes.firstOrNull()
             if (watchNode != null) {
                 onNodeConnected(watchNode.displayName)
                 messageClient.sendMessage(watchNode.id, PATH_CMD, bytes)
                     .addOnSuccessListener { onSent?.invoke(true) }
-                    .addOnFailureListener { onSent?.invoke(false) }
+                    .addOnFailureListener {
+                        fallbackDataItem()
+                        onSent?.invoke(false)
+                    }
             } else {
+                fallbackDataItem()
                 onSent?.invoke(false)
             }
         }.addOnFailureListener {
+            fallbackDataItem()
             onSent?.invoke(false)
         }
-
-        // Also write to DataItem as backup in case appId differs
-        try {
-            val req = PutDataMapRequest.create(PATH_CMD).apply {
-                dataMap.putString("cmd_json", json.toString())
-                dataMap.putLong("ts", System.currentTimeMillis())
-            }.asPutDataRequest().setUrgent()
-            dataClient.putDataItem(req)
-        } catch (_: Exception) {}
     }
 
     private fun fetchCurrentDataItem() {
