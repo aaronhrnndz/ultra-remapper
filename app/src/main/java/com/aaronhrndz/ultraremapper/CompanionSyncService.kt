@@ -187,6 +187,28 @@ class CompanionSyncService : WearableListenerService() {
             }
         }
 
+        private val appIconCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+        private fun getCachedAppIconBase64(pm: PackageManager, pkg: String): String? {
+            appIconCache[pkg]?.let { return it }
+            return try {
+                val drawable = pm.getApplicationIcon(pkg)
+                val size = 48
+                val bmp = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(bmp)
+                drawable.setBounds(0, 0, size, size)
+                drawable.draw(canvas)
+                val baos = java.io.ByteArrayOutputStream()
+                bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 85, baos)
+                bmp.recycle()
+                val b64 = android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
+                appIconCache[pkg] = b64
+                b64
+            } catch (_: Exception) {
+                null
+            }
+        }
+
         private fun extractPinFromNode(node: android.view.accessibility.AccessibilityNodeInfo?): String? {
             if (node == null) return null
             val text = node.text?.toString()?.trim() ?: node.contentDescription?.toString()?.trim()
@@ -345,7 +367,7 @@ class CompanionSyncService : WearableListenerService() {
             }
             root.put("permissions", permsObj)
 
-            // Installed launcher apps on watch (package + label)
+            // Installed launcher apps on watch (package + label + cached 48px PNG icon)
             val appsArr = JSONArray()
             try {
                 val pm = context.packageManager
@@ -367,9 +389,11 @@ class CompanionSyncService : WearableListenerService() {
                     .sortedBy { it.second.lowercase() }
 
                 for ((pkg, label) in apps) {
+                    val iconB64 = getCachedAppIconBase64(pm, pkg)
                     appsArr.put(JSONObject().apply {
                         put("pkg", pkg)
                         put("label", label)
+                        if (iconB64 != null) put("iconB64", iconB64)
                     })
                 }
             } catch (_: Exception) {

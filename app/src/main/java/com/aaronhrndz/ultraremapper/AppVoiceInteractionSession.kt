@@ -40,11 +40,13 @@ class AppVoiceInteractionSession(context: Context) : VoiceInteractionSession(con
                     Mapping.perform(context, "top_long", backToHome = false)
                 }
             } else {
+                hide()
                 forwardToDefaultAssistant()
+                return
             }
         } catch (_: Exception) {
         } finally {
-            hide()
+            try { hide() } catch (_: Exception) {}
         }
     }
 
@@ -54,12 +56,13 @@ class AppVoiceInteractionSession(context: Context) : VoiceInteractionSession(con
 
         val explicit = SystemRouteHelper.buildExternalAssistantLaunchIntent(context)
         if (explicit != null) {
+            explicit.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             try {
-                startAssistantActivity(explicit)
+                context.startActivity(explicit)
                 return
             } catch (_: Exception) {
                 try {
-                    context.startActivity(explicit)
+                    startAssistantActivity(explicit)
                     return
                 } catch (_: Exception) {}
             }

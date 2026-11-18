@@ -14,7 +14,8 @@ import org.json.JSONObject
 
 data class WatchAppEntry(
     val pkg: String,
-    val label: String
+    val label: String,
+    val iconB64: String? = null
 )
 
 data class WatchSyncedState(
@@ -207,8 +208,9 @@ class WatchDataLayerBridge(
                         val item = arr.optJSONObject(i) ?: continue
                         val pkg = item.optString("pkg")
                         val label = item.optString("label", pkg)
+                        val iconB64 = item.optString("iconB64", "").takeIf { it.isNotBlank() }
                         if (pkg.isNotBlank()) {
-                            apps.add(WatchAppEntry(pkg, label))
+                            apps.add(WatchAppEntry(pkg, label, iconB64))
                         }
                     }
                 }

@@ -40,6 +40,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -47,6 +49,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -2007,6 +2011,8 @@ fun CompanionAppRoot(
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 28.dp)
             ) {
+                var actionSearchQuery by remember(activeGesture, pickingAppSublist) { mutableStateOf("") }
+
                 Text(
                     text = if (pickingAppSublist) {
                         stringResource(R.string.picker_select_watch_app)
@@ -2016,8 +2022,51 @@ fun CompanionAppRoot(
                     color = UltraOrange,
                     fontWeight = FontWeight.Bold,
                     fontSize = 17.sp,
-                    modifier = Modifier.padding(bottom = 12.dp)
+                    modifier = Modifier.padding(bottom = 10.dp)
                 )
+
+                OutlinedTextField(
+                    value = actionSearchQuery,
+                    onValueChange = { actionSearchQuery = it },
+                    placeholder = {
+                        Text(
+                            text = if (pickingAppSublist) "Buscar app…" else "Buscar acción…",
+                            fontSize = 13.sp,
+                            color = palette.textSecondary
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            tint = palette.textSecondary
+                        )
+                    },
+                    trailingIcon = {
+                        if (actionSearchQuery.isNotEmpty()) {
+                            IconButton(onClick = { actionSearchQuery = "" }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = null,
+                                    tint = palette.textSecondary
+                                )
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = UltraOrange,
+                        unfocusedBorderColor = palette.border,
+                        focusedTextColor = palette.textPrimary,
+                        unfocusedTextColor = palette.textPrimary
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp)
+                )
+
+                val query = actionSearchQuery.trim()
 
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -2034,7 +2083,15 @@ fun CompanionAppRoot(
                                 Text(stringResource(R.string.picker_back_to_actions))
                             }
                         }
-                        if (watchInstalledApps.isEmpty()) {
+                        val filteredApps = if (query.isEmpty()) {
+                            watchInstalledApps
+                        } else {
+                            watchInstalledApps.filter {
+                                it.label.contains(query, ignoreCase = true) ||
+                                    it.pkg.contains(query, ignoreCase = true)
+                            }
+                        }
+                        if (filteredApps.isEmpty()) {
                             item(key = "no_apps_msg") {
                                 Text(
                                     text = stringResource(R.string.picker_no_apps_synced),
@@ -2044,12 +2101,13 @@ fun CompanionAppRoot(
                                 )
                             }
                         } else {
-                            items(watchInstalledApps, key = { it.pkg }) { app ->
+                            items(filteredApps, key = { it.pkg }) { app ->
                                 val actKey = "app:${app.pkg}"
                                 ActionRadioRow(
                                     label = app.label,
                                     subtitle = app.pkg,
-                                    selected = currentAct == actKey
+                                    selected = currentAct == actKey,
+                                    iconB64 = app.iconB64
                                 ) {
                                     updateWatchMapping(activeGesture, actKey)
                                     pickingGesture = null
@@ -2057,86 +2115,55 @@ fun CompanionAppRoot(
                             }
                         }
                     } else {
-                        // Open App Row
-                        item(key = "pick_open_app") {
-                            val isApp = currentAct.startsWith("app:")
-                            ActionRadioRow(
-                                label = stringResource(R.string.action_open_app),
-                                subtitle = if (isApp) {
-                                    WatchActionCatalog.getActionLabel(context, currentAct, watchInstalledApps)
-                                } else {
-                                    stringResource(R.string.action_choose_from_apps, watchInstalledApps.size)
-                                },
-                                selected = isApp
-                            ) {
-                                pickingAppSublist = true
+                        if (query.isEmpty()) {
+                            // Open App Row
+                            item(key = "pick_open_app") {
+                                val isApp = currentAct.startsWith("app:")
+                                ActionRadioRow(
+                                    label = stringResource(R.string.action_open_app),
+                                    subtitle = if (isApp) {
+                                        WatchActionCatalog.getActionLabel(context, currentAct, watchInstalledApps)
+                                    } else {
+                                        stringResource(R.string.action_choose_from_apps, watchInstalledApps.size)
+                                    },
+                                    selected = isApp
+                                ) {
+                                    pickingAppSublist = true
+                                }
                             }
-                        }
 
-                        // None Row
-                        item(key = "pick_none") {
-                            ActionRadioRow(
-                                label = stringResource(R.string.action_none),
-                                subtitle = null,
-                                selected = currentAct == "none"
-                            ) {
-                                updateWatchMapping(activeGesture, "none")
-                                pickingGesture = null
+                            // None Row
+                            item(key = "pick_none") {
+                                ActionRadioRow(
+                                    label = stringResource(R.string.action_none),
+                                    subtitle = null,
+                                    selected = currentAct == "none"
+                                ) {
+                                    updateWatchMapping(activeGesture, "none")
+                                    pickingGesture = null
+                                }
                             }
                         }
 
                         // 1. SECTION: PHONE ACTIONS
-                        item(key = "section_phone_hdr") {
-                            Text(
-                                text = stringResource(R.string.hdr_section_phone),
-                                color = UltraOrange,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp, start = 4.dp)
-                            )
-                        }
-                        items(WatchActionCatalog.phoneActions, key = { it.first }) { (actKey, labelRes) ->
-                            ActionRadioRow(
-                                label = stringResource(labelRes),
-                                subtitle = null,
-                                selected = currentAct == actKey
-                            ) {
-                                updateWatchMapping(activeGesture, actKey)
-                                pickingGesture = null
+                        val filteredPhoneActions = if (query.isEmpty()) {
+                            WatchActionCatalog.phoneActions
+                        } else {
+                            WatchActionCatalog.phoneActions.filter { (_, labelRes) ->
+                                context.getString(labelRes).contains(query, ignoreCase = true)
                             }
                         }
-
-                        // 2. SECTION: WATCH ACTIONS (grouped by categories)
-                        item(key = "section_watch_hdr") {
-                            Text(
-                                text = stringResource(R.string.hdr_section_watch),
-                                color = UltraOrange,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(top = 18.dp, bottom = 4.dp, start = 4.dp)
-                            )
-                        }
-
-                        val watchSections = listOf(
-                            context.getString(R.string.cat_shealth) to WatchActionCatalog.shealthActions,
-                            context.getString(R.string.cat_samsung) to WatchActionCatalog.samsungActions,
-                            context.getString(R.string.cat_dev) to WatchActionCatalog.devActions,
-                            context.getString(R.string.cat_utility) to WatchActionCatalog.utilityActions,
-                            context.getString(R.string.cat_ha) to WatchActionCatalog.homeAssistantActions,
-                            context.getString(R.string.cat_media) to WatchActionCatalog.mediaActions
-                        )
-
-                        for ((catTitle, actions) in watchSections) {
-                            item(key = "hdr_$catTitle") {
+                        if (filteredPhoneActions.isNotEmpty()) {
+                            item(key = "section_phone_hdr") {
                                 Text(
-                                    text = catTitle,
-                                    color = palette.textSecondary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.padding(top = 8.dp, bottom = 2.dp, start = 4.dp)
+                                    text = stringResource(R.string.hdr_section_phone),
+                                    color = UltraOrange,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp, start = 4.dp)
                                 )
                             }
-                            items(actions, key = { it.first }) { (actKey, labelRes) ->
+                            items(filteredPhoneActions, key = { it.first }) { (actKey, labelRes) ->
                                 ActionRadioRow(
                                     label = stringResource(labelRes),
                                     subtitle = null,
@@ -2144,6 +2171,59 @@ fun CompanionAppRoot(
                                 ) {
                                     updateWatchMapping(activeGesture, actKey)
                                     pickingGesture = null
+                                }
+                            }
+                        }
+
+                        // 2. SECTION: WATCH ACTIONS (grouped by categories)
+                        val watchSections = listOf(
+                            context.getString(R.string.cat_shealth) to WatchActionCatalog.shealthActions,
+                            context.getString(R.string.cat_samsung) to WatchActionCatalog.samsungActions,
+                            context.getString(R.string.cat_dev) to WatchActionCatalog.devActions,
+                            context.getString(R.string.cat_utility) to WatchActionCatalog.utilityActions,
+                            context.getString(R.string.cat_ha) to WatchActionCatalog.homeAssistantActions,
+                            context.getString(R.string.cat_media) to WatchActionCatalog.mediaActions
+                        ).mapNotNull { (catTitle, actions) ->
+                            val filtered = if (query.isEmpty()) {
+                                actions
+                            } else {
+                                actions.filter { (_, labelRes) ->
+                                    context.getString(labelRes).contains(query, ignoreCase = true)
+                                }
+                            }
+                            if (filtered.isEmpty()) null else catTitle to filtered
+                        }
+
+                        if (watchSections.isNotEmpty()) {
+                            item(key = "section_watch_hdr") {
+                                Text(
+                                    text = stringResource(R.string.hdr_section_watch),
+                                    color = UltraOrange,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(top = 18.dp, bottom = 4.dp, start = 4.dp)
+                                )
+                            }
+
+                            for ((catTitle, actions) in watchSections) {
+                                item(key = "hdr_$catTitle") {
+                                    Text(
+                                        text = catTitle,
+                                        color = palette.textSecondary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp, start = 4.dp)
+                                    )
+                                }
+                                items(actions, key = { it.first }) { (actKey, labelRes) ->
+                                    ActionRadioRow(
+                                        label = stringResource(labelRes),
+                                        subtitle = null,
+                                        selected = currentAct == actKey
+                                    ) {
+                                        updateWatchMapping(activeGesture, actKey)
+                                        pickingGesture = null
+                                    }
                                 }
                             }
                         }
@@ -2619,9 +2699,19 @@ private fun ActionRadioRow(
     label: String,
     subtitle: String?,
     selected: Boolean,
+    iconB64: String? = null,
     onSelect: () -> Unit
 ) {
     val palette = LocalPalette.current
+    val iconBitmap = remember(iconB64) {
+        if (iconB64.isNullOrBlank()) null
+        else try {
+            val bytes = android.util.Base64.decode(iconB64, android.util.Base64.DEFAULT)
+            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+        } catch (_: Exception) {
+            null
+        }
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -2639,7 +2729,19 @@ private fun ActionRadioRow(
                 unselectedColor = palette.textSecondary
             )
         )
-        Spacer(modifier = Modifier.width(6.dp))
+        if (iconBitmap != null) {
+            Spacer(modifier = Modifier.width(4.dp))
+            Image(
+                bitmap = iconBitmap,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(8.dp))
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        } else {
+            Spacer(modifier = Modifier.width(6.dp))
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = label,
