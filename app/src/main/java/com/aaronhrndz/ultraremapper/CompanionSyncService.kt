@@ -178,6 +178,10 @@ class CompanionSyncService : WearableListenerService() {
                             val enabled = json.optBoolean("enabled", true)
                             Mapping.setHapticFeedbackEnabled(context, enabled)
                         }
+                        "set_beta" -> {
+                            val enabled = json.optBoolean("enabled", false)
+                            UpdateChecker.setBetaChannel(context, enabled)
+                        }
                         "open_a11y" -> {
                             try {
                                 val launchCtx = BottomButtonService.instance ?: context
@@ -295,6 +299,7 @@ class CompanionSyncService : WearableListenerService() {
             root.put("versionName", versionName)
             root.put("masterEnabled", Mapping.isEnabled(context))
             root.put("hapticEnabled", Mapping.isHapticFeedbackEnabled(context))
+            root.put("betaChannelEnabled", UpdateChecker.isBetaChannel(context))
             val wirelessAdbEnabled = try {
                 Settings.Global.getInt(context.contentResolver, "adb_wifi_enabled", 0) == 1
             } catch (_: Exception) {

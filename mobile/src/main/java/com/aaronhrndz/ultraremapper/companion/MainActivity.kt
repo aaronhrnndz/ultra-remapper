@@ -369,6 +369,10 @@ fun CompanionAppRoot(
                 if (state.versionName.isNotBlank()) installedWatchVersion = state.versionName
                 isMasterEnabled = state.masterEnabled
                 isHapticEnabled = state.hapticEnabled
+                if (state.betaChannelEnabled != isBetaEnabled) {
+                    isBetaEnabled = state.betaChannelEnabled
+                    UpdateChecker.setBetaChannel(context, state.betaChannelEnabled)
+                }
                 for ((k, v) in state.mappings) {
                     gestureMappings[k] = v
                 }
@@ -422,6 +426,10 @@ fun CompanionAppRoot(
                 Lifecycle.Event.ON_RESUME -> {
                     isAppInForeground = true
                     dataLayerBridge.start(includeApps = watchInstalledApps.isEmpty())
+                    UpdateChecker.checkAll(context) { compUpd, latestRel ->
+                        companionUpdate = compUpd
+                        latestWatchRelease = latestRel
+                    }
                 }
                 Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
                     isAppInForeground = false
@@ -677,6 +685,12 @@ fun CompanionAppRoot(
             onToggleBeta = { next ->
                 isBetaEnabled = next
                 UpdateChecker.setBetaChannel(context, next)
+                dataLayerBridge.sendCommandToWatch(
+                    JSONObject().apply {
+                        put("type", "set_beta")
+                        put("enabled", next)
+                    }
+                )
             },
             onBack = { showDevOptionsScreen = false }
         )

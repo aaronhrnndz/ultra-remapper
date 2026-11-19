@@ -367,6 +367,9 @@ class MainActivity : ComponentActivity() {
                             override fun onReceive(ctx: Context?, intent: Intent?) {
                                 setup = readSetupState(context)
                                 mappingVersion++
+                                UpdateChecker.check(context) { info ->
+                                    updateInfo = info
+                                }
                             }
                         }
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {

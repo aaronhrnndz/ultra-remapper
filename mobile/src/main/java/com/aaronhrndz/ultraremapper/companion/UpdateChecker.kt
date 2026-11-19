@@ -25,7 +25,10 @@ data class ReleaseUpdate(
 object UpdateChecker {
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
-    private const val FORGEJO_LAN_RELEASES_API = "http://192.168.1.8:3000/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
+    private const val FORGEJO_LAN_BASE = "http://192.168.1.8:3000"
+    private const val FORGEJO_TAILSCALE_BASE = "https://forgejo.tailc4b32.ts.net"
+    private const val FORGEJO_LAN_RELEASES_API = "$FORGEJO_LAN_BASE/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
+    private const val FORGEJO_TAILSCALE_RELEASES_API = "$FORGEJO_TAILSCALE_BASE/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
     private const val CODEBERG_MANIFEST_URL = "https://codeberg.org/Aaronhrndz/ultra-remapper/raw/branch/main/update.json"
     private const val CODEBERG_RELEASES_API = "https://codeberg.org/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
     private val GITHUB_REPOS = listOf(
@@ -71,17 +74,20 @@ object UpdateChecker {
             var bestCompanionRel: ReleaseUpdate? = null
             var bestWatchRel: ReleaseUpdate? = null
 
-            // 1. Local Forgejo LAN Beta Source FIRST (instant on LAN, 800ms fast-fail outside LAN)
-            if (isBeta) {
+            // 1. Private Forgejo OTA Sources FIRST and unconditionally (LAN first, then Tailscale HTTPS)
+            for ((apiUrl, originBase) in listOf(
+                FORGEJO_LAN_RELEASES_API to FORGEJO_LAN_BASE,
+                FORGEJO_TAILSCALE_RELEASES_API to FORGEJO_TAILSCALE_BASE
+            )) {
                 fetchUrlText(
-                    FORGEJO_LAN_RELEASES_API,
+                    apiUrl,
                     userAgent,
                     "application/json",
                     connectTimeoutMs = 3000,
                     readTimeoutMs = 4000
                 )?.let { body ->
                     try {
-                        val (cBest, wBest) = processReleasesArray(JSONArray(body), true, bestCompanionRel, bestWatchRel, "http://192.168.1.8:3000")
+                        val (cBest, wBest) = processReleasesArray(JSONArray(body), true, bestCompanionRel, bestWatchRel, originBase)
                         bestCompanionRel = cBest
                         bestWatchRel = wBest
                     } catch (_: Exception) {}
@@ -340,25 +346,43 @@ object UpdateChecker {
                 }
 
                 mainHandler.post { onProgress(0f, appCtx.getString(R.string.ota_downloading_apk)) }
-                var conn = (URL(apkUrl).openConnection() as HttpURLConnection).apply {
-                    instanceFollowRedirects = true
-                    connectTimeout = 15000
-                    readTimeout = 30000
-                }
-                if (conn.responseCode in 300..399) {
-                    val redir = conn.getHeaderField("Location")
-                    if (!redir.isNullOrEmpty()) {
-                        conn = (URL(redir).openConnection() as HttpURLConnection).apply {
+                val candidates = buildMobileDownloadCandidates(apkUrl)
+                var conn: HttpURLConnection? = null
+                var lastErr: Exception? = null
+                for (candidate in candidates) {
+                    try {
+                        var c = (URL(candidate).openConnection() as HttpURLConnection).apply {
+                            instanceFollowRedirects = true
                             connectTimeout = 15000
                             readTimeout = 30000
                         }
+                        if (c.responseCode in 300..399) {
+                            val redir = c.getHeaderField("Location")
+                            if (!redir.isNullOrEmpty()) {
+                                try { c.disconnect() } catch (_: Exception) {}
+                                c = (URL(redir).openConnection() as HttpURLConnection).apply {
+                                    connectTimeout = 15000
+                                    readTimeout = 30000
+                                }
+                            }
+                        }
+                        if (c.responseCode == 200) {
+                            conn = c
+                            break
+                        } else {
+                            lastErr = java.io.IOException("HTTP ${c.responseCode}")
+                            try { c.disconnect() } catch (_: Exception) {}
+                        }
+                    } catch (e: Exception) {
+                        lastErr = e
                     }
                 }
+                val activeConn = conn ?: throw (lastErr ?: java.io.IOException("Download failed"))
 
-                val total = conn.contentLength.toLong()
+                val total = activeConn.contentLength.toLong()
                 var downloaded = 0L
                 var lastReport = 0L
-                conn.inputStream.use { input ->
+                activeConn.inputStream.use { input ->
                     apkFile.outputStream().use { output ->
                         val buffer = ByteArray(16 * 1024)
                         var read: Int
@@ -375,6 +399,7 @@ object UpdateChecker {
                         }
                     }
                 }
+                try { activeConn.disconnect() } catch (_: Exception) {}
                 mainHandler.post { onComplete(apkFile) }
             } catch (e: Exception) {
                 mainHandler.post {
@@ -383,6 +408,20 @@ object UpdateChecker {
                     onComplete(null)
                 }
             }
+        }
+    }
+
+    private fun buildMobileDownloadCandidates(apkUrl: String): List<String> {
+        return when {
+            apkUrl.startsWith(FORGEJO_LAN_BASE) -> listOf(
+                apkUrl,
+                apkUrl.replaceFirst(FORGEJO_LAN_BASE, FORGEJO_TAILSCALE_BASE)
+            )
+            apkUrl.startsWith(FORGEJO_TAILSCALE_BASE) -> listOf(
+                apkUrl,
+                apkUrl.replaceFirst(FORGEJO_TAILSCALE_BASE, FORGEJO_LAN_BASE)
+            )
+            else -> listOf(apkUrl)
         }
     }
 

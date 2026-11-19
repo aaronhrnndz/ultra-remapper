@@ -22,6 +22,7 @@ data class WatchSyncedState(
     val versionName: String,
     val masterEnabled: Boolean,
     val hapticEnabled: Boolean,
+    val betaChannelEnabled: Boolean = false,
     val mappings: Map<String, String>,
     val permissions: Map<String, Boolean>,
     val installedApps: List<WatchAppEntry>,
@@ -212,6 +213,7 @@ class WatchDataLayerBridge(
                 val versionName = root.optString("versionName", "")
                 val masterEnabled = root.optBoolean("masterEnabled", true)
                 val hapticEnabled = root.optBoolean("hapticEnabled", true)
+                val betaChannelEnabled = root.optBoolean("betaChannelEnabled", false)
 
                 val mappings = mutableMapOf<String, String>()
                 root.optJSONObject("mappings")?.let { mObj ->
@@ -254,6 +256,7 @@ class WatchDataLayerBridge(
                     versionName = versionName,
                     masterEnabled = masterEnabled,
                     hapticEnabled = hapticEnabled,
+                    betaChannelEnabled = betaChannelEnabled,
                     mappings = mappings,
                     permissions = perms,
                     installedApps = apps,
