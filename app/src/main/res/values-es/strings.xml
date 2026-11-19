@@ -175,4 +175,64 @@ La solución definitiva para que funcione siempre de forma fiable es congelar Sa
     <string name="count_configured">%1$d configurados</string>
     <string name="status_unassigned">Sin asignar</string>
     <string name="status_toctoc_active">Toc toc activo</string>
+
+    <!-- Watch MainActivity, Settings, Permissions & Updates -->
+    <string name="toast_assistant_routed">Asistente enrutado a Ultra Remapper automáticamente</string>
+    <string name="toast_assistant_restored">Asistente nativo de Google restaurado</string>
+    <string name="sub_native_google">%1$s • Nativo Google</string>
+    <string name="sub_auto_routed_adb">%1$s • Auto-enrutado ADB</string>
+    <string name="toast_open_phone_failed">No se pudo abrir en el teléfono</string>
+    <string name="toast_download_error">Error de descarga: %1$s</string>
+    <string name="toast_install_failed">Fallo al instalar: %1$s</string>
+    <string name="toast_dev_options_unavailable">Opciones de desarrollador no disponibles</string>
+    <string name="perm_toggle_failed">Fallo al cambiar %1$s</string>
+    <string name="perm_overlay_title">Overlay</string>
+    <string name="perm_overlay_desc">Superposición en segundo plano</string>
+    <string name="perm_secure_title">Secure Settings</string>
+    <string name="perm_secure_desc">Ajustes del sistema</string>
+    <string name="perm_action_title">Botón de Acción</string>
+    <string name="perm_action_desc">Ruta de pulsación física</string>
+    <string name="perm_notif_title">Notificaciones</string>
+    <string name="perm_notif_desc">Control multimedia activo</string>
+    <string name="perm_battery_title">Sin restricción batería</string>
+    <string name="perm_battery_desc">Evita cierre en reposo</string>
+    <string name="settings_adb_status_connecting">ADB: Conectando…</string>
+    <string name="settings_adb_status_paired">ADB: Vinculado</string>
+    <string name="perms_active_count">%1$d de %2$d activos</string>
+    <string name="samsung_pay_toggle_error">Error al cambiar Samsung Pay</string>
+    <string name="app_version_beta">%1$s (Beta)</string>
+    <string name="app_version_beta_channel">%1$s [Canal Beta]</string>
+
+    <!-- Watch ADB Wizard -->
+    <string name="adb_wiz_err_pair">Fallo al emparejar. Código o puerto incorrecto.</string>
+    <string name="adb_wiz_err_enter_port">Introduce el puerto que sale en \'Dirección IP y puerto\'.</string>
+    <string name="adb_wiz_err_connect">Fallo al conectar puerto %1$d. Revisa el puerto en Ajustes.</string>
+    <string name="adb_wiz_hdr_connected">¡CONECTADO!</string>
+    <string name="adb_wiz_hdr_step1">PASO 1 DE 3</string>
+    <string name="adb_wiz_hdr_step2">PASO 2 DE 3</string>
+    <string name="adb_wiz_hdr_step3">PASO 3 DE 3</string>
+    <string name="adb_wiz_connected_title">✓ ADB Conectado</string>
+    <string name="adb_wiz_connected_desc">Puerto activo: %1$d\nSesión local autorizada correctamente.</string>
+    <string name="adb_wiz_continue_settings">Continuar a Ajustes</string>
+    <string name="adb_wiz_s1_1">1. Conecta el reloj a tu red Wi-Fi.</string>
+    <string name="adb_wiz_s1_2">2. Entra en Depuración inalámbrica y actívala.</string>
+    <string name="adb_wiz_s1_3">3. Pulsa \'Vincular dispositivo nuevo\' para ver el PIN y puerto.</string>
+    <string name="adb_wiz_open_wireless">Abrir Depuración Inalámbrica</string>
+    <string name="adb_wiz_already_paired">Ya vinculado › Conectar</string>
+    <string name="adb_wiz_next_pair">Paso siguiente: Vincular ›</string>
+    <string name="adb_wiz_enable_first">Activa Depuración primero</string>
+    <string name="adb_wiz_pin_label">Código de vinculación (6 dígitos):</string>
+    <string name="adb_wiz_pin_hint">PIN 6 dígitos</string>
+    <string name="adb_wiz_pair_port_label">Puerto de vinculación (5 dígitos):</string>
+    <string name="adb_wiz_pair_port_hint">Puerto que sale con el PIN</string>
+    <string name="adb_wiz_pairing">Emparejando…</string>
+    <string name="adb_wiz_pair_btn">Vincular Reloj</string>
+    <string name="adb_wiz_open_debugging">Abrir Depuración</string>
+    <string name="adb_wiz_device_paired">✓ Dispositivo vinculado</string>
+    <string name="adb_wiz_connect_port_label">Puerto de \'Dirección IP y puerto\':</string>
+    <string name="adb_wiz_connect_port_hint">Puerto ej. 37757</string>
+    <string name="adb_wiz_connect_port_note">Apunta solo los últimos 5 números de \'Dirección IP y puerto\' en los ajustes de depuración.</string>
+    <string name="adb_wiz_connecting">Conectando…</string>
+    <string name="adb_wiz_connect_btn">Conectar ADB</string>
+    <string name="adb_wiz_re_pair">Volver a vincular con nuevo PIN</string>
 </resources>

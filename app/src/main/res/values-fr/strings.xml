@@ -162,4 +162,71 @@ Paramètres de la montre › Applications › Applications par défaut › Assis
     <string name="settings_adb_unpair_button">Supprimer le jumelage ADB</string>
     <string name="settings_adb_unpair_desc">Réinitialiser jumelage et clés</string>
     <string name="settings_adb_unpair_confirm">Jumelage supprimé</string>
+
+    <string name="diag_dialog_adb_title">Accorder la permission</string>
+    <string name="diag_dialog_close">Compris</string>
+    <string name="diag_dialog_overlay_body">Vous pouvez l’accorder directement sur la montre avec ADB local dans Paramètres, ou exécuter dans votre terminal :\n\nadb shell appops set com.aaronhrndz.ultraremapper SYSTEM_ALERT_WINDOW allow</string>
+    <string name="diag_dialog_secure_body">Vous pouvez l’accorder directement sur la montre avec ADB local dans Paramètres, ou exécuter dans votre terminal :\n\nadb shell pm grant com.aaronhrndz.ultraremapper android.permission.WRITE_SECURE_SETTINGS</string>
+    <string name="diag_dialog_route_body">Pour assigner le bouton d’action à Ultra Remapper, allez dans :\n\nParamètres de la montre › Boutons et gestes › Bouton d’action › Choisir Ultra Remapper\n\nOu via ADB :\nadb shell settings put global setting_action_button_press com.aaronhrndz.ultraremapper/com.aaronhrndz.ultraremapper.ActionButtonService</string>
+    <string name="diag_dialog_media_body">Vous pouvez l’accorder directement sur la montre avec ADB local dans Paramètres, ou exécuter dans votre terminal :\n\nadb shell cmd notification allow_listener com.aaronhrndz.ultraremapper/com.aaronhrndz.ultraremapper.MediaControlService</string>
+
+    <!-- Watch MainActivity, Settings, Permissions & Updates -->
+    <string name="toast_assistant_routed">Assistant routé vers Ultra Remapper automatiquement</string>
+    <string name="toast_assistant_restored">Assistant Google natif restauré</string>
+    <string name="sub_native_google">%1$s • Natif Google</string>
+    <string name="sub_auto_routed_adb">%1$s • Auto-routé ADB</string>
+    <string name="toast_open_phone_failed">Impossible d’ouvrir sur le téléphone</string>
+    <string name="toast_download_error">Erreur de téléchargement : %1$s</string>
+    <string name="toast_install_failed">Échec de l’installation : %1$s</string>
+    <string name="toast_dev_options_unavailable">Options pour les développeurs indisponibles</string>
+    <string name="perm_toggle_failed">Échec du changement de %1$s</string>
+    <string name="perm_overlay_title">Superposition</string>
+    <string name="perm_overlay_desc">Affichage en arrière-plan</string>
+    <string name="perm_secure_title">Secure Settings</string>
+    <string name="perm_secure_desc">Paramètres système</string>
+    <string name="perm_action_title">Bouton d’action</string>
+    <string name="perm_action_desc">Routage physique du bouton</string>
+    <string name="perm_notif_title">Notifications</string>
+    <string name="perm_notif_desc">Contrôle média actif</string>
+    <string name="perm_battery_title">Batterie sans restriction</string>
+    <string name="perm_battery_desc">Évite la fermeture en veille</string>
+    <string name="settings_adb_status_connecting">ADB : Connexion…</string>
+    <string name="settings_adb_status_paired">ADB : Jumelé</string>
+    <string name="perms_active_count">%1$d sur %2$d actifs</string>
+    <string name="samsung_pay_toggle_error">Erreur lors du changement de Samsung Pay</string>
+    <string name="app_version_beta">%1$s (Bêta)</string>
+    <string name="app_version_beta_channel">%1$s [Canal Bêta]</string>
+
+    <!-- Watch ADB Wizard -->
+    <string name="adb_wiz_err_pair">Échec du jumelage. Code ou port incorrect.</string>
+    <string name="adb_wiz_err_enter_port">Entrez le port affiché dans « Adresse IP et port ».</string>
+    <string name="adb_wiz_err_connect">Échec de connexion au port %1$d. Vérifiez le port dans Paramètres.</string>
+    <string name="adb_wiz_hdr_connected">CONNECTÉ !</string>
+    <string name="adb_wiz_hdr_step1">ÉTAPE 1 SUR 3</string>
+    <string name="adb_wiz_hdr_step2">ÉTAPE 2 SUR 3</string>
+    <string name="adb_wiz_hdr_step3">ÉTAPE 3 SUR 3</string>
+    <string name="adb_wiz_connected_title">✓ ADB Connecté</string>
+    <string name="adb_wiz_connected_desc">Port actif : %1$d\nSession locale autorisée.</string>
+    <string name="adb_wiz_continue_settings">Continuer vers Paramètres</string>
+    <string name="adb_wiz_s1_1">1. Connectez la montre au Wi-Fi.</string>
+    <string name="adb_wiz_s1_2">2. Ouvrez Débogage sans fil et activez-le.</string>
+    <string name="adb_wiz_s1_3">3. Touchez « Associer un nouvel appareil » pour voir le code PIN et le port.</string>
+    <string name="adb_wiz_open_wireless">Ouvrir Débogage sans fil</string>
+    <string name="adb_wiz_already_paired">Déjà jumelé › Connecter</string>
+    <string name="adb_wiz_next_pair">Étape suivante : Jumeler ›</string>
+    <string name="adb_wiz_enable_first">Activez d’abord le débogage</string>
+    <string name="adb_wiz_pin_label">Code de jumelage (6 chiffres) :</string>
+    <string name="adb_wiz_pin_hint">PIN à 6 chiffres</string>
+    <string name="adb_wiz_pair_port_label">Port de jumelage (5 chiffres) :</string>
+    <string name="adb_wiz_pair_port_hint">Port affiché avec le PIN</string>
+    <string name="adb_wiz_pairing">Jumelage…</string>
+    <string name="adb_wiz_pair_btn">Jumeler la montre</string>
+    <string name="adb_wiz_open_debugging">Ouvrir Débogage</string>
+    <string name="adb_wiz_device_paired">✓ Appareil jumelé</string>
+    <string name="adb_wiz_connect_port_label">Port de « Adresse IP et port » :</string>
+    <string name="adb_wiz_connect_port_hint">Port ex. 37757</string>
+    <string name="adb_wiz_connect_port_note">Saisissez uniquement les 5 derniers chiffres de « Adresse IP et port ».</string>
+    <string name="adb_wiz_connecting">Connexion…</string>
+    <string name="adb_wiz_connect_btn">Connecter ADB</string>
+    <string name="adb_wiz_re_pair">Re-jumeler avec un nouveau PIN</string>
 </resources>

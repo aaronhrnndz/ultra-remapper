@@ -63,17 +63,17 @@ class UpdateReceiver : BroadcastReceiver() {
                 .setAutoCancel(true)
                 .setContentIntent(openAppPendingIntent)
 
-            // Direct install action button right from notification
+            // Direct install action button right from notification -> opens UpdateDetailsScreen with auto-install & progress bar
             if (!update.apkDownloadUrl.isNullOrEmpty()) {
-                val installIntent = Intent(context, UpdateReceiver::class.java).apply {
-                    action = ACTION_INSTALL_UPDATE
-                    putExtra(EXTRA_VERSION, update.versionName)
-                    putExtra(EXTRA_APK_URL, update.apkDownloadUrl)
+                val installActivityIntent = Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    putExtra("open_destination", "update_details")
+                    putExtra("auto_install", true)
                 }
-                val installPendingIntent = PendingIntent.getBroadcast(
+                val installPendingIntent = PendingIntent.getActivity(
                     context,
                     1,
-                    installIntent,
+                    installActivityIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
                 builder.addAction(

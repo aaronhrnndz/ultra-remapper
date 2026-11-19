@@ -302,6 +302,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         val targetDestination = intent?.getStringExtra("open_destination") ?: "home"
+        val autoInstallUpdate = intent?.getBooleanExtra("auto_install", false) ?: false
         if (intent?.getBooleanExtra("from_toctoc", false) == true) {
             val toctocAct = Mapping.get(this, "toctoc")
             if (Mapping.isEnabled(this) && toctocAct != "none") {
@@ -579,6 +580,7 @@ class MainActivity : ComponentActivity() {
                             if (info != null) {
                                 UpdateDetailsScreen(
                                     update = info,
+                                    autoStartInstall = autoInstallUpdate,
                                     onOpenOnPhone = { UpdateChecker.openReleaseOnPhone(context, info) }
                                 )
                             }
@@ -597,9 +599,9 @@ class MainActivity : ComponentActivity() {
                                     mappingVersion++
                                     if (gesture == "top_long") {
                                         val msg = if (action != "none" && action != "assistant") {
-                                            "Asistente enrutado a Ultra Remapper automáticamente"
+                                            context.getString(R.string.toast_assistant_routed)
                                         } else {
-                                            "Asistente nativo de Google restaurado"
+                                            context.getString(R.string.toast_assistant_restored)
                                         }
                                         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                                     }
@@ -619,9 +621,9 @@ class MainActivity : ComponentActivity() {
                                     mappingVersion++
                                     if (gesture == "top_long") {
                                         val msg = if (action != "none" && action != "assistant") {
-                                            "Asistente enrutado a Ultra Remapper automáticamente"
+                                            context.getString(R.string.toast_assistant_routed)
                                         } else {
-                                            "Asistente nativo de Google restaurado"
+                                            context.getString(R.string.toast_assistant_restored)
                                         }
                                         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                                     }
@@ -1202,8 +1204,8 @@ private fun Home(
                             val (currentAction, currentLabel) = actPair
                             val isConfigured = currentAction != "none"
                             val subtitleText = if (gesture == "top_long" && isConfigured) {
-                                if (currentAction == "assistant") "$currentLabel • Nativo Google"
-                                else "$currentLabel • Auto-enrutado ADB"
+                                if (currentAction == "assistant") context.getString(R.string.sub_native_google, currentLabel)
+                                else context.getString(R.string.sub_auto_routed_adb, currentLabel)
                             } else {
                                 currentLabel
                             }
@@ -2015,6 +2017,7 @@ private fun AppListPicker(
 @Composable
 private fun UpdateDetailsScreen(
     update: ReleaseUpdate,
+    autoStartInstall: Boolean = false,
     onOpenOnPhone: () -> Unit,
 ) {
     val columnState = rememberTransformingLazyColumnState()
@@ -2030,7 +2033,18 @@ private fun UpdateDetailsScreen(
     val context = LocalContext.current
     var downloadProgress by remember { mutableStateOf("") }
     var downloadFraction by remember { mutableFloatStateOf(0f) }
+    var autoStarted by remember { mutableStateOf(false) }
     val isDownloading = downloadProgress.isNotEmpty()
+
+    LaunchedEffect(autoStartInstall, update) {
+        if (autoStartInstall && !autoStarted && !isDownloading) {
+            autoStarted = true
+            UpdateChecker.downloadAndInstallOnWatch(context, update) { fraction, status ->
+                downloadFraction = fraction
+                downloadProgress = status
+            }
+        }
+    }
 
     ScreenScaffold(scrollState = columnState) { _ ->
         TransformingLazyColumn(

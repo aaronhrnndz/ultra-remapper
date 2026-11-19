@@ -37,6 +37,7 @@ import androidx.wear.compose.material3.*
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import com.aaronhrndz.ultraremapper.HapticFeedbackHelper
+import com.aaronhrndz.ultraremapper.R
 import com.aaronhrndz.ultraremapper.SwitchLoadingSpinner
 import com.aaronhrndz.ultraremapper.adb.LocalAdbClient
 import kotlin.concurrent.thread
@@ -174,7 +175,7 @@ fun AdbWizardScreen(
                     // Advance directly to Step 3 for connection
                     currentStep = 3
                 } else {
-                    errorMessage = "Fallo al emparejar. Código o puerto incorrecto."
+                    errorMessage = context.getString(R.string.adb_wiz_err_pair)
                 }
             }
         }
@@ -192,7 +193,7 @@ fun AdbWizardScreen(
             if (port <= 0) {
                 mainHandler.post {
                     isConnecting = false
-                    errorMessage = "Introduce el puerto que sale en 'Dirección IP y puerto'."
+                    errorMessage = context.getString(R.string.adb_wiz_err_enter_port)
                 }
                 return@thread
             }
@@ -206,7 +207,7 @@ fun AdbWizardScreen(
                     HapticFeedbackHelper.playButtonHaptic(context)
                     connectedClient = client
                 } else {
-                    errorMessage = "Fallo al conectar puerto $port. Revisa el puerto en Ajustes."
+                    errorMessage = context.getString(R.string.adb_wiz_err_connect, port)
                 }
             }
         }
@@ -225,10 +226,10 @@ fun AdbWizardScreen(
                     transformation = SurfaceTransformation(transformationSpec)
                 ) {
                     val headerTitle = when {
-                        connectedClient != null -> "¡CONECTADO!"
-                        currentStep == 1 -> "PASO 1 DE 3"
-                        currentStep == 2 -> "PASO 2 DE 3"
-                        else -> "PASO 3 DE 3"
+                        connectedClient != null -> context.getString(R.string.adb_wiz_hdr_connected)
+                        currentStep == 1 -> context.getString(R.string.adb_wiz_hdr_step1)
+                        currentStep == 2 -> context.getString(R.string.adb_wiz_hdr_step2)
+                        else -> context.getString(R.string.adb_wiz_hdr_step3)
                     }
                     Text(
                         text = headerTitle,
@@ -255,14 +256,14 @@ fun AdbWizardScreen(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = "✓ ADB Conectado",
+                            text = context.getString(R.string.adb_wiz_connected_title),
                             color = GreenOk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
                             textAlign = TextAlign.Center
                         )
                         Text(
-                            text = "Puerto activo: ${connectedClient?.port}\nSesión local autorizada correctamente.",
+                            text = context.getString(R.string.adb_wiz_connected_desc, connectedClient?.port ?: 0),
                             color = Color.White,
                             fontSize = 11.sp,
                             textAlign = TextAlign.Center
@@ -277,7 +278,7 @@ fun AdbWizardScreen(
                         },
                         label = {
                             Text(
-                                text = "Continuar a Ajustes",
+                                text = context.getString(R.string.adb_wiz_continue_settings),
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center,
@@ -307,19 +308,19 @@ fun AdbWizardScreen(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = "1. Conecta el reloj a tu red Wi-Fi.",
+                            text = context.getString(R.string.adb_wiz_s1_1),
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "2. Entra en Depuración inalámbrica y actívala.",
+                            text = context.getString(R.string.adb_wiz_s1_2),
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "3. Pulsa 'Vincular dispositivo nuevo' para ver el PIN y puerto.",
+                            text = context.getString(R.string.adb_wiz_s1_3),
                             color = Color(0xFFD5DCE6),
                             fontSize = 11.sp
                         )
@@ -338,7 +339,7 @@ fun AdbWizardScreen(
                         },
                         label = {
                             Text(
-                                text = "Abrir Depuración Inalámbrica",
+                                text = context.getString(R.string.adb_wiz_open_wireless),
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center,
@@ -366,7 +367,7 @@ fun AdbWizardScreen(
                             },
                             label = {
                                 Text(
-                                    text = "Ya vinculado › Conectar",
+                                    text = context.getString(R.string.adb_wiz_already_paired),
                                     color = Color.White,
                                     fontWeight = FontWeight.SemiBold,
                                     textAlign = TextAlign.Center,
@@ -398,7 +399,7 @@ fun AdbWizardScreen(
                         },
                         label = {
                             Text(
-                                text = if (isAdbActive) "Paso siguiente: Vincular ›" else "Activa Depuración primero",
+                                text = if (isAdbActive) context.getString(R.string.adb_wiz_next_pair) else context.getString(R.string.adb_wiz_enable_first),
                                 color = if (isAdbActive) Color.White else Color(0xFF7A8392),
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center,
@@ -431,7 +432,7 @@ fun AdbWizardScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "Código de vinculación (6 dígitos):",
+                            text = context.getString(R.string.adb_wiz_pin_label),
                             color = Color.White,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold
@@ -473,7 +474,7 @@ fun AdbWizardScreen(
                                 ) {
                                     if (pinText.isEmpty()) {
                                         Text(
-                                            text = "PIN 6 dígitos",
+                                            text = context.getString(R.string.adb_wiz_pin_hint),
                                             color = Color(0xFF7A8392),
                                             fontSize = 12.sp,
                                             textAlign = TextAlign.Center
@@ -485,7 +486,7 @@ fun AdbWizardScreen(
                         )
 
                         Text(
-                            text = "Puerto de vinculación (5 dígitos):",
+                            text = context.getString(R.string.adb_wiz_pair_port_label),
                             color = Color.White,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold
@@ -533,7 +534,7 @@ fun AdbWizardScreen(
                                 ) {
                                     if (pairingPortText.isEmpty()) {
                                         Text(
-                                            text = "Puerto que sale con el PIN",
+                                            text = context.getString(R.string.adb_wiz_pair_port_hint),
                                             color = Color(0xFF7A8392),
                                             fontSize = 12.sp,
                                             textAlign = TextAlign.Center
@@ -569,11 +570,11 @@ fun AdbWizardScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     SwitchLoadingSpinner(modifier = Modifier.padding(end = 6.dp))
-                                    Text("Emparejando...", color = Color.White, fontWeight = FontWeight.Bold)
+                                    Text(context.getString(R.string.adb_wiz_pairing), color = Color.White, fontWeight = FontWeight.Bold)
                                 }
                             } else {
                                 Text(
-                                    text = "Vincular Reloj",
+                                    text = context.getString(R.string.adb_wiz_pair_btn),
                                     color = if (canPair) Color.White else Color(0xFF7A8392),
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center,
@@ -605,7 +606,7 @@ fun AdbWizardScreen(
                         },
                         label = {
                             Text(
-                                text = "Abrir Depuración",
+                                text = context.getString(R.string.adb_wiz_open_debugging),
                                 color = Color.White,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth()
@@ -634,7 +635,7 @@ fun AdbWizardScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "✓ Dispositivo vinculado",
+                            text = context.getString(R.string.adb_wiz_device_paired),
                             color = GreenOk,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
@@ -643,7 +644,7 @@ fun AdbWizardScreen(
                         )
 
                         Text(
-                            text = "Puerto de 'Dirección IP y puerto':",
+                            text = context.getString(R.string.adb_wiz_connect_port_label),
                             color = Color.White,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold
@@ -691,7 +692,7 @@ fun AdbWizardScreen(
                                 ) {
                                     if (connectPortText.isEmpty()) {
                                         Text(
-                                            text = "Puerto ej. 37757",
+                                            text = context.getString(R.string.adb_wiz_connect_port_hint),
                                             color = Color(0xFF7A8392),
                                             fontSize = 12.sp,
                                             textAlign = TextAlign.Center
@@ -703,7 +704,7 @@ fun AdbWizardScreen(
                         )
 
                         Text(
-                            text = "Apunta solo los últimos 5 números de 'Dirección IP y puerto' en los ajustes de depuración.",
+                            text = context.getString(R.string.adb_wiz_connect_port_note),
                             color = Color(0xFF9EA7B8),
                             fontSize = 10.sp,
                             textAlign = TextAlign.Center,
@@ -735,11 +736,11 @@ fun AdbWizardScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     SwitchLoadingSpinner(modifier = Modifier.padding(end = 6.dp))
-                                    Text("Conectando...", color = Color.White, fontWeight = FontWeight.Bold)
+                                    Text(context.getString(R.string.adb_wiz_connecting), color = Color.White, fontWeight = FontWeight.Bold)
                                 }
                             } else {
                                 Text(
-                                    text = "Conectar ADB",
+                                    text = context.getString(R.string.adb_wiz_connect_btn),
                                     color = if (canConnect) Color.White else Color(0xFF7A8392),
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center,
@@ -770,7 +771,7 @@ fun AdbWizardScreen(
                         },
                         label = {
                             Text(
-                                text = "Abrir Depuración",
+                                text = context.getString(R.string.adb_wiz_open_debugging),
                                 color = Color.White,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth()
@@ -795,7 +796,7 @@ fun AdbWizardScreen(
                         },
                         label = {
                             Text(
-                                text = "Volver a vincular con nuevo PIN",
+                                text = context.getString(R.string.adb_wiz_re_pair),
                                 color = Color(0xFF9EA7B8),
                                 fontSize = 11.sp,
                                 textAlign = TextAlign.Center,

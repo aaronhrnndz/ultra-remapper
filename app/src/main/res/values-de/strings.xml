@@ -162,4 +162,71 @@ Uhr-Einstellungen › Apps › Standard-Apps › Digitaler Assistent › Ultra R
     <string name="settings_adb_unpair_button">ADB-Kopplung löschen</string>
     <string name="settings_adb_unpair_desc">Kopplung und Schlüssel zurücksetzen</string>
     <string name="settings_adb_unpair_confirm">Kopplung gelöscht</string>
+
+    <string name="diag_dialog_adb_title">Berechtigung erteilen</string>
+    <string name="diag_dialog_close">Verstanden</string>
+    <string name="diag_dialog_overlay_body">Du kannst sie direkt auf der Uhr mit lokalem ADB in den Einstellungen erteilen, oder im Terminal ausführen:\n\nadb shell appops set com.aaronhrndz.ultraremapper SYSTEM_ALERT_WINDOW allow</string>
+    <string name="diag_dialog_secure_body">Du kannst sie direkt auf der Uhr mit lokalem ADB in den Einstellungen erteilen, oder im Terminal ausführen:\n\nadb shell pm grant com.aaronhrndz.ultraremapper android.permission.WRITE_SECURE_SETTINGS</string>
+    <string name="diag_dialog_route_body">Um die Aktionstaste Ultra Remapper zuzuweisen, gehe zu:\n\nUhr-Einstellungen › Tasten und Gesten › Aktionstaste › Ultra Remapper wählen\n\nOder per ADB:\nadb shell settings put global setting_action_button_press com.aaronhrndz.ultraremapper/com.aaronhrndz.ultraremapper.ActionButtonService</string>
+    <string name="diag_dialog_media_body">Du kannst sie direkt auf der Uhr mit lokalem ADB in den Einstellungen erteilen, oder im Terminal ausführen:\n\nadb shell cmd notification allow_listener com.aaronhrndz.ultraremapper/com.aaronhrndz.ultraremapper.MediaControlService</string>
+
+    <!-- Watch MainActivity, Settings, Permissions & Updates -->
+    <string name="toast_assistant_routed">Assistent automatisch an Ultra Remapper geleitet</string>
+    <string name="toast_assistant_restored">Nativer Google Assistant wiederhergestellt</string>
+    <string name="sub_native_google">%1$s • Nativ Google</string>
+    <string name="sub_auto_routed_adb">%1$s • Auto-ADB</string>
+    <string name="toast_open_phone_failed">Konnte auf Smartphone nicht geöffnet werden</string>
+    <string name="toast_download_error">Downloadfehler: %1$s</string>
+    <string name="toast_install_failed">Installation fehlgeschlagen: %1$s</string>
+    <string name="toast_dev_options_unavailable">Entwickleroptionen nicht verfügbar</string>
+    <string name="perm_toggle_failed">Fehler beim Ändern von %1$s</string>
+    <string name="perm_overlay_title">Overlay</string>
+    <string name="perm_overlay_desc">Hintergrund-Einblendung</string>
+    <string name="perm_secure_title">Secure Settings</string>
+    <string name="perm_secure_desc">Systemeinstellungen</string>
+    <string name="perm_action_title">Aktionstaste</string>
+    <string name="perm_action_desc">Physisches Tasten-Routing</string>
+    <string name="perm_notif_title">Benachrichtigungen</string>
+    <string name="perm_notif_desc">Aktive Mediensteuerung</string>
+    <string name="perm_battery_title">Uneingeschränkter Akku</string>
+    <string name="perm_battery_desc">Verhindert Beendigung im Standby</string>
+    <string name="settings_adb_status_connecting">ADB: Verbinde…</string>
+    <string name="settings_adb_status_paired">ADB: Gekoppelt</string>
+    <string name="perms_active_count">%1$d von %2$d aktiv</string>
+    <string name="samsung_pay_toggle_error">Fehler beim Ändern von Samsung Pay</string>
+    <string name="app_version_beta">%1$s (Beta)</string>
+    <string name="app_version_beta_channel">%1$s [Beta-Kanal]</string>
+
+    <!-- Watch ADB Wizard -->
+    <string name="adb_wiz_err_pair">Kopplung fehlgeschlagen. Falscher Code oder Port.</string>
+    <string name="adb_wiz_err_enter_port">Gib den Port unter \'IP-Adresse und Port\' ein.</string>
+    <string name="adb_wiz_err_connect">Verbindung zu Port %1$d fehlgeschlagen. Prüfe Port in Einstellungen.</string>
+    <string name="adb_wiz_hdr_connected">VERBUNDEN!</string>
+    <string name="adb_wiz_hdr_step1">SCHRITT 1 VON 3</string>
+    <string name="adb_wiz_hdr_step2">SCHRITT 2 VON 3</string>
+    <string name="adb_wiz_hdr_step3">SCHRITT 3 VON 3</string>
+    <string name="adb_wiz_connected_title">✓ ADB Verbunden</string>
+    <string name="adb_wiz_connected_desc">Aktiver Port: %1$d\nLokale Sitzung autorisiert.</string>
+    <string name="adb_wiz_continue_settings">Weiter zu Einstellungen</string>
+    <string name="adb_wiz_s1_1">1. Verbinde die Uhr mit deinem WLAN.</string>
+    <string name="adb_wiz_s1_2">2. Öffne Kabelloses Debugging und aktiviere es.</string>
+    <string name="adb_wiz_s1_3">3. Tippe auf \'Neues Gerät koppeln\' für PIN und Port.</string>
+    <string name="adb_wiz_open_wireless">Kabelloses Debugging öffnen</string>
+    <string name="adb_wiz_already_paired">Bereits gekoppelt › Verbinden</string>
+    <string name="adb_wiz_next_pair">Nächster Schritt: Koppeln ›</string>
+    <string name="adb_wiz_enable_first">Zuerst Debugging aktivieren</string>
+    <string name="adb_wiz_pin_label">Kopplungscode (6 Ziffern):</string>
+    <string name="adb_wiz_pin_hint">6-stellige PIN</string>
+    <string name="adb_wiz_pair_port_label">Kopplungsport (5 Ziffern):</string>
+    <string name="adb_wiz_pair_port_hint">Port bei der PIN</string>
+    <string name="adb_wiz_pairing">Kopple…</string>
+    <string name="adb_wiz_pair_btn">Uhr koppeln</string>
+    <string name="adb_wiz_open_debugging">Debugging öffnen</string>
+    <string name="adb_wiz_device_paired">✓ Gerät gekoppelt</string>
+    <string name="adb_wiz_connect_port_label">Port von \'IP-Adresse und Port\':</string>
+    <string name="adb_wiz_connect_port_hint">Port z. B. 37757</string>
+    <string name="adb_wiz_connect_port_note">Gib nur die letzten 5 Ziffern von \'IP-Adresse und Port\' ein.</string>
+    <string name="adb_wiz_connecting">Verbinde…</string>
+    <string name="adb_wiz_connect_btn">ADB verbinden</string>
+    <string name="adb_wiz_re_pair">Mit neuer PIN neu koppeln</string>
 </resources>

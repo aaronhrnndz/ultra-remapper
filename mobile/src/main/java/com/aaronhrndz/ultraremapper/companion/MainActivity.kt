@@ -2043,7 +2043,7 @@ fun CompanionAppRoot(
                     onValueChange = { actionSearchQuery = it },
                     placeholder = {
                         Text(
-                            text = if (pickingAppSublist) "Buscar app…" else "Buscar acción…",
+                            text = if (pickingAppSublist) stringResource(R.string.search_app_hint) else stringResource(R.string.search_action_hint),
                             fontSize = 13.sp,
                             color = palette.textSecondary
                         )

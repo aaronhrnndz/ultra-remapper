@@ -192,13 +192,13 @@ class AdbHelper private constructor(private val context: Context) {
                             it.start()
                         }
                         setPaired(true, host.trim(), null)
-                        Pair(true, "¡Reloj vinculado con éxito!")
+                        Pair(true, context.getString(R.string.adb_pair_success))
                     } catch (e: Exception) {
                         Log.e(TAG, "Pairing failed: ${e.message}", e)
-                        Pair(false, "Fallo al vincular. Código incorrecto, puerto erróneo o caducado.")
+                        Pair(false, context.getString(R.string.adb_pair_failed))
                     }
                 }
-                result ?: Pair(false, "Tiempo agotado (12s). Verifica que el reloj esté en la pantalla de vinculación.")
+                result ?: Pair(false, context.getString(R.string.adb_pair_timeout))
             }
         }
 
@@ -324,18 +324,18 @@ class AdbHelper private constructor(private val context: Context) {
         withContext(Dispatchers.IO) {
             adbMutex.withLock {
                 if (!ensureConnectedUnlocked(host, port)) {
-                    return@withLock "ERROR: No se pudo conectar a $host:$port"
+                    return@withLock context.getString(R.string.adb_err_connect_failed, host, port)
                 }
-                val conn = activeConnection ?: return@withLock "ERROR: Sin conexión activa"
+                val conn = activeConnection ?: return@withLock context.getString(R.string.adb_err_no_conn)
                 try {
                     runStreamCommandUnlocked(conn, command, timeoutMs)
                 } catch (e: Exception) {
                     Log.w(TAG, "Command threw (${e.message}), reconnecting and retrying once...")
                     closeConnectionInternal()
                     if (!ensureConnectedUnlocked(host, port)) {
-                        return@withLock "ERROR: Conexión perdida con $host:$port"
+                        return@withLock context.getString(R.string.adb_err_conn_lost, host, port)
                     }
-                    val retryConn = activeConnection ?: return@withLock "ERROR: Sin conexión tras reintento"
+                    val retryConn = activeConnection ?: return@withLock context.getString(R.string.adb_err_retry_no_conn)
                     try {
                         runStreamCommandUnlocked(retryConn, command, timeoutMs)
                     } catch (e2: Exception) {
@@ -359,18 +359,18 @@ class AdbHelper private constructor(private val context: Context) {
         onProgress: (Float, String) -> Unit
     ): Pair<Boolean, String> = withContext(Dispatchers.IO) {
         if (!apkFile.exists() || apkFile.length() <= 0L) {
-            return@withContext Pair(false, "Archivo APK no encontrado o vacío.")
+            return@withContext Pair(false, context.getString(R.string.adb_install_apk_missing))
         }
         adbMutex.withLock {
             if (!ensureConnectedUnlocked(host, port)) {
-                return@withLock Pair(false, "No se pudo conectar al reloj en $host:$port.")
+                return@withLock Pair(false, context.getString(R.string.adb_install_connect_failed, host, port))
             }
-            val conn = activeConnection ?: return@withLock Pair(false, "Sin sesión ADB activa.")
+            val conn = activeConnection ?: return@withLock Pair(false, context.getString(R.string.adb_install_no_session))
 
             val remoteTmp = "/data/local/tmp/ultra_update.apk"
             try {
                 val totalBytes = apkFile.length()
-                onProgress(0.05f, "Preparando transferencia al reloj…")
+                onProgress(0.05f, context.getString(R.string.adb_install_preparing))
                 runStreamCommandUnlocked(conn, "rm -f $remoteTmp", 3000L)
 
                 // Stream APK bytes into /data/local/tmp/ultra_update.apk
@@ -390,7 +390,7 @@ class AdbHelper private constructor(private val context: Context) {
                                 lastReport = now
                                 val frac = 0.05f + 0.70f * (sent.toFloat() / totalBytes.toFloat())
                                 val pct = ((sent * 100L) / totalBytes).toInt()
-                                onProgress(frac, "Enviando APK al reloj ($pct%)…")
+                                onProgress(frac, context.getString(R.string.adb_install_sending, pct))
                             }
                         }
                         outStream.flush()
@@ -402,7 +402,7 @@ class AdbHelper private constructor(private val context: Context) {
 
                 // Wait briefly for filesystem flush and verify size
                 Thread.sleep(250)
-                onProgress(0.80f, "Instalando en el reloj…")
+                onProgress(0.80f, context.getString(R.string.adb_install_installing))
 
                 val installOut = runStreamCommandUnlocked(
                     conn,
@@ -419,15 +419,15 @@ class AdbHelper private constructor(private val context: Context) {
                             3000L
                         )
                     } catch (_: Exception) {}
-                    onProgress(1.0f, "¡Instalación completada!")
-                    Pair(true, "Ultra Remapper actualizado correctamente en el reloj.")
+                    onProgress(1.0f, context.getString(R.string.adb_install_done))
+                    Pair(true, context.getString(R.string.adb_install_success_msg))
                 } else {
-                    Pair(false, "Fallo al instalar: $installOut")
+                    Pair(false, context.getString(R.string.adb_install_failed_msg, installOut))
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "installApkOnWatch failed: ${e.message}", e)
                 closeConnectionInternal()
-                return@withLock Pair(false, "Error enviando APK al reloj: ${e.message}")
+                return@withLock Pair(false, context.getString(R.string.adb_install_error_msg, e.message ?: ""))
             }
         }
     }

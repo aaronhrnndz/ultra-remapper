@@ -279,7 +279,7 @@ object UtilityActions {
         if (launched) {
             vibrateDouble(appCtx)
         } else {
-            Toast.makeText(appCtx, "Developer options not available", Toast.LENGTH_SHORT).show()
+            Toast.makeText(appCtx, appCtx.getString(R.string.toast_dev_options_unavailable), Toast.LENGTH_SHORT).show()
         }
     }
 

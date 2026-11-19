@@ -175,4 +175,64 @@ The definitive fix to make it work reliably is to freeze Samsung Pay from Ultra 
     <string name="count_configured">%1$d configured</string>
     <string name="status_unassigned">Unassigned</string>
     <string name="status_toctoc_active">Knock knock active</string>
+
+    <!-- Watch MainActivity, Settings, Permissions & Updates -->
+    <string name="toast_assistant_routed">Assistant routed to Ultra Remapper automatically</string>
+    <string name="toast_assistant_restored">Native Google Assistant restored</string>
+    <string name="sub_native_google">%1$s • Native Google</string>
+    <string name="sub_auto_routed_adb">%1$s • Auto-routed ADB</string>
+    <string name="toast_open_phone_failed">Could not open on phone</string>
+    <string name="toast_download_error">Download error: %1$s</string>
+    <string name="toast_install_failed">Install failed: %1$s</string>
+    <string name="toast_dev_options_unavailable">Developer options not available</string>
+    <string name="perm_toggle_failed">Failed to toggle %1$s</string>
+    <string name="perm_overlay_title">Overlay</string>
+    <string name="perm_overlay_desc">Background overlay</string>
+    <string name="perm_secure_title">Secure Settings</string>
+    <string name="perm_secure_desc">System settings</string>
+    <string name="perm_action_title">Action Button</string>
+    <string name="perm_action_desc">Hardware press route</string>
+    <string name="perm_notif_title">Notifications</string>
+    <string name="perm_notif_desc">Active media control</string>
+    <string name="perm_battery_title">Unrestricted Battery</string>
+    <string name="perm_battery_desc">Prevents sleep termination</string>
+    <string name="settings_adb_status_connecting">ADB: Connecting…</string>
+    <string name="settings_adb_status_paired">ADB: Paired</string>
+    <string name="perms_active_count">%1$d of %2$d active</string>
+    <string name="samsung_pay_toggle_error">Error changing Samsung Pay</string>
+    <string name="app_version_beta">%1$s (Beta)</string>
+    <string name="app_version_beta_channel">%1$s [Beta Channel]</string>
+
+    <!-- Watch ADB Wizard -->
+    <string name="adb_wiz_err_pair">Pairing failed. Incorrect code or port.</string>
+    <string name="adb_wiz_err_enter_port">Enter the port shown in \'IP address &amp; port\'.</string>
+    <string name="adb_wiz_err_connect">Failed to connect to port %1$d. Check the port in Settings.</string>
+    <string name="adb_wiz_hdr_connected">CONNECTED!</string>
+    <string name="adb_wiz_hdr_step1">STEP 1 OF 3</string>
+    <string name="adb_wiz_hdr_step2">STEP 2 OF 3</string>
+    <string name="adb_wiz_hdr_step3">STEP 3 OF 3</string>
+    <string name="adb_wiz_connected_title">✓ ADB Connected</string>
+    <string name="adb_wiz_connected_desc">Active port: %1$d\nLocal session authorized.</string>
+    <string name="adb_wiz_continue_settings">Continue to Settings</string>
+    <string name="adb_wiz_s1_1">1. Connect your watch to Wi-Fi.</string>
+    <string name="adb_wiz_s1_2">2. Open Wireless Debugging and turn it on.</string>
+    <string name="adb_wiz_s1_3">3. Tap \'Pair new device\' to see the PIN and port.</string>
+    <string name="adb_wiz_open_wireless">Open Wireless Debugging</string>
+    <string name="adb_wiz_already_paired">Already paired › Connect</string>
+    <string name="adb_wiz_next_pair">Next step: Pair ›</string>
+    <string name="adb_wiz_enable_first">Enable Debugging first</string>
+    <string name="adb_wiz_pin_label">Pairing code (6 digits):</string>
+    <string name="adb_wiz_pin_hint">6-digit PIN</string>
+    <string name="adb_wiz_pair_port_label">Pairing port (5 digits):</string>
+    <string name="adb_wiz_pair_port_hint">Port shown with PIN</string>
+    <string name="adb_wiz_pairing">Pairing…</string>
+    <string name="adb_wiz_pair_btn">Pair Watch</string>
+    <string name="adb_wiz_open_debugging">Open Debugging</string>
+    <string name="adb_wiz_device_paired">✓ Device paired</string>
+    <string name="adb_wiz_connect_port_label">Port from \'IP address &amp; port\':</string>
+    <string name="adb_wiz_connect_port_hint">Port e.g. 37757</string>
+    <string name="adb_wiz_connect_port_note">Enter only the last 5 digits of \'IP address &amp; port\' in debugging settings.</string>
+    <string name="adb_wiz_connecting">Connecting…</string>
+    <string name="adb_wiz_connect_btn">Connect ADB</string>
+    <string name="adb_wiz_re_pair">Re-pair with new PIN</string>
 </resources>

@@ -156,7 +156,7 @@ fun PermissionsScreen(
                                     HapticFeedbackHelper.playButtonHaptic(context)
                                     statusToast = null
                                 } else {
-                                    statusToast = "Fallo al cambiar ${perm.name}"
+                                    statusToast = context.getString(R.string.perm_toggle_failed, perm.name)
                                 }
                             }
                         }

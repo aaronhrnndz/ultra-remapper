@@ -323,20 +323,20 @@ object UpdateChecker {
 
                 if (apkUrl.startsWith("asset://")) {
                     val assetName = apkUrl.removePrefix("asset://")
-                    mainHandler.post { onProgress(0.2f, "Preparando APK local…") }
+                    mainHandler.post { onProgress(0.2f, appCtx.getString(R.string.ota_preparing_local)) }
                     appCtx.assets.open(assetName).use { input ->
                         apkFile.outputStream().use { output ->
                             input.copyTo(output, 16 * 1024)
                         }
                     }
                     mainHandler.post {
-                        onProgress(1f, "APK listo")
+                        onProgress(1f, appCtx.getString(R.string.ota_apk_ready))
                         onComplete(apkFile)
                     }
                     return@execute
                 }
 
-                mainHandler.post { onProgress(0f, "Descargando APK…") }
+                mainHandler.post { onProgress(0f, appCtx.getString(R.string.ota_downloading_apk)) }
                 var conn = (URL(apkUrl).openConnection() as HttpURLConnection).apply {
                     instanceFollowRedirects = true
                     connectTimeout = 15000
@@ -367,7 +367,7 @@ object UpdateChecker {
                                 lastReport = now
                                 val frac = if (total > 0) downloaded.toFloat() / total else 0f
                                 val pct = (frac * 100).toInt()
-                                mainHandler.post { onProgress(frac, "Descargando ($pct%)…") }
+                                mainHandler.post { onProgress(frac, appCtx.getString(R.string.ota_downloading_pct, pct)) }
                             }
                         }
                     }
@@ -375,7 +375,7 @@ object UpdateChecker {
                 mainHandler.post { onComplete(apkFile) }
             } catch (e: Exception) {
                 mainHandler.post {
-                    Toast.makeText(appCtx, "Error descarga: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(appCtx, appCtx.getString(R.string.ota_download_error, e.message ?: ""), Toast.LENGTH_LONG).show()
                     onProgress(0f, "")
                     onComplete(null)
                 }
@@ -400,7 +400,7 @@ object UpdateChecker {
             onProgress = onProgress
         ) { apkFile ->
             if (apkFile == null) return@downloadApkToFile
-            onProgress(1f, "Abriendo instalador…")
+            onProgress(1f, appCtx.getString(R.string.ota_opening_installer))
             try {
                 val apkUri = FileProvider.getUriForFile(
                     appCtx,
@@ -413,7 +413,7 @@ object UpdateChecker {
                 }
                 appCtx.startActivity(installIntent)
             } catch (e: Exception) {
-                Toast.makeText(appCtx, "Error al abrir instalador: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(appCtx, appCtx.getString(R.string.ota_installer_error, e.message ?: ""), Toast.LENGTH_LONG).show()
             }
             onProgress(0f, "")
         }

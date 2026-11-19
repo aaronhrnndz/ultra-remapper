@@ -410,18 +410,27 @@ object Mapping {
             } catch (_: Exception) {}
         }
 
-        val assistIntent = Intent(Intent.ACTION_VOICE_COMMAND)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            .apply { if (backToHome) addFlags(Intent.FLAG_ACTIVITY_TASK_ON_HOME) }
-        try {
-            context.startActivity(assistIntent)
-        } catch (e: Exception) {
-            val fallback = Intent("com.google.android.wearable.action.GOOGLE_ASSIST")
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val launcherIntent = context.packageManager.getLaunchIntentForPackage("com.google.android.wearable.assistant")
+        if (launcherIntent != null) {
+            launcherIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            if (backToHome) launcherIntent.addFlags(Intent.FLAG_ACTIVITY_TASK_ON_HOME)
+            try {
+                context.startActivity(launcherIntent)
+                return
+            } catch (_: Exception) {}
+        }
+
+        val fallbacks = listOf(
+            Intent("com.google.android.wearable.action.GOOGLE_ASSIST"),
+            Intent("com.samsung.android.bixby.agent.START")
+        )
+        for (fallback in fallbacks) {
+            fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (backToHome) fallback.addFlags(Intent.FLAG_ACTIVITY_TASK_ON_HOME)
             try {
                 context.startActivity(fallback)
-            } catch (ignored: Exception) {
-            }
+                return
+            } catch (_: Exception) {}
         }
     }
 

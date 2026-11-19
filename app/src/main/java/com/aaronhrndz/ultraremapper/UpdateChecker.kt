@@ -287,7 +287,7 @@ object UpdateChecker {
             remoteHelper.startRemoteActivity(intent)
             Toast.makeText(context, context.getString(R.string.update_opened_phone), Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            Toast.makeText(context, "Could not open on phone", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.toast_open_phone_failed), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -363,7 +363,7 @@ object UpdateChecker {
                 installFromConnection(appCtx, conn, update.versionName, onProgress)
             } catch (e: Exception) {
                 mainHandler.post {
-                    Toast.makeText(appCtx, "Download error: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(appCtx, appCtx.getString(R.string.toast_download_error, e.message ?: ""), Toast.LENGTH_LONG).show()
                     onProgress(0f, "")
                 }
             } finally {
@@ -427,7 +427,7 @@ object UpdateChecker {
                 }
                 context.startActivity(installIntent)
             } catch (e: Exception) {
-                Toast.makeText(context, "Install failed: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.getString(R.string.toast_install_failed, e.message ?: ""), Toast.LENGTH_LONG).show()
             }
             onProgress(0f, "")
         }

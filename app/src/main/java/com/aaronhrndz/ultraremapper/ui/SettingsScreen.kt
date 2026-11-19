@@ -86,11 +86,11 @@ fun readPermissionItems(context: Context): List<PermissionItem> {
     }
 
     return listOf(
-        PermissionItem(PermissionType.OVERLAY, "Overlay", overlayOk, "Superposición en segundo plano"),
-        PermissionItem(PermissionType.SECURE_SETTINGS, "Secure Settings", secureOk, "Ajustes del sistema"),
-        PermissionItem(PermissionType.ACTION_ROUTE, "Botón de Acción", actionRouteOk, "Ruta de pulsación física"),
-        PermissionItem(PermissionType.NOTIFICATION_LISTENER, "Notificaciones", notifOk, "Control multimedia activo"),
-        PermissionItem(PermissionType.BATTERY_WHITELIST, "Sin restricción batería", batteryOk, "Evita cierre en reposo")
+        PermissionItem(PermissionType.OVERLAY, context.getString(R.string.perm_overlay_title), overlayOk, context.getString(R.string.perm_overlay_desc)),
+        PermissionItem(PermissionType.SECURE_SETTINGS, context.getString(R.string.perm_secure_title), secureOk, context.getString(R.string.perm_secure_desc)),
+        PermissionItem(PermissionType.ACTION_ROUTE, context.getString(R.string.perm_action_title), actionRouteOk, context.getString(R.string.perm_action_desc)),
+        PermissionItem(PermissionType.NOTIFICATION_LISTENER, context.getString(R.string.perm_notif_title), notifOk, context.getString(R.string.perm_notif_desc)),
+        PermissionItem(PermissionType.BATTERY_WHITELIST, context.getString(R.string.perm_battery_title), batteryOk, context.getString(R.string.perm_battery_desc))
     )
 }
 
@@ -396,9 +396,9 @@ fun SettingsScreen(
                                 modifier = Modifier.basicMarquee()
                             )
                             val statusText = when {
-                                isAutoConnecting -> "ADB: Conectando..."
+                                isAutoConnecting -> context.getString(R.string.settings_adb_status_connecting)
                                 isAdbConnected -> context.getString(R.string.settings_adb_status_connected)
-                                isAdbPaired -> "ADB: Vinculado"
+                                isAdbPaired -> context.getString(R.string.settings_adb_status_paired)
                                 else -> context.getString(R.string.settings_adb_status_disconnected)
                             }
                             Text(
@@ -512,7 +512,7 @@ fun SettingsScreen(
                                 )
                                 val grantedCount = perms.count { it.isGranted }
                                 Text(
-                                    text = "$grantedCount de ${perms.size} activos",
+                                    text = context.getString(R.string.perms_active_count, grantedCount, perms.size),
                                     color = if (grantedCount == perms.size) GreenOk else Color(0xFF9EA7B8),
                                     style = MaterialTheme.typography.labelSmall,
                                     maxLines = 1,
@@ -586,7 +586,7 @@ fun SettingsScreen(
                                     HapticFeedbackHelper.playButtonHaptic(context)
                                     samsungPayError = null
                                 } else {
-                                    samsungPayError = "Error al cambiar Samsung Pay"
+                                    samsungPayError = context.getString(R.string.samsung_pay_toggle_error)
                                 }
                             }
                         }
@@ -696,9 +696,9 @@ fun SettingsScreen(
                 val isBetaInstalled = remember { installedVersion.contains("beta", ignoreCase = true) }
                 val isBetaChannel = remember { UpdateChecker.isBetaChannel(context) }
                 val displayText = if (isBetaInstalled) {
-                    context.getString(R.string.app_version, "$installedVersion (Beta)")
+                    context.getString(R.string.app_version_beta, installedVersion)
                 } else if (isBetaChannel) {
-                    context.getString(R.string.app_version, "$installedVersion [Beta Channel]")
+                    context.getString(R.string.app_version_beta_channel, installedVersion)
                 } else {
                     context.getString(R.string.app_version, installedVersion)
                 }
