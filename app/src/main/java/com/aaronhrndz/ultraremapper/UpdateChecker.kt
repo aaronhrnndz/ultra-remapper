@@ -30,6 +30,7 @@ data class ReleaseUpdate(
 object UpdateChecker {
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
+    private const val FORGEJO_LAN_RELEASES_API = "http://192.168.1.8:3000/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
     private const val CODEBERG_MANIFEST_URL = "https://codeberg.org/Aaronhrndz/ultra-remapper/raw/branch/main/update.json"
     private const val CODEBERG_RELEASES_API = "https://codeberg.org/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
     private val GITHUB_REPOS = listOf("Aaronhrndz/ultra-remapper", "aaronhrnndz/ultra-remapper")
@@ -167,20 +168,47 @@ object UpdateChecker {
                 } catch (_: Exception) {}
             }
 
+            // 5. Local Forgejo LAN Beta Source (fast-fail outside LAN, Beta channel only)
+            if (isBeta) {
+                fetchUrlText(
+                    FORGEJO_LAN_RELEASES_API,
+                    userAgent,
+                    "application/json",
+                    connectTimeoutMs = 600,
+                    readTimeoutMs = 1500
+                )?.let { body ->
+                    try {
+                        val arr = org.json.JSONArray(body)
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.optJSONObject(i) ?: continue
+                            if (obj.optBoolean("draft", false)) continue
+                            val parsed = parseRelease(obj, "Aaronhrndz/ultra-remapper") ?: continue
+                            best = pickHigherVersion(best, parsed)
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+
             val finalUpdate = best?.takeIf { isNewerVersion(it.versionName, cleanCurrent) }
             mainHandler.post { onResult(finalUpdate) }
         }
     }
 
-    private fun fetchUrlText(urlStr: String, userAgent: String, accept: String? = null): String? {
+    private fun fetchUrlText(
+        urlStr: String,
+        userAgent: String,
+        accept: String? = null,
+        connectTimeoutMs: Int = 5000,
+        readTimeoutMs: Int = 5000
+    ): String? {
         var conn: HttpURLConnection? = null
         return try {
             conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 if (accept != null) setRequestProperty("Accept", accept)
                 setRequestProperty("User-Agent", userAgent)
-                connectTimeout = 5000
-                readTimeout = 5000
+                connectTimeout = connectTimeoutMs
+                readTimeout = readTimeoutMs
                 instanceFollowRedirects = true
             }
             if (conn.responseCode == 200) {
@@ -227,17 +255,25 @@ object UpdateChecker {
 
     private fun isNewerVersion(remote: String, local: String): Boolean {
         if (remote == local) return false
-        fun parseAll(v: String): List<Int> {
-            return Regex("\\d+").findAll(v).map { it.value.toIntOrNull() ?: 0 }.toList()
-        }
-        val rParts = parseAll(remote)
-        val lParts = parseAll(local)
+        val rBase = remote.substringBefore("-").trim()
+        val lBase = local.substringBefore("-").trim()
+        fun parseParts(v: String): List<Int> =
+            Regex("\\d+").findAll(v).map { it.value.toIntOrNull() ?: 0 }.toList()
+        val rParts = parseParts(rBase)
+        val lParts = parseParts(lBase)
         val maxLen = maxOf(rParts.size, lParts.size)
         for (i in 0 until maxLen) {
             val r = rParts.getOrElse(i) { 0 }
             val l = lParts.getOrElse(i) { 0 }
             if (r > l) return true
             if (r < l) return false
+        }
+        val rPre = remote.contains("-")
+        val lPre = local.contains("-")
+        if (rPre && !lPre) return false
+        if (!rPre && lPre) return true
+        if (rPre && lPre) {
+            return remote.substringAfter("-").compareTo(local.substringAfter("-")) > 0
         }
         return false
     }
