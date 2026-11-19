@@ -112,7 +112,28 @@ object UpdateChecker {
             val isBeta = isBetaChannel(context)
             var best: ReleaseUpdate? = null
 
-            // 1. Codeberg Master Manifest (update.json)
+            // 1. Local Forgejo LAN Beta Source FIRST (instant on LAN, 800ms fast-fail outside LAN)
+            if (isBeta) {
+                fetchUrlText(
+                    FORGEJO_LAN_RELEASES_API,
+                    userAgent,
+                    "application/json",
+                    connectTimeoutMs = 800,
+                    readTimeoutMs = 2000
+                )?.let { body ->
+                    try {
+                        val arr = org.json.JSONArray(body)
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.optJSONObject(i) ?: continue
+                            if (obj.optBoolean("draft", false)) continue
+                            val parsed = parseRelease(obj, "Aaronhrndz/ultra-remapper", "http://192.168.1.8:3000") ?: continue
+                            best = pickHigherVersion(best, parsed)
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+
+            // 2. Codeberg Master Manifest (update.json)
             fetchUrlText(CODEBERG_MANIFEST_URL, userAgent)?.let { body ->
                 try {
                     val json = JSONObject(body)
@@ -166,27 +187,6 @@ object UpdateChecker {
                         best = pickHigherVersion(best, parsed)
                     }
                 } catch (_: Exception) {}
-            }
-
-            // 5. Local Forgejo LAN Beta Source (fast-fail outside LAN, Beta channel only)
-            if (isBeta) {
-                fetchUrlText(
-                    FORGEJO_LAN_RELEASES_API,
-                    userAgent,
-                    "application/json",
-                    connectTimeoutMs = 2000,
-                    readTimeoutMs = 3000
-                )?.let { body ->
-                    try {
-                        val arr = org.json.JSONArray(body)
-                        for (i in 0 until arr.length()) {
-                            val obj = arr.optJSONObject(i) ?: continue
-                            if (obj.optBoolean("draft", false)) continue
-                            val parsed = parseRelease(obj, "Aaronhrndz/ultra-remapper", "http://192.168.1.8:3000") ?: continue
-                            best = pickHigherVersion(best, parsed)
-                        }
-                    } catch (_: Exception) {}
-                }
             }
 
             val finalUpdate = best?.takeIf { isNewerVersion(it.versionName, cleanCurrent) }

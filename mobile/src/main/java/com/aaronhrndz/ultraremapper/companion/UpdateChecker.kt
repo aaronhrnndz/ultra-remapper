@@ -71,7 +71,24 @@ object UpdateChecker {
             var bestCompanionRel: ReleaseUpdate? = null
             var bestWatchRel: ReleaseUpdate? = null
 
-            // 1. Codeberg Master Manifest (update.json)
+            // 1. Local Forgejo LAN Beta Source FIRST (instant on LAN, 800ms fast-fail outside LAN)
+            if (isBeta) {
+                fetchUrlText(
+                    FORGEJO_LAN_RELEASES_API,
+                    userAgent,
+                    "application/json",
+                    connectTimeoutMs = 800,
+                    readTimeoutMs = 2000
+                )?.let { body ->
+                    try {
+                        val (cBest, wBest) = processReleasesArray(JSONArray(body), true, bestCompanionRel, bestWatchRel, "http://192.168.1.8:3000")
+                        bestCompanionRel = cBest
+                        bestWatchRel = wBest
+                    } catch (_: Exception) {}
+                }
+            }
+
+            // 2. Codeberg Master Manifest (update.json)
             fetchUrlText(CODEBERG_MANIFEST_URL, userAgent)?.let { body ->
                 try {
                     val parsed = parseManifestJson(JSONObject(body))
@@ -121,23 +138,6 @@ object UpdateChecker {
                     bestCompanionRel = cBest
                     bestWatchRel = wBest
                 } catch (_: Exception) {}
-            }
-
-            // 5. Local Forgejo LAN Beta Source (fast-fail outside LAN, Beta channel only)
-            if (isBeta) {
-                fetchUrlText(
-                    FORGEJO_LAN_RELEASES_API,
-                    userAgent,
-                    "application/json",
-                    connectTimeoutMs = 2000,
-                    readTimeoutMs = 3000
-                )?.let { body ->
-                    try {
-                        val (cBest, wBest) = processReleasesArray(JSONArray(body), true, bestCompanionRel, bestWatchRel, "http://192.168.1.8:3000")
-                        bestCompanionRel = cBest
-                        bestWatchRel = wBest
-                    } catch (_: Exception) {}
-                }
             }
 
             var latestRel: ReleaseUpdate? = bestWatchRel ?: bestCompanionRel
