@@ -129,11 +129,11 @@ object UpdateChecker {
                     FORGEJO_LAN_RELEASES_API,
                     userAgent,
                     "application/json",
-                    connectTimeoutMs = 600,
-                    readTimeoutMs = 1500
+                    connectTimeoutMs = 2000,
+                    readTimeoutMs = 3000
                 )?.let { body ->
                     try {
-                        val (cBest, wBest) = processReleasesArray(JSONArray(body), true, bestCompanionRel, bestWatchRel)
+                        val (cBest, wBest) = processReleasesArray(JSONArray(body), true, bestCompanionRel, bestWatchRel, "http://192.168.1.8:3000")
                         bestCompanionRel = cBest
                         bestWatchRel = wBest
                     } catch (_: Exception) {}
@@ -207,14 +207,15 @@ object UpdateChecker {
         arr: JSONArray,
         isBeta: Boolean,
         bestCompanion: ReleaseUpdate?,
-        bestWatch: ReleaseUpdate?
+        bestWatch: ReleaseUpdate?,
+        overrideOrigin: String? = null
     ): Pair<ReleaseUpdate?, ReleaseUpdate?> {
         var cBest = bestCompanion
         var wBest = bestWatch
         for (i in 0 until arr.length()) {
             val obj = arr.optJSONObject(i) ?: continue
             if (obj.optBoolean("draft", false)) continue
-            val parsed = parseRelease(obj) ?: continue
+            val parsed = parseRelease(obj, overrideOrigin) ?: continue
             if (!isBeta && parsed.isPrerelease) continue
             if (parsed.companionApkUrl != null) {
                 cBest = pickHigherVersion(cBest, parsed)
@@ -244,12 +245,13 @@ object UpdateChecker {
         )
     }
 
-    private fun parseRelease(json: JSONObject?): ReleaseUpdate? {
+    private fun parseRelease(json: JSONObject?, overrideOrigin: String? = null): ReleaseUpdate? {
         if (json == null) return null
         val tag = json.optString("tag_name", "").removePrefix("v").removePrefix("companion-v").trim()
         if (tag.isEmpty()) return null
         val isPrerelease = json.optBoolean("prerelease", false)
-        val htmlUrl = json.optString("html_url", "https://github.com/Aaronhrndz/ultra-remapper/releases/latest")
+        val rawHtmlUrl = json.optString("html_url", "https://github.com/Aaronhrndz/ultra-remapper/releases/latest")
+        val htmlUrl = if (overrideOrigin != null) rawHtmlUrl.replace(Regex("^https?://[^/]+"), overrideOrigin) else rawHtmlUrl
         val notes = json.optString("body", "").trim()
 
         val assets = json.optJSONArray("assets")
@@ -260,7 +262,8 @@ object UpdateChecker {
                 val asset = assets.optJSONObject(i) ?: continue
                 val name = asset.optString("name", "")
                 if (!name.endsWith(".apk", ignoreCase = true)) continue
-                val dlUrl = asset.optString("browser_download_url", "").takeIf { it.isNotEmpty() } ?: continue
+                val rawDlUrl = asset.optString("browser_download_url", "").takeIf { it.isNotEmpty() } ?: continue
+                val dlUrl = if (overrideOrigin != null) rawDlUrl.replace(Regex("^https?://[^/]+"), overrideOrigin) else rawDlUrl
                 if (name.contains("companion", ignoreCase = true) || name.contains("mobile", ignoreCase = true)) {
                     companionUrl = dlUrl
                 } else {

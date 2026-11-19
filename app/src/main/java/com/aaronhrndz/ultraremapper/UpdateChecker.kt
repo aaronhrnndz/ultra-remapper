@@ -174,15 +174,15 @@ object UpdateChecker {
                     FORGEJO_LAN_RELEASES_API,
                     userAgent,
                     "application/json",
-                    connectTimeoutMs = 600,
-                    readTimeoutMs = 1500
+                    connectTimeoutMs = 2000,
+                    readTimeoutMs = 3000
                 )?.let { body ->
                     try {
                         val arr = org.json.JSONArray(body)
                         for (i in 0 until arr.length()) {
                             val obj = arr.optJSONObject(i) ?: continue
                             if (obj.optBoolean("draft", false)) continue
-                            val parsed = parseRelease(obj, "Aaronhrndz/ultra-remapper") ?: continue
+                            val parsed = parseRelease(obj, "Aaronhrndz/ultra-remapper", "http://192.168.1.8:3000") ?: continue
                             best = pickHigherVersion(best, parsed)
                         }
                     } catch (_: Exception) {}
@@ -229,10 +229,11 @@ object UpdateChecker {
         return current
     }
 
-    private fun parseRelease(json: JSONObject, fallbackRepo: String): ReleaseUpdate? {
+    private fun parseRelease(json: JSONObject, fallbackRepo: String, overrideOrigin: String? = null): ReleaseUpdate? {
         val tag = json.optString("tag_name", "").removePrefix("v").trim()
         if (tag.isEmpty()) return null
-        val htmlUrl = json.optString("html_url", "https://github.com/$fallbackRepo/releases/latest")
+        val rawHtmlUrl = json.optString("html_url", "https://github.com/$fallbackRepo/releases/latest")
+        val htmlUrl = if (overrideOrigin != null) rawHtmlUrl.replace(Regex("^https?://[^/]+"), overrideOrigin) else rawHtmlUrl
         val notes = json.optString("body", "").trim()
         var apkUrl: String? = null
         val assets = json.optJSONArray("assets")
@@ -244,7 +245,12 @@ object UpdateChecker {
                     !name.contains("companion", ignoreCase = true) &&
                     !name.contains("mobile", ignoreCase = true)
                 ) {
-                    apkUrl = asset.optString("browser_download_url", "").takeIf { it.isNotEmpty() }
+                    val rawDl = asset.optString("browser_download_url", "").takeIf { it.isNotEmpty() }
+                    apkUrl = if (overrideOrigin != null && rawDl != null) {
+                        rawDl.replace(Regex("^https?://[^/]+"), overrideOrigin)
+                    } else {
+                        rawDl
+                    }
                     break
                 }
             }
