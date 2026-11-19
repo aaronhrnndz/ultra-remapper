@@ -35,6 +35,15 @@ class WirelessAdbTileService : TileService() {
                 getUpdater(context.applicationContext).requestUpdate(WirelessAdbTileService::class.java)
             } catch (_: Throwable) {}
         }
+
+        private fun schedulePortRetry(context: Context) {
+            val appCtx = context.applicationContext
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                if (UtilityActions.isWirelessAdbEnabled(appCtx) && UtilityActions.lastResolvedAdbPort == null) {
+                    requestTileUpdate(appCtx)
+                }
+            }, 1200L)
+        }
     }
 
     override fun onTileRequest(requestParams: RequestBuilders.TileRequest): ListenableFuture<TileBuilders.Tile> {
@@ -71,11 +80,12 @@ class WirelessAdbTileService : TileService() {
                 val port = if (isAdbOn) {
                     UtilityActions.lastResolvedAdbPort
                         ?: BottomButtonService.capturedConnectPort
-                        ?: UtilityActions.resolveAdbConnectPortBlocking(appCtx, 1400L) {
-                            requestTileUpdate(appCtx)
-                        }
+                        ?: UtilityActions.resolveAdbConnectPortBlocking(appCtx, 1400L)
                 } else {
                     null
+                }
+                if (isAdbOn && port == null) {
+                    schedulePortRetry(appCtx)
                 }
 
                 val rootLayout = buildTileLayout(hasPerm, isAdbOn, ip, port)

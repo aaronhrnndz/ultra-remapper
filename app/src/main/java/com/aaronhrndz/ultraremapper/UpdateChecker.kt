@@ -118,8 +118,8 @@ object UpdateChecker {
                     FORGEJO_LAN_RELEASES_API,
                     userAgent,
                     "application/json",
-                    connectTimeoutMs = 800,
-                    readTimeoutMs = 2000
+                    connectTimeoutMs = 3000,
+                    readTimeoutMs = 4000
                 )?.let { body ->
                     try {
                         val arr = org.json.JSONArray(body)
