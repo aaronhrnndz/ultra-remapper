@@ -28,7 +28,6 @@ object UpdateChecker {
     private const val FORGEJO_LAN_BASE = "http://192.168.1.8:3000"
     private const val FORGEJO_TAILSCALE_BASE = "https://forgejo.tailc4b32.ts.net"
     private const val FORGEJO_LAN_RELEASES_API = "$FORGEJO_LAN_BASE/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
-    private const val FORGEJO_TAILSCALE_RELEASES_API = "$FORGEJO_TAILSCALE_BASE/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
     private const val CODEBERG_MANIFEST_URL = "https://codeberg.org/Aaronhrndz/ultra-remapper/raw/branch/main/update.json"
     private const val CODEBERG_RELEASES_API = "https://codeberg.org/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
     private val GITHUB_REPOS = listOf(
@@ -74,24 +73,25 @@ object UpdateChecker {
             var bestCompanionRel: ReleaseUpdate? = null
             var bestWatchRel: ReleaseUpdate? = null
 
-            // 1. Private Forgejo OTA Sources FIRST and unconditionally (LAN first, then Tailscale HTTPS)
-            for ((apiUrl, originBase) in listOf(
-                FORGEJO_LAN_RELEASES_API to FORGEJO_LAN_BASE,
-                FORGEJO_TAILSCALE_RELEASES_API to FORGEJO_TAILSCALE_BASE
-            )) {
-                fetchUrlText(
-                    apiUrl,
-                    userAgent,
-                    "application/json",
-                    connectTimeoutMs = 3000,
-                    readTimeoutMs = 4000
-                )?.let { body ->
-                    try {
-                        val (cBest, wBest) = processReleasesArray(JSONArray(body), true, bestCompanionRel, bestWatchRel, originBase)
-                        bestCompanionRel = cBest
-                        bestWatchRel = wBest
-                    } catch (_: Exception) {}
-                }
+            // 1. Private Forgejo LAN OTA Source FIRST and unconditionally
+            fetchUrlText(
+                FORGEJO_LAN_RELEASES_API,
+                userAgent,
+                "application/json",
+                connectTimeoutMs = 3000,
+                readTimeoutMs = 4000
+            )?.let { body ->
+                try {
+                    val (cBest, wBest) = processReleasesArray(JSONArray(body), true, bestCompanionRel, bestWatchRel, FORGEJO_LAN_BASE)
+                    bestCompanionRel = cBest
+                    bestWatchRel = wBest
+                } catch (_: Exception) {}
+            }
+            if (bestCompanionRel?.companionApkUrl != null || bestWatchRel?.watchApkUrl != null) {
+                val latestRel = bestWatchRel ?: bestCompanionRel
+                val companionUpd = bestCompanionRel?.takeIf { isNewerVersion(it.versionName, cleanCurrent) }
+                mainHandler.post { onResult(companionUpd, latestRel) }
+                return@execute
             }
 
             // 2. Codeberg Master Manifest (update.json)
@@ -412,17 +412,12 @@ object UpdateChecker {
     }
 
     private fun buildMobileDownloadCandidates(apkUrl: String): List<String> {
-        return when {
-            apkUrl.startsWith(FORGEJO_LAN_BASE) -> listOf(
-                apkUrl,
-                apkUrl.replaceFirst(FORGEJO_LAN_BASE, FORGEJO_TAILSCALE_BASE)
-            )
-            apkUrl.startsWith(FORGEJO_TAILSCALE_BASE) -> listOf(
-                apkUrl,
-                apkUrl.replaceFirst(FORGEJO_TAILSCALE_BASE, FORGEJO_LAN_BASE)
-            )
-            else -> listOf(apkUrl)
+        val lanUrl = if (apkUrl.startsWith(FORGEJO_TAILSCALE_BASE)) {
+            apkUrl.replaceFirst(FORGEJO_TAILSCALE_BASE, FORGEJO_LAN_BASE)
+        } else {
+            apkUrl
         }
+        return listOf(lanUrl)
     }
 
     /**

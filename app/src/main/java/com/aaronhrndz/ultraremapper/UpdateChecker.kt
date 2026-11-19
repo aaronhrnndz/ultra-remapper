@@ -33,7 +33,6 @@ object UpdateChecker {
     private const val FORGEJO_LAN_BASE = "http://192.168.1.8:3000"
     private const val FORGEJO_TAILSCALE_BASE = "https://forgejo.tailc4b32.ts.net"
     private const val FORGEJO_LAN_RELEASES_API = "$FORGEJO_LAN_BASE/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
-    private const val FORGEJO_TAILSCALE_RELEASES_API = "$FORGEJO_TAILSCALE_BASE/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
     private const val CODEBERG_MANIFEST_URL = "https://codeberg.org/Aaronhrndz/ultra-remapper/raw/branch/main/update.json"
     private const val CODEBERG_RELEASES_API = "https://codeberg.org/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
     private val GITHUB_REPOS = listOf("Aaronhrndz/ultra-remapper", "aaronhrnndz/ultra-remapper")
@@ -115,32 +114,28 @@ object UpdateChecker {
             val isBeta = isBetaChannel(context)
             var best: ReleaseUpdate? = null
 
-            // 1. Private Forgejo OTA Sources FIRST (LAN Wi-Fi, then Tailscale HTTPS via phone BT SysProxy)
-            val forgejoSources = listOf(
-                Triple(FORGEJO_LAN_RELEASES_API, FORGEJO_LAN_BASE, 2500),
-                Triple(FORGEJO_TAILSCALE_RELEASES_API, FORGEJO_TAILSCALE_BASE, 4000)
-            )
-            for ((apiUrl, originBase, timeoutMs) in forgejoSources) {
-                fetchUrlText(
-                    apiUrl,
-                    userAgent,
-                    "application/json",
-                    connectTimeoutMs = timeoutMs,
-                    readTimeoutMs = 4000
-                )?.let { body ->
-                    try {
-                        val arr = org.json.JSONArray(body)
-                        for (i in 0 until arr.length()) {
-                            val obj = arr.optJSONObject(i) ?: continue
-                            if (obj.optBoolean("draft", false)) continue
-                            val parsed = parseRelease(obj, "Aaronhrndz/ultra-remapper", originBase) ?: continue
-                            best = pickHigherVersion(best, parsed)
-                        }
-                    } catch (_: Exception) {}
-                }
-                if (!best?.apkDownloadUrl.isNullOrEmpty() && originBase == FORGEJO_LAN_BASE) {
-                    break
-                }
+            // 1. Private Forgejo LAN OTA Source FIRST
+            fetchUrlText(
+                FORGEJO_LAN_RELEASES_API,
+                userAgent,
+                "application/json",
+                connectTimeoutMs = 3000,
+                readTimeoutMs = 4000
+            )?.let { body ->
+                try {
+                    val arr = org.json.JSONArray(body)
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.optJSONObject(i) ?: continue
+                        if (obj.optBoolean("draft", false)) continue
+                        val parsed = parseRelease(obj, "Aaronhrndz/ultra-remapper", FORGEJO_LAN_BASE) ?: continue
+                        best = pickHigherVersion(best, parsed)
+                    }
+                } catch (_: Exception) {}
+            }
+            if (!best?.apkDownloadUrl.isNullOrEmpty()) {
+                val forgejoUpdate = best?.takeIf { isNewerVersion(it.versionName, cleanCurrent) }
+                mainHandler.post { onResult(forgejoUpdate) }
+                return@execute
             }
 
             // 2. Codeberg Master Manifest (update.json)
@@ -399,19 +394,9 @@ object UpdateChecker {
         val lanUrl = if (apkUrl.startsWith(FORGEJO_TAILSCALE_BASE)) {
             apkUrl.replaceFirst(FORGEJO_TAILSCALE_BASE, FORGEJO_LAN_BASE)
         } else apkUrl
-        val tsUrl = if (apkUrl.startsWith(FORGEJO_LAN_BASE)) {
-            apkUrl.replaceFirst(FORGEJO_LAN_BASE, FORGEJO_TAILSCALE_BASE)
-        } else apkUrl
-        return if (activeNetwork != null) {
-            listOf(
-                Triple(lanUrl, activeNetwork, 4000),
-                Triple(tsUrl, null, 15000)
-            )
-        } else {
-            listOf(
-                Triple(tsUrl, null, 15000),
-                Triple(lanUrl, null, 4000)
-            )
+        return buildList {
+            if (activeNetwork != null) add(Triple(lanUrl, activeNetwork, 8000))
+            add(Triple(lanUrl, null, 8000))
         }
     }
 

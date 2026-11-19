@@ -12,9 +12,9 @@ android {
     defaultConfig {
         applicationId = "com.aaronhrndz.ultraremapper"
         minSdk = 30
-        targetSdk = 37
-        versionCode = 259
-        versionName = "2.4.19"
+        targetSdk = 35
+        versionCode = 260
+        versionName = "2.4.20"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
