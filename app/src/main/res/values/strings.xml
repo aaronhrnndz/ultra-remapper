@@ -235,4 +235,20 @@ The definitive fix to make it work reliably is to freeze Samsung Pay from Ultra 
     <string name="adb_wiz_connecting">Connecting…</string>
     <string name="adb_wiz_connect_btn">Connect ADB</string>
     <string name="adb_wiz_re_pair">Re-pair with new PIN</string>
+
+    <!-- Wireless ADB Tile & Direct Action -->
+    <string name="tile_wireless_adb_title">Wireless ADB</string>
+    <string name="tile_wireless_adb_desc">Toggle Wireless Debugging and view IP:Port</string>
+    <string name="tile_adb_header_on">WIRELESS ADB • ON</string>
+    <string name="tile_adb_header_off">WIRELESS ADB • OFF</string>
+    <string name="tile_loading_port">Resolving port…</string>
+    <string name="tile_tap_to_refresh">Tap address to refresh</string>
+    <string name="tile_no_wifi">Wi-Fi disconnected</string>
+    <string name="tile_adb_disabled_sub">Tap below to enable</string>
+    <string name="tile_btn_enable">Enable ADB</string>
+    <string name="tile_btn_disable">Disable ADB</string>
+    <string name="tile_open_dev_settings">Open Settings</string>
+    <string name="toast_wireless_adb_on_addr">Wireless ADB: ON (%1$s)</string>
+    <string name="toast_wireless_adb_on">Wireless ADB: ON</string>
+    <string name="toast_wireless_adb_off">Wireless ADB: OFF</string>
 </resources>

@@ -14,6 +14,8 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.Bundle
@@ -24,6 +26,12 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.provider.Settings
 import android.widget.Toast
+import com.aaronhrndz.ultraremapper.adb.AdbMdnsDiscovery
+import java.net.Inet4Address
+import java.net.NetworkInterface
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -39,6 +47,10 @@ object UtilityActions {
     private var adbEasyModeActive = false
     private var screenWakeLock: PowerManager.WakeLock? = null
     private var wifiHighPerfLock: WifiManager.WifiLock? = null
+    private val adbExecutor = Executors.newSingleThreadExecutor()
+
+    @Volatile
+    var lastResolvedAdbPort: Int? = null
 
     @Volatile
     private var waterEjectRunning = false
@@ -245,7 +257,138 @@ object UtilityActions {
         }
     }
 
-    fun openWirelessDebugging(context: Context, backToHome: Boolean = false) {
+    fun isWirelessAdbEnabled(context: Context): Boolean {
+        return try {
+            Settings.Global.getInt(context.contentResolver, "adb_wifi_enabled", 0) == 1
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun getWatchWifiIpv4(context: Context): String? {
+        try {
+            val cm = context.getSystemService(ConnectivityManager::class.java)
+            if (cm != null) {
+                @Suppress("DEPRECATION")
+                val networks = listOfNotNull(cm.activeNetwork) + cm.allNetworks.toList()
+                for (net in networks.distinct()) {
+                    val caps = cm.getNetworkCapabilities(net) ?: continue
+                    if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) continue
+                    val lp = cm.getLinkProperties(net) ?: continue
+                    for (linkAddr in lp.linkAddresses) {
+                        val addr = linkAddr.address
+                        if (addr is Inet4Address && !addr.isLoopbackAddress) {
+                            val host = addr.hostAddress
+                            if (!host.isNullOrBlank() && host != "127.0.0.1" && host != "0.0.0.0" && !host.startsWith("192.168.167.")) {
+                                return host
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        return try {
+            val interfaces = NetworkInterface.getNetworkInterfaces() ?: return null
+            for (nif in interfaces) {
+                if (!nif.isUp || nif.isLoopback) continue
+                val name = nif.name?.lowercase() ?: ""
+                if (!name.startsWith("wlan")) continue
+                for (addr in nif.inetAddresses) {
+                    if (!addr.isLoopbackAddress && addr is Inet4Address) {
+                        val host = addr.hostAddress
+                        if (!host.isNullOrBlank() && host != "127.0.0.1" && host != "0.0.0.0" && !host.startsWith("192.168.167.")) {
+                            return host
+                        }
+                    }
+                }
+            }
+            null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    fun setWirelessAdbEnabled(context: Context, enabled: Boolean): Boolean {
+        if (!SystemRouteHelper.hasSecureSettingsPermission(context)) return false
+        val appCtx = context.applicationContext
+        val wm = appCtx.getSystemService(WifiManager::class.java)
+        try {
+            if (enabled) {
+                try {
+                    if (wifiHighPerfLock?.isHeld != true) {
+                        wifiHighPerfLock = wm?.createWifiLock(
+                            WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                            "UltraRemapper:AdbWifiLock"
+                        )?.apply {
+                            setReferenceCounted(false)
+                            acquire()
+                        }
+                    }
+                } catch (_: Exception) {}
+                Settings.Global.putInt(appCtx.contentResolver, Settings.Global.ADB_ENABLED, 1)
+                Settings.Global.putInt(appCtx.contentResolver, "adb_wifi_enabled", 1)
+                Settings.Global.putInt(appCtx.contentResolver, "cw_disable_wifimediator", 1)
+            } else {
+                Settings.Global.putInt(appCtx.contentResolver, "adb_wifi_enabled", 0)
+                lastResolvedAdbPort = null
+                BottomButtonService.capturedConnectPort = null
+                if (!adbEasyModeActive) {
+                    try {
+                        wifiHighPerfLock?.let { if (it.isHeld) it.release() }
+                        wifiHighPerfLock = null
+                    } catch (_: Exception) {}
+                    try {
+                        Settings.Global.putInt(appCtx.contentResolver, "cw_disable_wifimediator", 0)
+                    } catch (_: Exception) {}
+                }
+            }
+            WirelessAdbTileService.requestTileUpdate(appCtx)
+            CompanionSyncService.syncStateToDataLayer(appCtx)
+            return true
+        } catch (_: Exception) {
+            return false
+        }
+    }
+
+    fun resolveAdbConnectPortBlocking(
+        context: Context,
+        timeoutMs: Long = 1500L,
+        onLateResolved: ((Int) -> Unit)? = null
+    ): Int? {
+        val appCtx = context.applicationContext
+        val discovery = AdbMdnsDiscovery(appCtx)
+        val latch = CountDownLatch(1)
+        val timedOut = java.util.concurrent.atomic.AtomicBoolean(false)
+
+        Handler(Looper.getMainLooper()).postDelayed({
+            try { discovery.stopDiscovery() } catch (_: Exception) {}
+        }, 4500L)
+
+        discovery.startDiscovery(wantPairing = false) { _, port ->
+            lastResolvedAdbPort = port
+            BottomButtonService.capturedConnectPort = port
+            try { discovery.stopDiscovery() } catch (_: Exception) {}
+            if (timedOut.get()) {
+                onLateResolved?.invoke(port)
+            }
+            CompanionSyncService.syncStateToDataLayer(appCtx)
+            latch.countDown()
+        }
+
+        try {
+            if (!latch.await(timeoutMs, TimeUnit.MILLISECONDS)) {
+                timedOut.set(true)
+            }
+        } catch (_: Exception) {
+            timedOut.set(true)
+        }
+
+        return lastResolvedAdbPort ?: BottomButtonService.capturedConnectPort
+    }
+
+    fun openWirelessDebuggingScreen(context: Context, backToHome: Boolean = false) {
         val appCtx = context.applicationContext
 
         // 1. Trigger auto-toggle via Accessibility with solid delay
@@ -281,6 +424,38 @@ object UtilityActions {
         } else {
             Toast.makeText(appCtx, appCtx.getString(R.string.toast_dev_options_unavailable), Toast.LENGTH_SHORT).show()
         }
+    }
+
+    fun openWirelessDebugging(context: Context, backToHome: Boolean = false) {
+        val appCtx = context.applicationContext
+        if (SystemRouteHelper.hasSecureSettingsPermission(appCtx)) {
+            val targetOn = !isWirelessAdbEnabled(appCtx)
+            if (setWirelessAdbEnabled(appCtx, targetOn)) {
+                if (targetOn) {
+                    vibrateDouble(appCtx)
+                    adbExecutor.execute {
+                        val ip = getWatchWifiIpv4(appCtx)
+                        val port = resolveAdbConnectPortBlocking(appCtx, 1500L) {
+                            WirelessAdbTileService.requestTileUpdate(appCtx)
+                        }
+                        WirelessAdbTileService.requestTileUpdate(appCtx)
+                        Handler(Looper.getMainLooper()).post {
+                            val msg = when {
+                                ip != null && port != null -> appCtx.getString(R.string.toast_wireless_adb_on_addr, "$ip:$port")
+                                ip != null -> appCtx.getString(R.string.toast_wireless_adb_on_addr, ip)
+                                else -> appCtx.getString(R.string.toast_wireless_adb_on)
+                            }
+                            Toast.makeText(appCtx, msg, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                } else {
+                    vibrateSingle(appCtx)
+                    Toast.makeText(appCtx, appCtx.getString(R.string.toast_wireless_adb_off), Toast.LENGTH_SHORT).show()
+                }
+                return
+            }
+        }
+        openWirelessDebuggingScreen(context, backToHome)
     }
 
     // ------------------------------------------------------------------------

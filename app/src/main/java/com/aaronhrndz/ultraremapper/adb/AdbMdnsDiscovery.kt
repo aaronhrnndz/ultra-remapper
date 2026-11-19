@@ -34,7 +34,7 @@ class AdbMdnsDiscovery(private val context: Context) {
             val interfaces = java.net.NetworkInterface.getNetworkInterfaces() ?: return ips
             for (nif in interfaces) {
                 for (addr in nif.inetAddresses) {
-                    val host = addr.hostAddress
+                    val host = addr.hostAddress?.substringBefore("%")
                     if (!host.isNullOrBlank()) ips.add(host)
                 }
             }
@@ -45,11 +45,13 @@ class AdbMdnsDiscovery(private val context: Context) {
     private fun isLocalWatchService(info: NsdServiceInfo): Boolean {
         val localIps = getLocalWatchIps()
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            info.hostAddresses.any { it.isLoopbackAddress || localIps.contains(it.hostAddress) }
+            info.hostAddresses.any {
+                it.isLoopbackAddress || localIps.contains(it.hostAddress?.substringBefore("%"))
+            }
         } else {
             @Suppress("DEPRECATION")
             val host = info.host
-            host != null && (host.isLoopbackAddress || localIps.contains(host.hostAddress))
+            host != null && (host.isLoopbackAddress || localIps.contains(host.hostAddress?.substringBefore("%")))
         }
     }
 

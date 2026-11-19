@@ -229,4 +229,20 @@ Uhr-Einstellungen › Apps › Standard-Apps › Digitaler Assistent › Ultra R
     <string name="adb_wiz_connecting">Verbinde…</string>
     <string name="adb_wiz_connect_btn">ADB verbinden</string>
     <string name="adb_wiz_re_pair">Mit neuer PIN neu koppeln</string>
+
+    <!-- Wireless ADB Tile & Direct Action -->
+    <string name="tile_wireless_adb_title">Kabelloses ADB</string>
+    <string name="tile_wireless_adb_desc">Kabelloses Debugging umschalten und IP:Port anzeigen</string>
+    <string name="tile_adb_header_on">KABELLOSES ADB • EIN</string>
+    <string name="tile_adb_header_off">KABELLOSES ADB • AUS</string>
+    <string name="tile_loading_port">Port wird gesucht…</string>
+    <string name="tile_tap_to_refresh">Zum Aktualisieren tippen</string>
+    <string name="tile_no_wifi">WLAN getrennt</string>
+    <string name="tile_adb_disabled_sub">Unten tippen zum Aktivieren</string>
+    <string name="tile_btn_enable">ADB aktivieren</string>
+    <string name="tile_btn_disable">ADB deaktivieren</string>
+    <string name="tile_open_dev_settings">Einstellungen öffnen</string>
+    <string name="toast_wireless_adb_on_addr">Kabelloses ADB: EIN (%1$s)</string>
+    <string name="toast_wireless_adb_on">Kabelloses ADB: EIN</string>
+    <string name="toast_wireless_adb_off">Kabelloses ADB: AUS</string>
 </resources>

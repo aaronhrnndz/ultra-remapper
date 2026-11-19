@@ -229,4 +229,20 @@ Paramètres de la montre › Applications › Applications par défaut › Assis
     <string name="adb_wiz_connecting">Connexion…</string>
     <string name="adb_wiz_connect_btn">Connecter ADB</string>
     <string name="adb_wiz_re_pair">Re-jumeler avec un nouveau PIN</string>
+
+    <!-- Wireless ADB Tile & Direct Action -->
+    <string name="tile_wireless_adb_title">ADB sans fil</string>
+    <string name="tile_wireless_adb_desc">Activer le débogage sans fil et voir IP:Port</string>
+    <string name="tile_adb_header_on">ADB SANS FIL • ON</string>
+    <string name="tile_adb_header_off">ADB SANS FIL • OFF</string>
+    <string name="tile_loading_port">Recherche du port…</string>
+    <string name="tile_tap_to_refresh">Toucher pour actualiser</string>
+    <string name="tile_no_wifi">Wi-Fi déconnecté</string>
+    <string name="tile_adb_disabled_sub">Appuyer ci-dessous pour activer</string>
+    <string name="tile_btn_enable">Activer ADB</string>
+    <string name="tile_btn_disable">Désactiver ADB</string>
+    <string name="tile_open_dev_settings">Ouvrir Paramètres</string>
+    <string name="toast_wireless_adb_on_addr">ADB sans fil : ON (%1$s)</string>
+    <string name="toast_wireless_adb_on">ADB sans fil : ON</string>
+    <string name="toast_wireless_adb_off">ADB sans fil : OFF</string>
 </resources>

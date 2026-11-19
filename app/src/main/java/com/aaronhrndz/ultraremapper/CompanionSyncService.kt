@@ -207,7 +207,10 @@ class CompanionSyncService : WearableListenerService() {
                         }
                         "open_wireless_adb" -> {
                             BottomButtonService.clearCapturedAdb()
-                            UtilityActions.openWirelessDebugging(context, backToHome = false)
+                            if (SystemRouteHelper.hasSecureSettingsPermission(context)) {
+                                UtilityActions.setWirelessAdbEnabled(context, true)
+                            }
+                            UtilityActions.openWirelessDebuggingScreen(context, backToHome = false)
                             BottomButtonService.instance?.scanAdbScreenAndSync(retriesLeft = 6)
                         }
                         "clear_captured_adb" -> {

@@ -235,4 +235,20 @@ La solución definitiva para que funcione siempre de forma fiable es congelar Sa
     <string name="adb_wiz_connecting">Conectando…</string>
     <string name="adb_wiz_connect_btn">Conectar ADB</string>
     <string name="adb_wiz_re_pair">Volver a vincular con nuevo PIN</string>
+
+    <!-- Wireless ADB Tile & Direct Action -->
+    <string name="tile_wireless_adb_title">ADB Inalámbrico</string>
+    <string name="tile_wireless_adb_desc">Activa Depuración Inalámbrica y muestra IP:Puerto</string>
+    <string name="tile_adb_header_on">ADB INALÁMBRICO • ON</string>
+    <string name="tile_adb_header_off">ADB INALÁMBRICO • OFF</string>
+    <string name="tile_loading_port">Buscando puerto…</string>
+    <string name="tile_tap_to_refresh">Toca para actualizar</string>
+    <string name="tile_no_wifi">Wi-Fi desconectado</string>
+    <string name="tile_adb_disabled_sub">Pulsa abajo para activar</string>
+    <string name="tile_btn_enable">Activar ADB</string>
+    <string name="tile_btn_disable">Desactivar ADB</string>
+    <string name="tile_open_dev_settings">Abrir Ajustes</string>
+    <string name="toast_wireless_adb_on_addr">ADB Inalámbrico: ON (%1$s)</string>
+    <string name="toast_wireless_adb_on">ADB Inalámbrico: ON</string>
+    <string name="toast_wireless_adb_off">ADB Inalámbrico: OFF</string>
 </resources>
