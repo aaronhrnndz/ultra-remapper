@@ -28,7 +28,7 @@ data class ReleaseUpdate(
 )
 
 object UpdateChecker {
-    private val executor = Executors.newSingleThreadExecutor()
+    private val executor = Executors.newCachedThreadPool()
     private val mainHandler = Handler(Looper.getMainLooper())
     private const val FORGEJO_LAN_BASE = "http://192.168.1.8:3000"
     private const val FORGEJO_TAILSCALE_BASE = "https://forgejo.tailc4b32.ts.net"
@@ -114,14 +114,31 @@ object UpdateChecker {
             val isBeta = isBetaChannel(context)
             var best: ReleaseUpdate? = null
 
-            // 1. Private Forgejo LAN OTA Source FIRST
-            fetchUrlText(
+            // 1. Private Forgejo LAN OTA Source FIRST (default route, then explicit Wi-Fi network if BT SysProxy is active)
+            var forgejoBody = fetchUrlText(
                 FORGEJO_LAN_RELEASES_API,
                 userAgent,
                 "application/json",
-                connectTimeoutMs = 3000,
-                readTimeoutMs = 4000
-            )?.let { body ->
+                connectTimeoutMs = 2500,
+                readTimeoutMs = 3000
+            )
+            if (forgejoBody == null) {
+                val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                val wifiNet = cm?.allNetworks?.firstOrNull { net ->
+                    cm.getNetworkCapabilities(net)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                }
+                if (wifiNet != null) {
+                    forgejoBody = fetchUrlText(
+                        FORGEJO_LAN_RELEASES_API,
+                        userAgent,
+                        "application/json",
+                        connectTimeoutMs = 2500,
+                        readTimeoutMs = 3000,
+                        network = wifiNet
+                    )
+                }
+            }
+            forgejoBody?.let { body ->
                 try {
                     val arr = org.json.JSONArray(body)
                     for (i in 0 until arr.length()) {
@@ -203,12 +220,15 @@ object UpdateChecker {
         urlStr: String,
         userAgent: String,
         accept: String? = null,
-        connectTimeoutMs: Int = 5000,
-        readTimeoutMs: Int = 5000
+        connectTimeoutMs: Int = 3000,
+        readTimeoutMs: Int = 3000,
+        network: Network? = null
     ): String? {
         var conn: HttpURLConnection? = null
         return try {
-            conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+            val url = URL(urlStr)
+            val rawConn = if (network != null) network.openConnection(url) else url.openConnection()
+            conn = (rawConn as HttpURLConnection).apply {
                 requestMethod = "GET"
                 if (accept != null) setRequestProperty("Accept", accept)
                 setRequestProperty("User-Agent", userAgent)

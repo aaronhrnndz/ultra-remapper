@@ -402,20 +402,20 @@ object Mapping {
     }
 
     private fun triggerAssistant(context: Context, backToHome: Boolean) {
-        val explicitIntent = SystemRouteHelper.buildExternalAssistantLaunchIntent(context, backToHome)
-        if (explicitIntent != null) {
-            try {
-                context.startActivity(explicitIntent)
-                return
-            } catch (_: Exception) {}
-        }
-
         val launcherIntent = context.packageManager.getLaunchIntentForPackage("com.google.android.wearable.assistant")
         if (launcherIntent != null) {
             launcherIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             if (backToHome) launcherIntent.addFlags(Intent.FLAG_ACTIVITY_TASK_ON_HOME)
             try {
                 context.startActivity(launcherIntent)
+                return
+            } catch (_: Exception) {}
+        }
+
+        val explicitIntent = SystemRouteHelper.buildExternalAssistantLaunchIntent(context, backToHome)
+        if (explicitIntent != null) {
+            try {
+                context.startActivity(explicitIntent)
                 return
             } catch (_: Exception) {}
         }
