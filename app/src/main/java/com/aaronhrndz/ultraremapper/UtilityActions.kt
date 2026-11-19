@@ -345,6 +345,7 @@ object UtilityActions {
                 }
             }
             WirelessAdbTileService.requestTileUpdate(appCtx)
+            WirelessAdbComplicationService.requestUpdate(appCtx)
             CompanionSyncService.syncStateToDataLayer(appCtx)
             return true
         } catch (_: Exception) {
@@ -372,15 +373,20 @@ object UtilityActions {
      * Avoids Android NsdManager.discoverServices() which triggers the system NsdPickerActivity popup on Wear OS.
      */
     private fun queryMdnsSrvPortRaw(serviceType: String, timeoutMs: Int): Int? {
-        var socket: java.net.DatagramSocket? = null
+        var socket: java.net.MulticastSocket? = null
         return try {
             val queryBytes = buildMdnsPtrQuery(serviceType)
             val group = java.net.InetAddress.getByName("224.0.0.251")
-            socket = java.net.DatagramSocket().apply {
+            val localhost = java.net.InetAddress.getByName("127.0.0.1")
+            socket = java.net.MulticastSocket(5353).apply {
+                reuseAddress = true
                 soTimeout = timeoutMs
-                broadcast = true
+                try { joinGroup(group) } catch (_: Exception) {}
             }
             socket.send(java.net.DatagramPacket(queryBytes, queryBytes.size, group, 5353))
+            try {
+                socket.send(java.net.DatagramPacket(queryBytes, queryBytes.size, localhost, 5353))
+            } catch (_: Exception) {}
 
             val buf = ByteArray(2048)
             val deadline = System.currentTimeMillis() + timeoutMs
@@ -503,11 +509,11 @@ object UtilityActions {
                 if (targetOn) {
                     vibrateDouble(appCtx)
                     adbExecutor.execute {
+                        try { Thread.sleep(450L) } catch (_: Exception) {}
                         val ip = getWatchWifiIpv4(appCtx)
-                        val port = resolveAdbConnectPortBlocking(appCtx, 1500L) {
-                            WirelessAdbTileService.requestTileUpdate(appCtx)
-                        }
+                        val port = resolveAdbConnectPortBlocking(appCtx, 1800L)
                         WirelessAdbTileService.requestTileUpdate(appCtx)
+                        WirelessAdbComplicationService.requestUpdate(appCtx)
                         Handler(Looper.getMainLooper()).post {
                             val msg = when {
                                 ip != null && port != null -> appCtx.getString(R.string.toast_wireless_adb_on_addr, "$ip:$port")
@@ -519,7 +525,9 @@ object UtilityActions {
                     }
                 } else {
                     vibrateSingle(appCtx)
-                    Toast.makeText(appCtx, appCtx.getString(R.string.toast_wireless_adb_off), Toast.LENGTH_SHORT).show()
+                    Handler(Looper.getMainLooper()).post {
+                        Toast.makeText(appCtx, appCtx.getString(R.string.toast_wireless_adb_off), Toast.LENGTH_LONG).show()
+                    }
                 }
                 return
             }

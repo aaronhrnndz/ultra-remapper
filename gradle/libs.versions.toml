@@ -14,6 +14,7 @@ wearRemoteInteractions = "1.1.0"
 playServicesWearable = "19.0.0"
 tiles = "1.4.0"
 guava = "32.1.3-android"
+watchfaceComplications = "1.2.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -38,6 +39,7 @@ play-services-wearable = { group = "com.google.android.gms", name = "play-servic
 wear-tiles = { group = "androidx.wear.tiles", name = "tiles", version.ref = "tiles" }
 wear-tiles-material = { group = "androidx.wear.tiles", name = "tiles-material", version.ref = "tiles" }
 guava = { group = "com.google.guava", name = "guava", version.ref = "guava" }
+wear-watchface-complications = { group = "androidx.wear.watchface", name = "watchface-complications-data-source-ktx", version.ref = "watchfaceComplications" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

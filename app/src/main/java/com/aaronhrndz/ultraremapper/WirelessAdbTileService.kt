@@ -94,7 +94,6 @@ class WirelessAdbTileService : TileService() {
                 val tile = TileBuilders.Tile.Builder()
                     .setResourcesVersion(RESOURCES_VERSION)
                     .setTileTimeline(timeline)
-                    .setFreshnessIntervalMillis(30_000L)
                     .build()
 
                 future.set(tile)
@@ -111,6 +110,14 @@ class WirelessAdbTileService : TileService() {
                 .setVersion(RESOURCES_VERSION)
                 .build()
         )
+    }
+
+    override fun onTileEnterEvent(requestParams: androidx.wear.tiles.EventBuilders.TileEnterEvent) {
+        super.onTileEnterEvent(requestParams)
+        if (UtilityActions.isWirelessAdbEnabled(applicationContext)) {
+            UtilityActions.lastResolvedAdbPort = null
+            requestTileUpdate(applicationContext)
+        }
     }
 
     override fun onDestroy() {
