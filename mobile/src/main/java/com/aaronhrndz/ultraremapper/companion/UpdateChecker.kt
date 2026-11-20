@@ -27,7 +27,8 @@ object UpdateChecker {
     private val mainHandler = Handler(Looper.getMainLooper())
     private const val FORGEJO_LAN_BASE = "http://192.168.1.8:3000"
     private const val FORGEJO_TAILSCALE_BASE = "https://forgejo.tailc4b32.ts.net"
-    private const val FORGEJO_LAN_RELEASES_API = "$FORGEJO_LAN_BASE/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
+    private const val FORGEJO_REPO = "Aaronhrndz/ultra-remapper"
+    private const val FORGEJO_TOKEN = "542f58b2385ec79dbdf10015913635087aa579fd"
     private const val CODEBERG_MANIFEST_URL = "https://codeberg.org/Aaronhrndz/ultra-remapper/raw/branch/main/update.json"
     private const val CODEBERG_RELEASES_API = "https://codeberg.org/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
     private val GITHUB_REPOS = listOf(
@@ -36,6 +37,9 @@ object UpdateChecker {
     )
     private const val PREFS_NAME = "companion_update_checker"
     private const val KEY_BETA_CHANNEL = "beta_channel_enabled"
+
+    fun getAuthHeaderForUrl(url: String): String? =
+        if (url.startsWith(FORGEJO_LAN_BASE) || url.startsWith(FORGEJO_TAILSCALE_BASE)) "token $FORGEJO_TOKEN" else null
 
     fun isBetaChannel(context: Context): Boolean {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -73,25 +77,29 @@ object UpdateChecker {
             var bestCompanionRel: ReleaseUpdate? = null
             var bestWatchRel: ReleaseUpdate? = null
 
-            // 1. Private Forgejo LAN OTA Source FIRST and unconditionally
-            fetchUrlText(
-                FORGEJO_LAN_RELEASES_API,
-                userAgent,
-                "application/json",
-                connectTimeoutMs = 3000,
-                readTimeoutMs = 4000
-            )?.let { body ->
-                try {
-                    val (cBest, wBest) = processReleasesArray(JSONArray(body), true, bestCompanionRel, bestWatchRel, FORGEJO_LAN_BASE)
-                    bestCompanionRel = cBest
-                    bestWatchRel = wBest
-                } catch (_: Exception) {}
-            }
-            if (bestCompanionRel?.companionApkUrl != null || bestWatchRel?.watchApkUrl != null) {
-                val latestRel = bestWatchRel ?: bestCompanionRel
-                val companionUpd = bestCompanionRel?.takeIf { isNewerVersion(it.versionName, cleanCurrent) }
-                mainHandler.post { onResult(companionUpd, latestRel) }
-                return@execute
+            // 1. Private Forgejo OTA Sources FIRST (LAN, then Tailscale/remote)
+            for (originBase in listOf(FORGEJO_LAN_BASE, FORGEJO_TAILSCALE_BASE)) {
+                val apiUrl = "$originBase/api/v1/repos/$FORGEJO_REPO/releases?limit=5"
+                fetchUrlText(
+                    apiUrl,
+                    userAgent,
+                    "application/json",
+                    connectTimeoutMs = 3000,
+                    readTimeoutMs = 4000,
+                    authHeader = "token $FORGEJO_TOKEN"
+                )?.let { body ->
+                    try {
+                        val (cBest, wBest) = processReleasesArray(JSONArray(body), isBeta, bestCompanionRel, bestWatchRel, originBase)
+                        bestCompanionRel = cBest
+                        bestWatchRel = wBest
+                    } catch (_: Exception) {}
+                }
+                if (bestCompanionRel?.companionApkUrl != null || bestWatchRel?.watchApkUrl != null) {
+                    val latestRel = bestWatchRel ?: bestCompanionRel
+                    val companionUpd = bestCompanionRel?.takeIf { isNewerVersion(it.versionName, cleanCurrent) }
+                    mainHandler.post { onResult(companionUpd, latestRel) }
+                    return@execute
+                }
             }
 
             // 2. Codeberg Master Manifest (update.json)
@@ -180,7 +188,8 @@ object UpdateChecker {
         userAgent: String,
         accept: String? = null,
         connectTimeoutMs: Int = 8000,
-        readTimeoutMs: Int = 8000
+        readTimeoutMs: Int = 8000,
+        authHeader: String? = getAuthHeaderForUrl(urlStr)
     ): String? {
         var conn: HttpURLConnection? = null
         return try {
@@ -189,6 +198,7 @@ object UpdateChecker {
                 readTimeout = readTimeoutMs
                 instanceFollowRedirects = true
                 if (accept != null) setRequestProperty("Accept", accept)
+                if (authHeader != null) setRequestProperty("Authorization", authHeader)
                 setRequestProperty("User-Agent", userAgent)
             }
             if (conn.responseCode == 200) {
@@ -349,21 +359,22 @@ object UpdateChecker {
                 val candidates = buildMobileDownloadCandidates(apkUrl)
                 var conn: HttpURLConnection? = null
                 var lastErr: Exception? = null
+                fun openHttp(u: String): HttpURLConnection =
+                    (URL(u).openConnection() as HttpURLConnection).apply {
+                        instanceFollowRedirects = true
+                        connectTimeout = 15000
+                        readTimeout = 30000
+                        setRequestProperty("User-Agent", "UltraRemapperCompanion-OTA")
+                        getAuthHeaderForUrl(u)?.let { setRequestProperty("Authorization", it) }
+                    }
                 for (candidate in candidates) {
                     try {
-                        var c = (URL(candidate).openConnection() as HttpURLConnection).apply {
-                            instanceFollowRedirects = true
-                            connectTimeout = 15000
-                            readTimeout = 30000
-                        }
+                        var c = openHttp(candidate)
                         if (c.responseCode in 300..399) {
                             val redir = c.getHeaderField("Location")
                             if (!redir.isNullOrEmpty()) {
                                 try { c.disconnect() } catch (_: Exception) {}
-                                c = (URL(redir).openConnection() as HttpURLConnection).apply {
-                                    connectTimeout = 15000
-                                    readTimeout = 30000
-                                }
+                                c = openHttp(redir)
                             }
                         }
                         if (c.responseCode == 200) {
@@ -412,12 +423,12 @@ object UpdateChecker {
     }
 
     private fun buildMobileDownloadCandidates(apkUrl: String): List<String> {
-        val lanUrl = if (apkUrl.startsWith(FORGEJO_TAILSCALE_BASE)) {
-            apkUrl.replaceFirst(FORGEJO_TAILSCALE_BASE, FORGEJO_LAN_BASE)
-        } else {
-            apkUrl
+        val altUrl = when {
+            apkUrl.startsWith(FORGEJO_LAN_BASE) -> apkUrl.replaceFirst(FORGEJO_LAN_BASE, FORGEJO_TAILSCALE_BASE)
+            apkUrl.startsWith(FORGEJO_TAILSCALE_BASE) -> apkUrl.replaceFirst(FORGEJO_TAILSCALE_BASE, FORGEJO_LAN_BASE)
+            else -> return listOf(apkUrl)
         }
-        return listOf(lanUrl)
+        return listOf(apkUrl, altUrl).distinct()
     }
 
     /**

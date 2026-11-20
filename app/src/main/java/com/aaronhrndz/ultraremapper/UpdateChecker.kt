@@ -32,7 +32,9 @@ object UpdateChecker {
     private val mainHandler = Handler(Looper.getMainLooper())
     private const val FORGEJO_LAN_BASE = "http://192.168.1.8:3000"
     private const val FORGEJO_TAILSCALE_BASE = "https://forgejo.tailc4b32.ts.net"
-    private const val FORGEJO_LAN_RELEASES_API = "$FORGEJO_LAN_BASE/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
+    private const val FORGEJO_REPO = "Aaronhrndz/ultra-remapper"
+    private const val FORGEJO_TOKEN = "542f58b2385ec79dbdf10015913635087aa579fd"
+    private const val FORGEJO_MANIFEST_URL = "$FORGEJO_LAN_BASE/api/v1/repos/$FORGEJO_REPO/raw/update.json"
     private const val CODEBERG_MANIFEST_URL = "https://codeberg.org/Aaronhrndz/ultra-remapper/raw/branch/main/update.json"
     private const val CODEBERG_RELEASES_API = "https://codeberg.org/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
     private val GITHUB_REPOS = listOf("Aaronhrndz/ultra-remapper", "aaronhrnndz/ultra-remapper")
@@ -42,6 +44,9 @@ object UpdateChecker {
     private const val KEY_NOTIFIED_VER = "last_notified_version"
     private const val KEY_BETA_CHANNEL = "beta_channel_enabled"
     private const val CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L // 24 hours
+
+    fun getAuthHeaderForUrl(url: String): String? =
+        if (url.startsWith(FORGEJO_LAN_BASE) || url.startsWith(FORGEJO_TAILSCALE_BASE)) "token $FORGEJO_TOKEN" else null
 
     fun isBetaChannel(context: Context): Boolean {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -115,40 +120,24 @@ object UpdateChecker {
             var best: ReleaseUpdate? = null
 
             // 1. Private Forgejo OTA Sources FIRST (LAN, then Tailscale/remote, matching Antigravity-on-wear-os)
-            for ((apiUrl, originBase) in listOf(
-                FORGEJO_LAN_RELEASES_API to FORGEJO_LAN_BASE,
-                "$FORGEJO_TAILSCALE_BASE/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5" to FORGEJO_TAILSCALE_BASE
-            )) {
-                var forgejoBody = fetchUrlText(
+            for (originBase in listOf(FORGEJO_LAN_BASE, FORGEJO_TAILSCALE_BASE)) {
+                val apiUrl = "$originBase/api/v1/repos/$FORGEJO_REPO/releases?limit=5"
+                val forgejoBody = fetchUrlText(
                     apiUrl,
                     userAgent,
                     "application/json",
                     connectTimeoutMs = 3000,
-                    readTimeoutMs = 3000
+                    readTimeoutMs = 3000,
+                    authHeader = "token $FORGEJO_TOKEN"
                 )
-                if (forgejoBody == null && originBase == FORGEJO_LAN_BASE) {
-                    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-                    val wifiNet = cm?.allNetworks?.firstOrNull { net ->
-                        cm.getNetworkCapabilities(net)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-                    }
-                    if (wifiNet != null) {
-                        forgejoBody = fetchUrlText(
-                            apiUrl,
-                            userAgent,
-                            "application/json",
-                            connectTimeoutMs = 3000,
-                            readTimeoutMs = 3000,
-                            network = wifiNet
-                        )
-                    }
-                }
                 forgejoBody?.let { body ->
                     try {
                         val arr = org.json.JSONArray(body)
                         for (i in 0 until arr.length()) {
                             val obj = arr.optJSONObject(i) ?: continue
                             if (obj.optBoolean("draft", false)) continue
-                            val parsed = parseRelease(obj, "Aaronhrndz/ultra-remapper", originBase) ?: continue
+                            val parsed = parseRelease(obj, FORGEJO_REPO, originBase) ?: continue
+                            if (!isBeta && parsed.isPrerelease) continue
                             best = pickHigherVersion(best, parsed)
                         }
                     } catch (_: Exception) {}
@@ -160,23 +149,16 @@ object UpdateChecker {
                 }
             }
 
+            // 1b. Forgejo raw update.json manifest fallback
+            if (best?.apkDownloadUrl.isNullOrEmpty()) {
+                fetchUrlText(FORGEJO_MANIFEST_URL, userAgent, authHeader = "token $FORGEJO_TOKEN")?.let { body ->
+                    parseManifestUpdate(body, isBeta)?.let { best = pickHigherVersion(best, it) }
+                }
+            }
+
             // 2. Codeberg Master Manifest (update.json)
             fetchUrlText(CODEBERG_MANIFEST_URL, userAgent)?.let { body ->
-                try {
-                    val json = JSONObject(body)
-                    val ver = json.optString("version", "").removePrefix("v").trim()
-                    val isPre = json.optBoolean("isPrerelease", false)
-                    if (ver.isNotEmpty() && (isBeta || !isPre)) {
-                        val candidate = ReleaseUpdate(
-                            versionName = ver,
-                            htmlUrl = json.optString("htmlUrl", "https://codeberg.org/Aaronhrndz/ultra-remapper/releases/latest"),
-                            apkDownloadUrl = json.optString("watchApkUrl", "").takeIf { it.isNotEmpty() },
-                            releaseNotes = json.optString("notes", "").trim(),
-                            isPrerelease = isPre
-                        )
-                        best = pickHigherVersion(best, candidate)
-                    }
-                } catch (_: Exception) {}
+                parseManifestUpdate(body, isBeta)?.let { best = pickHigherVersion(best, it) }
             }
 
             // 2 & 3. GitHub Primary (Aaronhrndz) & Secondary (aaronhrnndz)
@@ -221,21 +203,41 @@ object UpdateChecker {
         }
     }
 
+    private fun parseManifestUpdate(body: String, isBeta: Boolean): ReleaseUpdate? {
+        return try {
+            val json = JSONObject(body)
+            val ver = json.optString("version", "").removePrefix("v").trim()
+            val isPre = json.optBoolean("isPrerelease", false)
+            if (ver.isNotEmpty() && (isBeta || !isPre)) {
+                ReleaseUpdate(
+                    versionName = ver,
+                    htmlUrl = json.optString("htmlUrl", "https://codeberg.org/Aaronhrndz/ultra-remapper/releases/latest"),
+                    apkDownloadUrl = json.optString("watchApkUrl", "").takeIf { it.isNotEmpty() },
+                    releaseNotes = json.optString("notes", "").trim(),
+                    isPrerelease = isPre
+                )
+            } else {
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun fetchUrlText(
         urlStr: String,
         userAgent: String,
         accept: String? = null,
         connectTimeoutMs: Int = 3000,
         readTimeoutMs: Int = 3000,
-        network: Network? = null
+        authHeader: String? = getAuthHeaderForUrl(urlStr)
     ): String? {
         var conn: HttpURLConnection? = null
         return try {
-            val url = URL(urlStr)
-            val rawConn = if (network != null) network.openConnection(url) else url.openConnection()
-            conn = (rawConn as HttpURLConnection).apply {
+            conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 if (accept != null) setRequestProperty("Accept", accept)
+                if (authHeader != null) setRequestProperty("Authorization", authHeader)
                 setRequestProperty("User-Agent", userAgent)
                 connectTimeout = connectTimeoutMs
                 readTimeout = readTimeoutMs
@@ -409,19 +411,23 @@ object UpdateChecker {
     }
 
     private fun buildDownloadAttempts(apkUrl: String, activeNetwork: Network?): List<Triple<String, Network?, Int>> {
-        val isForgejo = apkUrl.startsWith(FORGEJO_TAILSCALE_BASE) || apkUrl.startsWith(FORGEJO_LAN_BASE)
-        if (!isForgejo) {
+        val altUrl = when {
+            apkUrl.startsWith(FORGEJO_LAN_BASE) -> apkUrl.replaceFirst(FORGEJO_LAN_BASE, FORGEJO_TAILSCALE_BASE)
+            apkUrl.startsWith(FORGEJO_TAILSCALE_BASE) -> apkUrl.replaceFirst(FORGEJO_TAILSCALE_BASE, FORGEJO_LAN_BASE)
+            else -> null
+        }
+        if (altUrl == null) {
             return buildList {
                 if (activeNetwork != null) add(Triple(apkUrl, activeNetwork, 15000))
                 add(Triple(apkUrl, null, 15000))
             }
         }
-        val lanUrl = if (apkUrl.startsWith(FORGEJO_TAILSCALE_BASE)) {
-            apkUrl.replaceFirst(FORGEJO_TAILSCALE_BASE, FORGEJO_LAN_BASE)
-        } else apkUrl
+        val candidates = listOf(apkUrl, altUrl).distinct()
         return buildList {
-            if (activeNetwork != null) add(Triple(lanUrl, activeNetwork, 8000))
-            add(Triple(lanUrl, null, 8000))
+            if (activeNetwork != null) {
+                for (u in candidates) add(Triple(u, activeNetwork, 8000))
+            }
+            for (u in candidates) add(Triple(u, null, 12000))
         }
     }
 
@@ -435,6 +441,8 @@ object UpdateChecker {
                 instanceFollowRedirects = true
                 connectTimeout = connectTimeoutMs
                 readTimeout = 30000
+                setRequestProperty("User-Agent", "UltraRemapper-OTA")
+                getAuthHeaderForUrl(currentUrl)?.let { setRequestProperty("Authorization", it) }
             }
             if (conn.responseCode in 300..399 && redirects < 4) {
                 val redirectUrl = conn.getHeaderField("Location")
