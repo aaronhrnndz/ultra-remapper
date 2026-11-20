@@ -514,13 +514,19 @@ object UtilityActions {
                         val port = resolveAdbConnectPortBlocking(appCtx, 1800L)
                         WirelessAdbTileService.requestTileUpdate(appCtx)
                         WirelessAdbComplicationService.requestUpdate(appCtx)
-                        Handler(Looper.getMainLooper()).post {
+                        val mainHandler = Handler(Looper.getMainLooper())
+                        mainHandler.post {
                             val msg = when {
                                 ip != null && port != null -> appCtx.getString(R.string.toast_wireless_adb_on_addr, "$ip:$port")
                                 ip != null -> appCtx.getString(R.string.toast_wireless_adb_on_addr, ip)
                                 else -> appCtx.getString(R.string.toast_wireless_adb_on)
                             }
                             Toast.makeText(appCtx, msg, Toast.LENGTH_LONG).show()
+                            if (ip != null && port != null) {
+                                mainHandler.postDelayed({
+                                    Toast.makeText(appCtx, msg, Toast.LENGTH_LONG).show()
+                                }, 3200L)
+                            }
                         }
                     }
                 } else {

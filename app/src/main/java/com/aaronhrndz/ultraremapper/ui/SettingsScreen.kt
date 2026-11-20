@@ -683,6 +683,37 @@ fun SettingsScreen(
                 }
             }
 
+            // Manual OTA Check Button
+            item(key = "check_update_btn") {
+                var isCheckingOta by remember { mutableStateOf(false) }
+                var foundUpdate by remember { mutableStateOf<com.aaronhrndz.ultraremapper.ReleaseUpdate?>(null) }
+                var otaStatus by remember { mutableStateOf("Toca para comprobar") }
+                Button(
+                    onClick = {
+                        val upd = foundUpdate
+                        if (upd != null) {
+                            UpdateChecker.downloadAndInstallOnWatch(context, upd)
+                        } else if (!isCheckingOta) {
+                            isCheckingOta = true
+                            otaStatus = "Buscando..."
+                            UpdateChecker.check(context) { info ->
+                                isCheckingOta = false
+                                foundUpdate = info
+                                otaStatus = if (info != null) "Nueva v${info.versionName} (toca para instalar)" else "Al día"
+                            }
+                        }
+                    },
+                    label = { Text("Buscar actualización", maxLines = 1, modifier = Modifier.basicMarquee()) },
+                    secondaryLabel = { Text(otaStatus, maxLines = 1, modifier = Modifier.basicMarquee()) },
+                    colors = if (foundUpdate != null) ButtonDefaults.buttonColors(containerColor = UltraOrange) else ButtonDefaults.buttonColors(containerColor = Color(0xFF282E38)),
+                    transformation = SurfaceTransformation(transformationSpec),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .transformedHeight(this, transformationSpec)
+                )
+            }
+
             // App version footer (Moved from MainActivity home screen)
             item(key = "app_version_footer") {
                 val installedVersion = remember {

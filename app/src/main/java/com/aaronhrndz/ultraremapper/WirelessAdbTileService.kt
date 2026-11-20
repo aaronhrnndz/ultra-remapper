@@ -80,7 +80,10 @@ class WirelessAdbTileService : TileService() {
                 val port = if (isAdbOn) {
                     UtilityActions.lastResolvedAdbPort
                         ?: BottomButtonService.capturedConnectPort
-                        ?: UtilityActions.resolveAdbConnectPortBlocking(appCtx, 1400L)
+                        ?: UtilityActions.resolveAdbConnectPortBlocking(appCtx, 1400L) {
+                            requestTileUpdate(appCtx)
+                            WirelessAdbComplicationService.requestUpdate(appCtx)
+                        }
                 } else {
                     null
                 }

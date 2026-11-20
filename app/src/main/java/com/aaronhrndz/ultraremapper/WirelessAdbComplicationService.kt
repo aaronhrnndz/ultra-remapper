@@ -77,21 +77,17 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
         port: Int?,
         tapAction: PendingIntent?
     ): ComplicationData? {
-        val addrStr = when {
+        val lastOctet = ip?.substringAfterLast('.')
+        val compactAddr = when {
             !isOn -> "OFF"
-            ip != null && port != null -> "$ip:$port"
-            ip != null -> ip
-            else -> "ON"
-        }
-        val shortTextStr = when {
-            !isOn -> "OFF"
+            lastOctet != null && port != null -> "$lastOctet:$port"
+            lastOctet != null -> lastOctet
             port != null -> ":$port"
-            ip != null -> ip.substringAfterLast('.')
-            else -> "ON"
+            else -> "ADB"
         }
-        val shortTitleStr = if (isOn) "ADB ON" else "ADB"
-        val longTextStr = if (isOn) "ADB ON • $addrStr" else "ADB OFF"
-        val desc = PlainComplicationText.Builder(longTextStr).build()
+        val shortTitleStr = if (isOn && lastOctet != null && port != null) lastOctet else "ADB"
+        val shortTextStr = if (isOn && lastOctet != null && port != null) "$port" else compactAddr
+        val desc = PlainComplicationText.Builder(compactAddr).build()
         val icon = Icon.createWithResource(this, R.mipmap.ic_launcher)
 
         return when (type) {
@@ -105,10 +101,10 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
                 .build()
 
             ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
-                text = PlainComplicationText.Builder(addrStr).build(),
+                text = PlainComplicationText.Builder(compactAddr).build(),
                 contentDescription = desc
             )
-                .setTitle(PlainComplicationText.Builder(if (isOn) "ADB ON" else "ADB OFF").build())
+                .setTitle(PlainComplicationText.Builder("ADB").build())
                 .setMonochromaticImage(MonochromaticImage.Builder(icon).build())
                 .setTapAction(tapAction)
                 .build()
@@ -119,8 +115,8 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
                 max = 1f,
                 contentDescription = desc
             )
-                .setText(PlainComplicationText.Builder(shortTextStr).build())
-                .setTitle(PlainComplicationText.Builder(shortTitleStr).build())
+                .setText(PlainComplicationText.Builder(compactAddr).build())
+                .setTitle(PlainComplicationText.Builder("ADB").build())
                 .setMonochromaticImage(MonochromaticImage.Builder(icon).build())
                 .setTapAction(tapAction)
                 .build()
