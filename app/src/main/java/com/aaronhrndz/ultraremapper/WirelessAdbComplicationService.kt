@@ -61,9 +61,9 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
         val isOn = UtilityActions.isWirelessAdbEnabled(this)
         val ip = UtilityActions.getWatchWifiIpv4(this)
         val port = if (isOn) {
-            UtilityActions.lastResolvedAdbPort
+            UtilityActions.resolveAdbConnectPortBlocking(this, 1000L)
                 ?: BottomButtonService.capturedConnectPort
-                ?: UtilityActions.resolveAdbConnectPortBlocking(this, 1200L)
+                ?: UtilityActions.lastResolvedAdbPort
         } else {
             null
         }
