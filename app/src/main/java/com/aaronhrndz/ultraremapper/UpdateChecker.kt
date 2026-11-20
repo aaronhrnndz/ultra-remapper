@@ -357,7 +357,6 @@ object UpdateChecker {
                 val latch = CountDownLatch(1)
                 val req = NetworkRequest.Builder()
                     .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                     .build()
                 val cb = object : ConnectivityManager.NetworkCallback() {
                     override fun onAvailable(network: Network) {
@@ -538,13 +537,16 @@ object UpdateChecker {
             try {
                 withTemporaryWifi(
                     appCtx,
-                    timeoutMs = 15_000L,
+                    timeoutMs = 20_000L,
                     onWakingWifi = { mainHandler.post { onProgress(0f, "Activando Wi-Fi...") } }
                 ) { wifiNet ->
+                    if (wifiNet == null && apkUrl.startsWith(FORGEJO_LAN_BASE)) {
+                        throw java.io.IOException("Wi-Fi no conectado")
+                    }
                     mainHandler.post { onProgress(0f, appCtx.getString(R.string.update_downloading)) }
                     val networksToTry = buildList {
                         if (wifiNet != null) add(wifiNet)
-                        add(null)
+                        if (!apkUrl.startsWith(FORGEJO_LAN_BASE)) add(null)
                     }
                     var lastError: Exception? = null
                     var succeeded = false
