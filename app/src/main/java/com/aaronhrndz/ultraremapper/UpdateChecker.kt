@@ -3,38 +3,43 @@ package com.aaronhrndz.ultraremapper
 import com.aaronhrndz.ultraremapper.R
 
 import android.content.Context
+import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
-import android.net.NetworkRequest
-import android.content.Intent
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.widget.Toast
 import androidx.wear.remote.interactions.RemoteActivityHelper
+import com.google.android.gms.tasks.Tasks
+import com.google.android.gms.wearable.ChannelClient
+import com.google.android.gms.wearable.Wearable
 import org.json.JSONObject
 import java.io.File
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 data class ReleaseUpdate(
     val versionName: String,
     val htmlUrl: String,
     val apkDownloadUrl: String?,
     val releaseNotes: String,
-    val isPrerelease: Boolean = false
+    val isPrerelease: Boolean = false,
+    val viaPhoneProxy: Boolean = false
 )
 
 object UpdateChecker {
     private val executor = Executors.newCachedThreadPool()
+    private val streamExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private const val FORGEJO_LAN_BASE = "http://192.168.1.8:3000"
-    private const val FORGEJO_TAILSCALE_BASE = "https://forgejo.tailc4b32.ts.net"
     private const val FORGEJO_REPO = "Aaronhrndz/ultra-remapper"
-    private const val FORGEJO_TOKEN = "542f58b2385ec79dbdf10015913635087aa579fd"
-    private const val FORGEJO_MANIFEST_URL = "$FORGEJO_LAN_BASE/api/v1/repos/$FORGEJO_REPO/raw/update.json"
     private const val CODEBERG_MANIFEST_URL = "https://codeberg.org/Aaronhrndz/ultra-remapper/raw/branch/main/update.json"
     private const val CODEBERG_RELEASES_API = "https://codeberg.org/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5"
     private val GITHUB_REPOS = listOf("Aaronhrndz/ultra-remapper", "aaronhrnndz/ultra-remapper")
@@ -45,8 +50,55 @@ object UpdateChecker {
     private const val KEY_BETA_CHANNEL = "beta_channel_enabled"
     private const val CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L // 24 hours
 
-    fun getAuthHeaderForUrl(url: String): String? =
-        if (url.startsWith(FORGEJO_LAN_BASE) || url.startsWith(FORGEJO_TAILSCALE_BASE)) "token $FORGEJO_TOKEN" else null
+    private val checkProxyLock = Any()
+    @Volatile private var pendingCheckLatch: CountDownLatch? = null
+    @Volatile private var pendingCheckPayload: String? = null
+
+    @Volatile private var proxyChannelOpenLatch: CountDownLatch? = null
+    @Volatile private var proxyTransferDoneLatch: CountDownLatch? = null
+    @Volatile private var proxyTransferError: String? = null
+    @Volatile private var proxyTransferredFile: File? = null
+    @Volatile private var activeTransferProgressCb: ((Float, String) -> Unit)? = null
+
+    fun onPhoneOtaCheckResponse(payload: String) {
+        pendingCheckPayload = payload
+        pendingCheckLatch?.countDown()
+    }
+
+    fun onPhoneOtaApkError(errorMsg: String) {
+        proxyTransferError = errorMsg.ifBlank { "Error Bluetooth en móvil" }
+        proxyChannelOpenLatch?.countDown()
+        proxyTransferDoneLatch?.countDown()
+    }
+
+    fun onPhoneOtaApkChannelOpened(context: Context, channel: ChannelClient.Channel) {
+        val appCtx = context.applicationContext
+        proxyChannelOpenLatch?.countDown()
+        val suffix = channel.path.removePrefix(CompanionSyncService.PATH_OTA_APK_STREAM_PREFIX)
+        val slashIdx = suffix.lastIndexOf('/')
+        val version = if (slashIdx > 0) suffix.substring(0, slashIdx) else "latest"
+        val expectedSize = if (slashIdx > 0) suffix.substring(slashIdx + 1).toLongOrNull() ?: -1L else -1L
+
+        streamExecutor.execute {
+            val channelClient = Wearable.getChannelClient(appCtx)
+            try {
+                val apkFile = Tasks.await(channelClient.getInputStream(channel), 15, TimeUnit.SECONDS).use { input ->
+                    copyStreamToApkFile(appCtx, input, version, expectedSize, activeTransferProgressCb)
+                }
+                if (apkFile.length() < 100_000L || (expectedSize > 0L && apkFile.length() < expectedSize)) {
+                    proxyTransferError = "APK incompleto (${apkFile.length()}/$expectedSize)"
+                    try { apkFile.delete() } catch (_: Exception) {}
+                } else {
+                    proxyTransferredFile = apkFile
+                }
+            } catch (e: Exception) {
+                proxyTransferError = e.localizedMessage ?: "Error recibiendo APK"
+            } finally {
+                try { Tasks.await(channelClient.close(channel), 5, TimeUnit.SECONDS) } catch (_: Exception) {}
+                proxyTransferDoneLatch?.countDown()
+            }
+        }
+    }
 
     fun isBetaChannel(context: Context): Boolean {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -116,27 +168,28 @@ object UpdateChecker {
         val userAgent = "UltraRemapper/$currentVersion"
 
         executor.execute {
-            val isBeta = isBetaChannel(context)
+            val appCtx = context.applicationContext
+            val isBeta = isBetaChannel(appCtx)
             var best: ReleaseUpdate? = null
+            val wifiNet = findActiveWifiNetwork(appCtx)
 
-            // 1. Private Forgejo OTA Sources FIRST (LAN, then Tailscale/remote, matching Antigravity-on-wear-os)
-            for (originBase in listOf(FORGEJO_LAN_BASE, FORGEJO_TAILSCALE_BASE)) {
-                val apiUrl = "$originBase/api/v1/repos/$FORGEJO_REPO/releases?limit=5"
-                val forgejoBody = fetchUrlText(
+            // 1. Direct Forgejo LAN ONLY when watch has active Wi-Fi
+            if (wifiNet != null) {
+                val apiUrl = "$FORGEJO_LAN_BASE/api/v1/repos/$FORGEJO_REPO/releases?limit=5"
+                fetchUrlText(
                     apiUrl,
                     userAgent,
                     "application/json",
-                    connectTimeoutMs = 3000,
+                    connectTimeoutMs = 2000,
                     readTimeoutMs = 3000,
-                    authHeader = "token $FORGEJO_TOKEN"
-                )
-                forgejoBody?.let { body ->
+                    network = wifiNet
+                )?.let { body ->
                     try {
                         val arr = org.json.JSONArray(body)
                         for (i in 0 until arr.length()) {
                             val obj = arr.optJSONObject(i) ?: continue
                             if (obj.optBoolean("draft", false)) continue
-                            val parsed = parseRelease(obj, FORGEJO_REPO, originBase) ?: continue
+                            val parsed = parseRelease(obj, FORGEJO_REPO, FORGEJO_LAN_BASE) ?: continue
                             if (!isBeta && parsed.isPrerelease) continue
                             best = pickHigherVersion(best, parsed)
                         }
@@ -149,14 +202,16 @@ object UpdateChecker {
                 }
             }
 
-            // 1b. Forgejo raw update.json manifest fallback
-            if (best?.apkDownloadUrl.isNullOrEmpty()) {
-                fetchUrlText(FORGEJO_MANIFEST_URL, userAgent, authHeader = "token $FORGEJO_TOKEN")?.let { body ->
-                    parseManifestUpdate(body, isBeta)?.let { best = pickHigherVersion(best, it) }
+            // 2. Phone Companion Bluetooth OTA Proxy (handles Forgejo LAN & Internet via phone without Wi-Fi/Tailscale on watch)
+            requestPhoneOtaCheck(appCtx, isBeta)?.let { proxyUpdate ->
+                if (!proxyUpdate.apkDownloadUrl.isNullOrEmpty()) {
+                    val checkedUpdate = proxyUpdate.takeIf { isNewerVersion(it.versionName, cleanCurrent) }
+                    mainHandler.post { onResult(checkedUpdate) }
+                    return@execute
                 }
             }
 
-            // 2. Codeberg Master Manifest (update.json)
+            // 3. Public Internet Fallback: Codeberg Manifest, GitHub, Codeberg Releases
             fetchUrlText(CODEBERG_MANIFEST_URL, userAgent)?.let { body ->
                 parseManifestUpdate(body, isBeta)?.let { best = pickHigherVersion(best, it) }
             }
@@ -224,20 +279,75 @@ object UpdateChecker {
         }
     }
 
+    private fun findActiveWifiNetwork(context: Context): Network? {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return null
+        return cm.allNetworks.firstOrNull { net ->
+            cm.getNetworkCapabilities(net)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+        }
+    }
+
+    private fun requestPhoneOtaCheck(context: Context, isBeta: Boolean): ReleaseUpdate? = synchronized(checkProxyLock) {
+        return try {
+            val nodes = Tasks.await(Wearable.getNodeClient(context).connectedNodes, 3, TimeUnit.SECONDS)
+            if (nodes.isNullOrEmpty()) return@synchronized null
+
+            val latch = CountDownLatch(1)
+            pendingCheckPayload = null
+            pendingCheckLatch = latch
+
+            val reqBytes = JSONObject().apply { put("isBeta", isBeta) }.toString().toByteArray(Charsets.UTF_8)
+            val msgClient = Wearable.getMessageClient(context)
+            var sentAny = false
+            for (node in nodes) {
+                try {
+                    Tasks.await(msgClient.sendMessage(node.id, CompanionSyncService.PATH_OTA_CHECK_REQ, reqBytes), 4, TimeUnit.SECONDS)
+                    sentAny = true
+                } catch (_: Exception) {}
+            }
+            if (!sentAny) {
+                pendingCheckLatch = null
+                return@synchronized null
+            }
+
+            latch.await(6, TimeUnit.SECONDS)
+            val rawPayload = pendingCheckPayload
+            pendingCheckLatch = null
+            if (rawPayload.isNullOrBlank()) return@synchronized null
+
+            val obj = JSONObject(rawPayload)
+            if (!obj.optBoolean("found", false)) return@synchronized null
+            val ver = obj.optString("versionName", "").trim()
+            val apkUrl = obj.optString("apkDownloadUrl", "").takeIf { it.isNotEmpty() }
+            if (ver.isEmpty() || apkUrl == null) return@synchronized null
+            ReleaseUpdate(
+                versionName = ver,
+                htmlUrl = obj.optString("htmlUrl", FORGEJO_LAN_BASE),
+                apkDownloadUrl = apkUrl,
+                releaseNotes = obj.optString("releaseNotes", ""),
+                isPrerelease = obj.optBoolean("isPrerelease", false),
+                viaPhoneProxy = true
+            )
+        } catch (_: Exception) {
+            pendingCheckLatch = null
+            null
+        }
+    }
+
     private fun fetchUrlText(
         urlStr: String,
         userAgent: String,
         accept: String? = null,
         connectTimeoutMs: Int = 3000,
         readTimeoutMs: Int = 3000,
-        authHeader: String? = getAuthHeaderForUrl(urlStr)
+        network: Network? = null
     ): String? {
         var conn: HttpURLConnection? = null
         return try {
-            conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+            val url = URL(urlStr)
+            val rawConn = if (network != null) network.openConnection(url) else url.openConnection()
+            conn = (rawConn as HttpURLConnection).apply {
                 requestMethod = "GET"
                 if (accept != null) setRequestProperty("Accept", accept)
-                if (authHeader != null) setRequestProperty("Authorization", authHeader)
                 setRequestProperty("User-Agent", userAgent)
                 connectTimeout = connectTimeoutMs
                 readTimeout = readTimeoutMs
@@ -342,58 +452,45 @@ object UpdateChecker {
         }
 
         executor.execute {
-            val connectivityManager = appCtx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-            var activeNetwork: Network? = null
-            var networkCallback: ConnectivityManager.NetworkCallback? = null
-            val networkWaitLatch = java.util.concurrent.CountDownLatch(1)
-
-            if (connectivityManager != null) {
-                try {
-                    val request = NetworkRequest.Builder()
-                        .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-                        .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                        .build()
-
-                    val callback = object : ConnectivityManager.NetworkCallback() {
-                        override fun onAvailable(network: Network) {
-                            activeNetwork = network
-                            networkWaitLatch.countDown()
-                        }
-                        override fun onUnavailable() {
-                            networkWaitLatch.countDown()
-                        }
-                    }
-                    networkCallback = callback
-                    connectivityManager.requestNetwork(request, callback, 5000)
-                    networkWaitLatch.await(5, java.util.concurrent.TimeUnit.SECONDS)
-                } catch (_: Throwable) {
-                    // Fallback to default network route if Wi-Fi request fails
-                }
+            val pm = appCtx.getSystemService(Context.POWER_SERVICE) as? PowerManager
+            val wakeLock = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ultraremapper:ota_download")?.apply {
+                setReferenceCounted(false)
+                try { acquire(5 * 60 * 1000L) } catch (_: Throwable) {}
             }
-
             try {
                 mainHandler.post { onProgress(0f, appCtx.getString(R.string.update_downloading)) }
-                val attempts = buildDownloadAttempts(apkUrl, activeNetwork)
-                var lastError: Exception? = null
-                var succeeded = false
-                for ((candidateUrl, candidateNetwork, candidateConnectTimeout) in attempts) {
-                    try {
-                        val conn = openDownloadConnection(candidateUrl, candidateNetwork, candidateConnectTimeout)
-                        if (conn.responseCode == 200) {
-                            installFromConnection(appCtx, conn, update.versionName, onProgress)
-                            succeeded = true
-                            break
-                        } else {
-                            val code = conn.responseCode
-                            try { conn.disconnect() } catch (_: Exception) {}
-                            lastError = java.io.IOException("HTTP $code")
-                        }
-                    } catch (e: Exception) {
-                        lastError = e
+                val wifiNet = findActiveWifiNetwork(appCtx)
+                val usePhoneProxy = update.viaPhoneProxy ||
+                    (wifiNet == null && apkUrl.startsWith(FORGEJO_LAN_BASE))
+
+                if (usePhoneProxy) {
+                    downloadViaPhoneProxy(appCtx, update, apkUrl, onProgress)
+                } else {
+                    val networksToTry = buildList {
+                        if (wifiNet != null) add(wifiNet)
+                        add(null)
                     }
-                }
-                if (!succeeded && lastError != null) {
-                    throw lastError
+                    var lastError: Exception? = null
+                    var succeeded = false
+                    for (net in networksToTry) {
+                        try {
+                            val conn = openDownloadConnection(apkUrl, net, 12000)
+                            if (conn.responseCode == 200) {
+                                installFromConnection(appCtx, conn, update.versionName, onProgress)
+                                succeeded = true
+                                break
+                            } else {
+                                val code = conn.responseCode
+                                try { conn.disconnect() } catch (_: Exception) {}
+                                lastError = java.io.IOException("HTTP $code")
+                            }
+                        } catch (e: Exception) {
+                            lastError = e
+                        }
+                    }
+                    if (!succeeded && lastError != null) {
+                        throw lastError
+                    }
                 }
             } catch (e: Exception) {
                 mainHandler.post {
@@ -401,33 +498,62 @@ object UpdateChecker {
                     onProgress(0f, "")
                 }
             } finally {
-                if (networkCallback != null && connectivityManager != null) {
-                    try {
-                        connectivityManager.unregisterNetworkCallback(networkCallback)
-                    } catch (_: Throwable) {}
-                }
+                try { if (wakeLock?.isHeld == true) wakeLock.release() } catch (_: Throwable) {}
             }
         }
     }
 
-    private fun buildDownloadAttempts(apkUrl: String, activeNetwork: Network?): List<Triple<String, Network?, Int>> {
-        val altUrl = when {
-            apkUrl.startsWith(FORGEJO_LAN_BASE) -> apkUrl.replaceFirst(FORGEJO_LAN_BASE, FORGEJO_TAILSCALE_BASE)
-            apkUrl.startsWith(FORGEJO_TAILSCALE_BASE) -> apkUrl.replaceFirst(FORGEJO_TAILSCALE_BASE, FORGEJO_LAN_BASE)
-            else -> null
+    private fun downloadViaPhoneProxy(
+        appCtx: Context,
+        update: ReleaseUpdate,
+        apkUrl: String,
+        onProgress: (Float, String) -> Unit
+    ) {
+        val nodes = Tasks.await(Wearable.getNodeClient(appCtx).connectedNodes, 4, TimeUnit.SECONDS)
+        if (nodes.isNullOrEmpty()) {
+            throw java.io.IOException("Móvil desconectado")
         }
-        if (altUrl == null) {
-            return buildList {
-                if (activeNetwork != null) add(Triple(apkUrl, activeNetwork, 15000))
-                add(Triple(apkUrl, null, 15000))
+
+        val openLatch = CountDownLatch(1)
+        val doneLatch = CountDownLatch(1)
+        proxyTransferError = null
+        proxyTransferredFile = null
+        activeTransferProgressCb = onProgress
+        proxyChannelOpenLatch = openLatch
+        proxyTransferDoneLatch = doneLatch
+
+        try {
+            val reqBytes = JSONObject().apply {
+                put("apkUrl", apkUrl)
+                put("versionName", update.versionName)
+            }.toString().toByteArray(Charsets.UTF_8)
+
+            val msgClient = Wearable.getMessageClient(appCtx)
+            var sent = false
+            for (node in nodes) {
+                try {
+                    Tasks.await(msgClient.sendMessage(node.id, CompanionSyncService.PATH_OTA_APK_REQ, reqBytes), 5, TimeUnit.SECONDS)
+                    sent = true
+                } catch (_: Exception) {}
             }
-        }
-        val candidates = listOf(apkUrl, altUrl).distinct()
-        return buildList {
-            if (activeNetwork != null) {
-                for (u in candidates) add(Triple(u, activeNetwork, 8000))
+            if (!sent) throw java.io.IOException("No se pudo contactar con móvil")
+
+            if (!openLatch.await(25, TimeUnit.SECONDS)) {
+                throw java.io.IOException("Tiempo agotado esperando APK del móvil")
             }
-            for (u in candidates) add(Triple(u, null, 12000))
+            proxyTransferError?.let { throw java.io.IOException(it) }
+
+            if (!doneLatch.await(5, TimeUnit.MINUTES)) {
+                throw java.io.IOException("Transferencia Bluetooth agotada")
+            }
+            proxyTransferError?.let { throw java.io.IOException(it) }
+
+            val apkFile = proxyTransferredFile ?: throw java.io.IOException("APK no recibida")
+            launchApkInstaller(appCtx, apkFile, onProgress)
+        } finally {
+            activeTransferProgressCb = null
+            proxyChannelOpenLatch = null
+            proxyTransferDoneLatch = null
         }
     }
 
@@ -442,7 +568,6 @@ object UpdateChecker {
                 connectTimeout = connectTimeoutMs
                 readTimeout = 30000
                 setRequestProperty("User-Agent", "UltraRemapper-OTA")
-                getAuthHeaderForUrl(currentUrl)?.let { setRequestProperty("Authorization", it) }
             }
             if (conn.responseCode in 300..399 && redirects < 4) {
                 val redirectUrl = conn.getHeaderField("Location")
@@ -457,42 +582,57 @@ object UpdateChecker {
         }
     }
 
+    private fun copyStreamToApkFile(
+        context: Context,
+        input: InputStream,
+        version: String,
+        totalLength: Long,
+        onProgress: ((Float, String) -> Unit)?
+    ): File {
+        val cacheDir = File(context.cacheDir, "updates").apply { mkdirs() }
+        cacheDir.listFiles()?.forEach { file ->
+            try { file.delete() } catch (_: Exception) {}
+        }
+        val apkFile = File(cacheDir, "ultra-remapper-v$version.apk")
+        var downloaded = 0L
+        var lastProgressUpdate = 0L
+        apkFile.outputStream().use { output ->
+            val buffer = ByteArray(32 * 1024)
+            var bytesRead: Int
+            while (input.read(buffer).also { bytesRead = it } != -1) {
+                output.write(buffer, 0, bytesRead)
+                downloaded += bytesRead
+                val now = System.currentTimeMillis()
+                if (now - lastProgressUpdate > 100L && onProgress != null) {
+                    lastProgressUpdate = now
+                    val fraction = if (totalLength > 0) downloaded.toFloat() / totalLength.toFloat() else 0f
+                    val percent = if (totalLength > 0) (fraction * 100).toInt().coerceIn(0, 100) else 0
+                    val status = if (totalLength > 0) "$percent%" else "${downloaded / 1024} KB"
+                    mainHandler.post { onProgress(fraction, status) }
+                }
+            }
+        }
+        return apkFile
+    }
+
     private fun installFromConnection(
         context: Context,
         conn: HttpURLConnection,
         version: String,
         onProgress: (progressFraction: Float, statusText: String) -> Unit
     ) {
-        val cacheDir = File(context.cacheDir, "updates").apply { mkdirs() }
-        // Clean up any old, leftover or partial APKs from previous update attempts to preserve flash storage
-        cacheDir.listFiles()?.forEach { file ->
-            try { file.delete() } catch (_: Exception) {}
-        }
-        val apkFile = File(cacheDir, "ultra-remapper-v$version.apk")
-
         val totalLength = conn.contentLength.toLong()
-        var downloaded = 0L
-
-        conn.inputStream.use { input ->
-            apkFile.outputStream().use { output ->
-                val buffer = ByteArray(8192)
-                var bytesRead: Int
-                var lastProgressUpdate = 0L
-                while (input.read(buffer).also { bytesRead = it } != -1) {
-                    output.write(buffer, 0, bytesRead)
-                    downloaded += bytesRead
-                    val now = System.currentTimeMillis()
-                    if (now - lastProgressUpdate > 100L) {
-                        lastProgressUpdate = now
-                        val fraction = if (totalLength > 0) downloaded.toFloat() / totalLength.toFloat() else 0f
-                        val percent = if (totalLength > 0) (fraction * 100).toInt() else 0
-                        val status = if (totalLength > 0) "$percent%" else "${downloaded / 1024} KB"
-                        mainHandler.post { onProgress(fraction, status) }
-                    }
-                }
-            }
+        val apkFile = conn.inputStream.use { input ->
+            copyStreamToApkFile(context, input, version, totalLength, onProgress)
         }
+        launchApkInstaller(context, apkFile, onProgress)
+    }
 
+    private fun launchApkInstaller(
+        context: Context,
+        apkFile: File,
+        onProgress: (progressFraction: Float, statusText: String) -> Unit
+    ) {
         mainHandler.post {
             onProgress(1f, context.getString(R.string.update_launching))
             try {

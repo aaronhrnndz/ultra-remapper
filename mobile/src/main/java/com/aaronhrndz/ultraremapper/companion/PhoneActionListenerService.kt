@@ -23,24 +23,39 @@ import android.provider.MediaStore
 import android.view.KeyEvent
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import com.google.android.gms.tasks.Tasks
+import com.google.android.gms.wearable.ChannelClient
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.MessageEvent
+import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
 import org.json.JSONObject
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * Pure event-driven WearableListenerService on the Phone.
  * Zero idle battery usage: Android OS wakes this service only when the user presses
- * a button mapped to a Phone Action on the watch.
+ * a button mapped to a Phone Action on the watch, or when the watch requests an OTA proxy check/transfer.
  */
 class PhoneActionListenerService : WearableListenerService() {
 
     override fun onMessageReceived(event: MessageEvent) {
         super.onMessageReceived(event)
-        if (event.path == PATH_PHONE_ACTION) {
-            val payload = String(event.data, Charsets.UTF_8).trim()
-            executePhoneAction(applicationContext, payload)
+        when (event.path) {
+            PATH_PHONE_ACTION -> {
+                val payload = String(event.data, Charsets.UTF_8).trim()
+                executePhoneAction(applicationContext, payload)
+            }
+            PATH_OTA_CHECK_REQ -> {
+                val payload = String(event.data, Charsets.UTF_8).trim()
+                handleOtaCheckRequest(applicationContext, event.sourceNodeId, payload)
+            }
+            PATH_OTA_APK_REQ -> {
+                val payload = String(event.data, Charsets.UTF_8).trim()
+                handleOtaApkRequest(applicationContext, event.sourceNodeId, payload)
+            }
         }
     }
 
@@ -62,9 +77,168 @@ class PhoneActionListenerService : WearableListenerService() {
 
     companion object {
         const val PATH_PHONE_ACTION = "/ultra_remapper/phone_action"
+        const val PATH_OTA_CHECK_REQ = "/ultra_remapper/ota_check_req"
+        const val PATH_OTA_CHECK_RES = "/ultra_remapper/ota_check_res"
+        const val PATH_OTA_APK_REQ = "/ultra_remapper/ota_apk_req"
+        const val PATH_OTA_APK_ERR = "/ultra_remapper/ota_apk_err"
+        const val PATH_OTA_APK_STREAM_PREFIX = "/ultra_remapper/ota_apk_stream/"
         private const val ACTION_STOP_FIND_PHONE = "com.aaronhrndz.ultraremapper.STOP_FIND_PHONE"
         private const val FIND_NOTIF_CHANNEL_ID = "find_my_phone_channel"
         private const val FIND_NOTIF_ID = 9401
+
+        private val otaExecutor = Executors.newSingleThreadExecutor()
+        @Volatile
+        private var otaWakeLock: PowerManager.WakeLock? = null
+
+        private fun acquireOtaWakeLock(context: Context, timeoutMs: Long) {
+            try {
+                val pm = context.getSystemService(PowerManager::class.java) ?: return
+                val wl = otaWakeLock ?: pm.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "UltraRemapper:OtaProxyWakeLock"
+                ).apply {
+                    setReferenceCounted(false)
+                    otaWakeLock = this
+                }
+                wl.acquire(timeoutMs)
+            } catch (_: Exception) {}
+        }
+
+        private fun releaseOtaWakeLock() {
+            try {
+                if (otaWakeLock?.isHeld == true) otaWakeLock?.release()
+            } catch (_: Exception) {}
+        }
+
+        private fun handleOtaCheckRequest(context: Context, sourceNodeId: String, payloadStr: String) {
+            val appCtx = context.applicationContext
+            acquireOtaWakeLock(appCtx, 15_000L)
+            val isBeta = try {
+                JSONObject(payloadStr).optBoolean("isBeta", false)
+            } catch (_: Exception) {
+                UpdateChecker.isBetaChannel(appCtx)
+            }
+            otaExecutor.execute {
+                try {
+                    UpdateChecker.checkAll(appCtx, isBetaOverride = isBeta) { _, latestRel ->
+                        otaExecutor.execute {
+                            try {
+                                val watchApk = latestRel?.watchApkUrl?.takeIf {
+                                    it.isNotBlank() && !it.startsWith("asset://")
+                                }
+                                val resObj = JSONObject().apply {
+                                    if (latestRel != null && watchApk != null) {
+                                        put("found", true)
+                                        put("versionName", latestRel.versionName)
+                                        put("htmlUrl", latestRel.htmlUrl)
+                                        put("apkDownloadUrl", watchApk)
+                                        put("releaseNotes", latestRel.releaseNotes)
+                                        put("isPrerelease", latestRel.isPrerelease)
+                                    } else {
+                                        put("found", false)
+                                    }
+                                }
+                                Tasks.await(
+                                    Wearable.getMessageClient(appCtx).sendMessage(
+                                        sourceNodeId,
+                                        PATH_OTA_CHECK_RES,
+                                        resObj.toString().toByteArray(Charsets.UTF_8)
+                                    ),
+                                    10,
+                                    TimeUnit.SECONDS
+                                )
+                            } catch (_: Exception) {
+                            } finally {
+                                releaseOtaWakeLock()
+                            }
+                        }
+                    }
+                } catch (_: Exception) {
+                    releaseOtaWakeLock()
+                }
+            }
+        }
+
+        private fun handleOtaApkRequest(context: Context, sourceNodeId: String, payloadStr: String) {
+            val appCtx = context.applicationContext
+            acquireOtaWakeLock(appCtx, 180_000L)
+            val obj = try { JSONObject(payloadStr) } catch (_: Exception) { null }
+            val apkUrl = obj?.optString("apkUrl", "")?.trim().orEmpty()
+            val versionName = obj?.optString("versionName", "latest")?.trim()
+                ?.replace("/", "_")
+                ?.ifBlank { "latest" } ?: "latest"
+
+            fun sendApkError(msg: String) {
+                otaExecutor.execute {
+                    try {
+                        Tasks.await(
+                            Wearable.getMessageClient(appCtx).sendMessage(
+                                sourceNodeId,
+                                PATH_OTA_APK_ERR,
+                                msg.toByteArray(Charsets.UTF_8)
+                            ),
+                            10,
+                            TimeUnit.SECONDS
+                        )
+                    } catch (_: Exception) {
+                    } finally {
+                        releaseOtaWakeLock()
+                    }
+                }
+            }
+
+            if (apkUrl.isEmpty() || apkUrl.startsWith("asset://")) {
+                sendApkError("URL OTA inválida")
+                return
+            }
+
+            UpdateChecker.downloadApkToFile(
+                context = appCtx,
+                apkUrl = apkUrl,
+                targetFileName = "watch_proxy_v$versionName.apk",
+                onProgress = { _, _ -> }
+            ) { apkFile ->
+                if (apkFile == null || !apkFile.exists() || apkFile.length() < 100_000L) {
+                    try { apkFile?.delete() } catch (_: Exception) {}
+                    sendApkError("Error descargando APK en móvil")
+                    return@downloadApkToFile
+                }
+                otaExecutor.execute {
+                    val channelClient = Wearable.getChannelClient(appCtx)
+                    var channel: ChannelClient.Channel? = null
+                    try {
+                        val streamPath = "$PATH_OTA_APK_STREAM_PREFIX$versionName/${apkFile.length()}"
+                        channel = Tasks.await(channelClient.openChannel(sourceNodeId, streamPath), 20, TimeUnit.SECONDS)
+                        Tasks.await(channelClient.getOutputStream(channel), 15, TimeUnit.SECONDS).use { out ->
+                            apkFile.inputStream().use { input ->
+                                val buf = ByteArray(32 * 1024)
+                                var read: Int
+                                while (input.read(buf).also { read = it } != -1) {
+                                    out.write(buf, 0, read)
+                                }
+                                out.flush()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        try {
+                            Tasks.await(
+                                Wearable.getMessageClient(appCtx).sendMessage(
+                                    sourceNodeId,
+                                    PATH_OTA_APK_ERR,
+                                    (e.localizedMessage ?: "Error Bluetooth").toByteArray(Charsets.UTF_8)
+                                ),
+                                10,
+                                TimeUnit.SECONDS
+                            )
+                        } catch (_: Exception) {}
+                    } finally {
+                        try { if (channel != null) Tasks.await(channelClient.close(channel), 5, TimeUnit.SECONDS) } catch (_: Exception) {}
+                        try { apkFile.delete() } catch (_: Exception) {}
+                        releaseOtaWakeLock()
+                    }
+                }
+            }
+        }
 
         private val mainHandler = Handler(Looper.getMainLooper())
         private val dedupLock = Any()

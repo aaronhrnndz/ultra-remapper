@@ -324,7 +324,7 @@ class MainActivity : ComponentActivity() {
 
                     LaunchedEffect(Unit) {
                         UpdateChecker.check(context) { info ->
-                            updateInfo = info
+                            if (info != null) updateInfo = info
                         }
                         installedApps = withContext(Dispatchers.IO) {
                             val pm = context.packageManager
@@ -359,7 +359,7 @@ class MainActivity : ComponentActivity() {
                                 setup = readSetupState(context)
                                 CompanionSyncService.syncStateToDataLayer(context, includeApps = false)
                                 UpdateChecker.check(context) { info ->
-                                    updateInfo = info
+                                    if (info != null) updateInfo = info
                                 }
                             }
                         }
@@ -368,7 +368,7 @@ class MainActivity : ComponentActivity() {
                                 setup = readSetupState(context)
                                 mappingVersion++
                                 UpdateChecker.check(context) { info ->
-                                    updateInfo = info
+                                    if (info != null) updateInfo = info
                                 }
                             }
                         }
@@ -2034,10 +2034,16 @@ private fun UpdateDetailsScreen(
     }
 
     val context = LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
     var downloadProgress by remember { mutableStateOf("") }
     var downloadFraction by remember { mutableFloatStateOf(0f) }
     var autoStarted by remember { mutableStateOf(false) }
     val isDownloading = downloadProgress.isNotEmpty()
+
+    DisposableEffect(isDownloading) {
+        view.keepScreenOn = isDownloading
+        onDispose { view.keepScreenOn = false }
+    }
 
     LaunchedEffect(autoStartInstall, update) {
         if (autoStartInstall && !autoStarted && !isDownloading) {

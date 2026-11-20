@@ -686,13 +686,25 @@ fun SettingsScreen(
             // Manual OTA Check Button
             item(key = "check_update_btn") {
                 var isCheckingOta by remember { mutableStateOf(false) }
+                var isDownloadingOta by remember { mutableStateOf(false) }
                 var foundUpdate by remember { mutableStateOf<com.aaronhrndz.ultraremapper.ReleaseUpdate?>(null) }
                 var otaStatus by remember { mutableStateOf("Toca para comprobar") }
                 Button(
                     onClick = {
                         val upd = foundUpdate
                         if (upd != null) {
-                            UpdateChecker.downloadAndInstallOnWatch(context, upd)
+                            if (!isDownloadingOta) {
+                                isDownloadingOta = true
+                                otaStatus = "Conectando..."
+                                UpdateChecker.downloadAndInstallOnWatch(context, upd) { _, status ->
+                                    if (status.isEmpty()) {
+                                        isDownloadingOta = false
+                                        otaStatus = "Nueva v${upd.versionName} (toca para instalar)"
+                                    } else {
+                                        otaStatus = status
+                                    }
+                                }
+                            }
                         } else if (!isCheckingOta) {
                             isCheckingOta = true
                             otaStatus = "Buscando..."
@@ -705,7 +717,19 @@ fun SettingsScreen(
                     },
                     label = { Text("Buscar actualización", maxLines = 1, modifier = Modifier.basicMarquee()) },
                     secondaryLabel = { Text(otaStatus, maxLines = 1, modifier = Modifier.basicMarquee()) },
-                    colors = if (foundUpdate != null) ButtonDefaults.buttonColors(containerColor = UltraOrange) else ButtonDefaults.buttonColors(containerColor = Color(0xFF282E38)),
+                    colors = if (foundUpdate != null) {
+                        ButtonDefaults.buttonColors(
+                            containerColor = UltraOrange,
+                            contentColor = Color.White,
+                            secondaryContentColor = Color.White.copy(alpha = 0.9f)
+                        )
+                    } else {
+                        ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF282E38),
+                            contentColor = Color.White,
+                            secondaryContentColor = Color(0xFF9EA7B8)
+                        )
+                    },
                     transformation = SurfaceTransformation(transformationSpec),
                     modifier = Modifier
                         .fillMaxWidth()
