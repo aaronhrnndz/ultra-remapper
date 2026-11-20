@@ -566,14 +566,14 @@ class MainActivity : ComponentActivity() {
                         composable("dev_options") {
                             DevOptionsScreen(
                                 onDone = {
-                                    UpdateChecker.check(context) { info ->
-                                        updateInfo = info
+                                    UpdateChecker.check(context, force = true) { info ->
+                                        if (info != null) updateInfo = info
                                     }
                                     nav.popBackStack()
                                 },
                                 onBetaChanged = {
-                                    UpdateChecker.check(context) { info ->
-                                        updateInfo = info
+                                    UpdateChecker.check(context, force = true) { info ->
+                                        if (info != null) updateInfo = info
                                     }
                                 }
                             )

@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.os.PowerManager
 import android.provider.Settings
 import com.aaronhrndz.ultraremapper.adb.AdbLocalManager
-import com.google.android.gms.wearable.ChannelClient
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.MessageEvent
@@ -21,7 +20,7 @@ import java.util.concurrent.Executors
 /**
  * Bidirectional Bluetooth / DataLayer bridge between Watch and Phone Companion.
  * Publishes watch state to `/ultra_remapper/state` DataItem and handles
- * instant remote commands (`/ultra_remapper/cmd`) and OTA proxy transfers over Bluetooth.
+ * instant remote commands (`/ultra_remapper/cmd`) from the phone without requiring ADB.
  */
 class CompanionSyncService : WearableListenerService() {
 
@@ -36,19 +35,6 @@ class CompanionSyncService : WearableListenerService() {
                 val payload = String(event.data, Charsets.UTF_8)
                 handlePhoneCommand(applicationContext, payload, sourceNodeId = event.sourceNodeId)
             }
-            PATH_OTA_CHECK_RES -> {
-                UpdateChecker.onPhoneOtaCheckResponse(String(event.data, Charsets.UTF_8))
-            }
-            PATH_OTA_APK_ERR -> {
-                UpdateChecker.onPhoneOtaApkError(String(event.data, Charsets.UTF_8))
-            }
-        }
-    }
-
-    override fun onChannelOpened(channel: ChannelClient.Channel) {
-        super.onChannelOpened(channel)
-        if (channel.path.startsWith(PATH_OTA_APK_STREAM_PREFIX)) {
-            UpdateChecker.onPhoneOtaApkChannelOpened(applicationContext, channel)
         }
     }
 
@@ -76,11 +62,6 @@ class CompanionSyncService : WearableListenerService() {
         const val PATH_REQUEST_SYNC = "/ultra_remapper/request_sync"
         const val PATH_CMD = "/ultra_remapper/cmd"
         const val PATH_PHONE_ACTION = "/ultra_remapper/phone_action"
-        const val PATH_OTA_CHECK_REQ = "/ultra_remapper/ota_check_req"
-        const val PATH_OTA_CHECK_RES = "/ultra_remapper/ota_check_res"
-        const val PATH_OTA_APK_REQ = "/ultra_remapper/ota_apk_req"
-        const val PATH_OTA_APK_ERR = "/ultra_remapper/ota_apk_err"
-        const val PATH_OTA_APK_STREAM_PREFIX = "/ultra_remapper/ota_apk_stream/"
         const val ACTION_STATE_UPDATED = "com.aaronhrndz.ultraremapper.ACTION_STATE_UPDATED"
 
         private val executor = Executors.newSingleThreadExecutor()

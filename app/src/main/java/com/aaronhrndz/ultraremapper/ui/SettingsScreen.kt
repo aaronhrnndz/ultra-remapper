@@ -708,7 +708,7 @@ fun SettingsScreen(
                         } else if (!isCheckingOta) {
                             isCheckingOta = true
                             otaStatus = "Buscando..."
-                            UpdateChecker.check(context) { info ->
+                            UpdateChecker.check(context, force = true) { info ->
                                 isCheckingOta = false
                                 foundUpdate = info
                                 otaStatus = if (info != null) "Nueva v${info.versionName} (toca para instalar)" else "Al día"

@@ -56,11 +56,10 @@ object UpdateChecker {
      */
     fun checkAll(
         context: Context,
-        isBetaOverride: Boolean? = null,
         onResult: (companionUpdate: ReleaseUpdate?, latestRelease: ReleaseUpdate?) -> Unit
     ) {
         val appContext = context.applicationContext
-        val isBeta = isBetaOverride ?: isBetaChannel(appContext)
+        val isBeta = isBetaChannel(appContext)
         val currentVersion = try {
             appContext.packageManager.getPackageInfo(appContext.packageName, 0).versionName ?: "1.0.0"
         } catch (_: Exception) {

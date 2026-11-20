@@ -7,15 +7,16 @@ import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.provider.Settings
 import android.widget.Toast
 import androidx.wear.remote.interactions.RemoteActivityHelper
-import com.google.android.gms.tasks.Tasks
-import com.google.android.gms.wearable.ChannelClient
-import com.google.android.gms.wearable.Wearable
+import com.aaronhrndz.ultraremapper.adb.LocalAdbClient
 import org.json.JSONObject
 import java.io.File
 import java.io.InputStream
@@ -30,13 +31,11 @@ data class ReleaseUpdate(
     val htmlUrl: String,
     val apkDownloadUrl: String?,
     val releaseNotes: String,
-    val isPrerelease: Boolean = false,
-    val viaPhoneProxy: Boolean = false
+    val isPrerelease: Boolean = false
 )
 
 object UpdateChecker {
     private val executor = Executors.newCachedThreadPool()
-    private val streamExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private const val FORGEJO_LAN_BASE = "http://192.168.1.8:3000"
     private const val FORGEJO_REPO = "Aaronhrndz/ultra-remapper"
@@ -49,56 +48,20 @@ object UpdateChecker {
     private const val KEY_NOTIFIED_VER = "last_notified_version"
     private const val KEY_BETA_CHANNEL = "beta_channel_enabled"
     private const val CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L // 24 hours
+    private const val AUTO_CHECK_COOLDOWN_MS = 15_000L
 
-    private val checkProxyLock = Any()
-    @Volatile private var pendingCheckLatch: CountDownLatch? = null
-    @Volatile private var pendingCheckPayload: String? = null
+    private val checkStateLock = Any()
+    private var isCheckInFlight = false
+    private val inFlightCallbacks = mutableListOf<(ReleaseUpdate?) -> Unit>()
+    private var lastCompletedCheckAtMs = 0L
+    private var lastCompletedCheckUpdate: ReleaseUpdate? = null
 
-    @Volatile private var proxyChannelOpenLatch: CountDownLatch? = null
-    @Volatile private var proxyTransferDoneLatch: CountDownLatch? = null
-    @Volatile private var proxyTransferError: String? = null
-    @Volatile private var proxyTransferredFile: File? = null
-    @Volatile private var activeTransferProgressCb: ((Float, String) -> Unit)? = null
-
-    fun onPhoneOtaCheckResponse(payload: String) {
-        pendingCheckPayload = payload
-        pendingCheckLatch?.countDown()
-    }
-
-    fun onPhoneOtaApkError(errorMsg: String) {
-        proxyTransferError = errorMsg.ifBlank { "Error Bluetooth en móvil" }
-        proxyChannelOpenLatch?.countDown()
-        proxyTransferDoneLatch?.countDown()
-    }
-
-    fun onPhoneOtaApkChannelOpened(context: Context, channel: ChannelClient.Channel) {
-        val appCtx = context.applicationContext
-        proxyChannelOpenLatch?.countDown()
-        val suffix = channel.path.removePrefix(CompanionSyncService.PATH_OTA_APK_STREAM_PREFIX)
-        val slashIdx = suffix.lastIndexOf('/')
-        val version = if (slashIdx > 0) suffix.substring(0, slashIdx) else "latest"
-        val expectedSize = if (slashIdx > 0) suffix.substring(slashIdx + 1).toLongOrNull() ?: -1L else -1L
-
-        streamExecutor.execute {
-            val channelClient = Wearable.getChannelClient(appCtx)
-            try {
-                val apkFile = Tasks.await(channelClient.getInputStream(channel), 15, TimeUnit.SECONDS).use { input ->
-                    copyStreamToApkFile(appCtx, input, version, expectedSize, activeTransferProgressCb)
-                }
-                if (apkFile.length() < 100_000L || (expectedSize > 0L && apkFile.length() < expectedSize)) {
-                    proxyTransferError = "APK incompleto (${apkFile.length()}/$expectedSize)"
-                    try { apkFile.delete() } catch (_: Exception) {}
-                } else {
-                    proxyTransferredFile = apkFile
-                }
-            } catch (e: Exception) {
-                proxyTransferError = e.localizedMessage ?: "Error recibiendo APK"
-            } finally {
-                try { Tasks.await(channelClient.close(channel), 5, TimeUnit.SECONDS) } catch (_: Exception) {}
-                proxyTransferDoneLatch?.countDown()
-            }
-        }
-    }
+    private val wifiStateLock = Any()
+    private var wifiRefCount = 0
+    private var savedWifiMediator = 0
+    private var savedWifiOn = 1
+    private var savedWifiEnabled = true
+    private var modifiedWifiSettings = false
 
     fun isBetaChannel(context: Context): Boolean {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -158,103 +121,122 @@ object UpdateChecker {
         }
     }
 
-    fun check(context: Context, onResult: (ReleaseUpdate?) -> Unit) {
+    fun check(context: Context, force: Boolean = false, onResult: (ReleaseUpdate?) -> Unit) {
+        val appCtx = context.applicationContext
         val currentVersion = try {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.0.0"
+            appCtx.packageManager.getPackageInfo(appCtx.packageName, 0).versionName ?: "0.0.0"
         } catch (e: Exception) {
             "0.0.0"
         }
         val cleanCurrent = currentVersion.removePrefix("v")
         val userAgent = "UltraRemapper/$currentVersion"
 
+        synchronized(checkStateLock) {
+            if (!force) {
+                if (isCheckInFlight) {
+                    inFlightCallbacks.add(onResult)
+                    return
+                }
+                val now = System.currentTimeMillis()
+                if (lastCompletedCheckAtMs > 0L && (now - lastCompletedCheckAtMs) < AUTO_CHECK_COOLDOWN_MS) {
+                    val cached = lastCompletedCheckUpdate?.takeIf { isNewerVersion(it.versionName, cleanCurrent) }
+                    mainHandler.post { onResult(cached) }
+                    return
+                }
+            }
+            isCheckInFlight = true
+            inFlightCallbacks.add(onResult)
+        }
+
         executor.execute {
-            val appCtx = context.applicationContext
-            val isBeta = isBetaChannel(appCtx)
-            var best: ReleaseUpdate? = null
-            val wifiNet = findActiveWifiNetwork(appCtx)
+            val finalUpdate: ReleaseUpdate? = try {
+                val isBeta = isBetaChannel(appCtx)
+                var best: ReleaseUpdate? = null
 
-            // 1. Direct Forgejo LAN ONLY when watch has active Wi-Fi
-            if (wifiNet != null) {
-                val apiUrl = "$FORGEJO_LAN_BASE/api/v1/repos/$FORGEJO_REPO/releases?limit=5"
-                fetchUrlText(
-                    apiUrl,
-                    userAgent,
-                    "application/json",
-                    connectTimeoutMs = 2000,
-                    readTimeoutMs = 3000,
-                    network = wifiNet
-                )?.let { body ->
-                    try {
-                        val arr = org.json.JSONArray(body)
-                        for (i in 0 until arr.length()) {
-                            val obj = arr.optJSONObject(i) ?: continue
-                            if (obj.optBoolean("draft", false)) continue
-                            val parsed = parseRelease(obj, FORGEJO_REPO, FORGEJO_LAN_BASE) ?: continue
-                            if (!isBeta && parsed.isPrerelease) continue
-                            best = pickHigherVersion(best, parsed)
+                // 1. Wake temporary Wi-Fi if not outdoors on standalone LTE -> check Forgejo LAN directly
+                withTemporaryWifi(appCtx, timeoutMs = 12_000L) { wifiNet ->
+                    if (wifiNet != null) {
+                        val apiUrl = "$FORGEJO_LAN_BASE/api/v1/repos/$FORGEJO_REPO/releases?limit=5"
+                        fetchUrlText(
+                            apiUrl,
+                            userAgent,
+                            "application/json",
+                            connectTimeoutMs = 2500,
+                            readTimeoutMs = 3500,
+                            network = wifiNet
+                        )?.let { body ->
+                            try {
+                                val arr = org.json.JSONArray(body)
+                                for (i in 0 until arr.length()) {
+                                    val obj = arr.optJSONObject(i) ?: continue
+                                    if (obj.optBoolean("draft", false)) continue
+                                    val parsed = parseRelease(obj, FORGEJO_REPO, FORGEJO_LAN_BASE) ?: continue
+                                    if (!isBeta && parsed.isPrerelease) continue
+                                    best = pickHigherVersion(best, parsed)
+                                }
+                            } catch (_: Exception) {}
                         }
-                    } catch (_: Exception) {}
+                    }
                 }
-                if (!best?.apkDownloadUrl.isNullOrEmpty()) {
-                    val forgejoUpdate = best?.takeIf { isNewerVersion(it.versionName, cleanCurrent) }
-                    mainHandler.post { onResult(forgejoUpdate) }
-                    return@execute
-                }
-            }
 
-            // 2. Phone Companion Bluetooth OTA Proxy (handles Forgejo LAN & Internet via phone without Wi-Fi/Tailscale on watch)
-            requestPhoneOtaCheck(appCtx, isBeta)?.let { proxyUpdate ->
-                if (!proxyUpdate.apkDownloadUrl.isNullOrEmpty()) {
-                    val checkedUpdate = proxyUpdate.takeIf { isNewerVersion(it.versionName, cleanCurrent) }
-                    mainHandler.post { onResult(checkedUpdate) }
-                    return@execute
-                }
-            }
+                if (best?.apkDownloadUrl.isNullOrEmpty()) {
+                    // 2. Public Internet Fallback: Codeberg Manifest, GitHub, Codeberg Releases
+                    fetchUrlText(CODEBERG_MANIFEST_URL, userAgent)?.let { body ->
+                        parseManifestUpdate(body, isBeta)?.let { best = pickHigherVersion(best, it) }
+                    }
 
-            // 3. Public Internet Fallback: Codeberg Manifest, GitHub, Codeberg Releases
-            fetchUrlText(CODEBERG_MANIFEST_URL, userAgent)?.let { body ->
-                parseManifestUpdate(body, isBeta)?.let { best = pickHigherVersion(best, it) }
-            }
+                    for (repo in GITHUB_REPOS) {
+                        val apiUrl = if (isBeta) {
+                            "https://api.github.com/repos/$repo/releases?per_page=5"
+                        } else {
+                            "https://api.github.com/repos/$repo/releases/latest"
+                        }
+                        fetchUrlText(apiUrl, userAgent, "application/vnd.github+json")?.let { body ->
+                            try {
+                                if (isBeta) {
+                                    val arr = org.json.JSONArray(body)
+                                    for (i in 0 until arr.length()) {
+                                        val obj = arr.optJSONObject(i) ?: continue
+                                        if (obj.optBoolean("draft", false)) continue
+                                        best = pickHigherVersion(best, parseRelease(obj, repo))
+                                    }
+                                } else {
+                                    best = pickHigherVersion(best, parseRelease(JSONObject(body), repo))
+                                }
+                            } catch (_: Exception) {}
+                        }
+                    }
 
-            // 2 & 3. GitHub Primary (Aaronhrndz) & Secondary (aaronhrnndz)
-            for (repo in GITHUB_REPOS) {
-                val apiUrl = if (isBeta) {
-                    "https://api.github.com/repos/$repo/releases?per_page=5"
-                } else {
-                    "https://api.github.com/repos/$repo/releases/latest"
-                }
-                fetchUrlText(apiUrl, userAgent, "application/vnd.github+json")?.let { body ->
-                    try {
-                        if (isBeta) {
+                    fetchUrlText(CODEBERG_RELEASES_API, userAgent, "application/json")?.let { body ->
+                        try {
                             val arr = org.json.JSONArray(body)
                             for (i in 0 until arr.length()) {
                                 val obj = arr.optJSONObject(i) ?: continue
                                 if (obj.optBoolean("draft", false)) continue
-                                best = pickHigherVersion(best, parseRelease(obj, repo))
+                                val parsed = parseRelease(obj, FORGEJO_REPO) ?: continue
+                                if (!isBeta && parsed.isPrerelease) continue
+                                best = pickHigherVersion(best, parsed)
                             }
-                        } else {
-                            best = pickHigherVersion(best, parseRelease(JSONObject(body), repo))
-                        }
-                    } catch (_: Exception) {}
+                        } catch (_: Exception) {}
+                    }
+                }
+
+                best?.takeIf { isNewerVersion(it.versionName, cleanCurrent) }
+            } catch (_: Exception) {
+                null
+            }
+
+            val callbacks = synchronized(checkStateLock) {
+                lastCompletedCheckAtMs = System.currentTimeMillis()
+                lastCompletedCheckUpdate = finalUpdate
+                isCheckInFlight = false
+                inFlightCallbacks.toList().also { inFlightCallbacks.clear() }
+            }
+            mainHandler.post {
+                for (cb in callbacks) {
+                    cb(finalUpdate)
                 }
             }
-
-            // 4. Codeberg Releases API
-            fetchUrlText(CODEBERG_RELEASES_API, userAgent, "application/json")?.let { body ->
-                try {
-                    val arr = org.json.JSONArray(body)
-                    for (i in 0 until arr.length()) {
-                        val obj = arr.optJSONObject(i) ?: continue
-                        if (obj.optBoolean("draft", false)) continue
-                        val parsed = parseRelease(obj, "Aaronhrndz/ultra-remapper") ?: continue
-                        if (!isBeta && parsed.isPrerelease) continue
-                        best = pickHigherVersion(best, parsed)
-                    }
-                } catch (_: Exception) {}
-            }
-
-            val finalUpdate = best?.takeIf { isNewerVersion(it.versionName, cleanCurrent) }
-            mainHandler.post { onResult(finalUpdate) }
         }
     }
 
@@ -279,6 +261,7 @@ object UpdateChecker {
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun findActiveWifiNetwork(context: Context): Network? {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return null
         return cm.allNetworks.firstOrNull { net ->
@@ -286,50 +269,137 @@ object UpdateChecker {
         }
     }
 
-    private fun requestPhoneOtaCheck(context: Context, isBeta: Boolean): ReleaseUpdate? = synchronized(checkProxyLock) {
-        return try {
-            val nodes = Tasks.await(Wearable.getNodeClient(context).connectedNodes, 3, TimeUnit.SECONDS)
-            if (nodes.isNullOrEmpty()) return@synchronized null
+    private fun hasActiveCellularNetwork(context: Context): Boolean {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+        val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) } ?: return false
+        return caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) &&
+            !caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+    }
 
-            val latch = CountDownLatch(1)
-            pendingCheckPayload = null
-            pendingCheckLatch = latch
+    @Suppress("DEPRECATION")
+    private fun <T> withTemporaryWifi(
+        context: Context,
+        timeoutMs: Long,
+        onWakingWifi: (() -> Unit)? = null,
+        block: (Network?) -> T
+    ): T {
+        val appCtx = context.applicationContext
+        findActiveWifiNetwork(appCtx)?.let { return block(it) }
+        if (hasActiveCellularNetwork(appCtx)) {
+            return block(null)
+        }
 
-            val reqBytes = JSONObject().apply { put("isBeta", isBeta) }.toString().toByteArray(Charsets.UTF_8)
-            val msgClient = Wearable.getMessageClient(context)
-            var sentAny = false
-            for (node in nodes) {
-                try {
-                    Tasks.await(msgClient.sendMessage(node.id, CompanionSyncService.PATH_OTA_CHECK_REQ, reqBytes), 4, TimeUnit.SECONDS)
-                    sentAny = true
-                } catch (_: Exception) {}
+        onWakingWifi?.invoke()
+        val cm = appCtx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        val wm = appCtx.getSystemService(WifiManager::class.java)
+
+        synchronized(wifiStateLock) {
+            if (wifiRefCount == 0) {
+                savedWifiMediator = try {
+                    Settings.Global.getInt(appCtx.contentResolver, "cw_disable_wifimediator", 0)
+                } catch (_: Exception) {
+                    0
+                }
+                savedWifiOn = try {
+                    Settings.Global.getInt(appCtx.contentResolver, "wifi_on", 1)
+                } catch (_: Exception) {
+                    1
+                }
+                savedWifiEnabled = try {
+                    wm?.isWifiEnabled != false
+                } catch (_: Exception) {
+                    true
+                }
+                modifiedWifiSettings = false
+                if (SystemRouteHelper.hasSecureSettingsPermission(appCtx)) {
+                    if (savedWifiMediator == 0) {
+                        try {
+                            Settings.Global.putInt(appCtx.contentResolver, "cw_disable_wifimediator", 1)
+                            modifiedWifiSettings = true
+                        } catch (_: Throwable) {}
+                    }
+                    if (savedWifiOn == 0 || !savedWifiEnabled) {
+                        try {
+                            Settings.Global.putInt(appCtx.contentResolver, "wifi_on", 1)
+                            modifiedWifiSettings = true
+                        } catch (_: Throwable) {}
+                    }
+                }
+                if (savedWifiOn == 0 || !savedWifiEnabled) {
+                    try { wm?.setWifiEnabled(true) } catch (_: Throwable) {}
+                    try {
+                        LocalAdbClient.activeInstance?.takeIf { it.isConnected }?.exec("svc wifi enable")
+                    } catch (_: Throwable) {}
+                }
             }
-            if (!sentAny) {
-                pendingCheckLatch = null
-                return@synchronized null
+            wifiRefCount++
+        }
+
+        val wifiLock = try {
+            wm?.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "ultraremapper:ota_wifi")?.apply {
+                setReferenceCounted(false)
+                acquire()
             }
-
-            latch.await(6, TimeUnit.SECONDS)
-            val rawPayload = pendingCheckPayload
-            pendingCheckLatch = null
-            if (rawPayload.isNullOrBlank()) return@synchronized null
-
-            val obj = JSONObject(rawPayload)
-            if (!obj.optBoolean("found", false)) return@synchronized null
-            val ver = obj.optString("versionName", "").trim()
-            val apkUrl = obj.optString("apkDownloadUrl", "").takeIf { it.isNotEmpty() }
-            if (ver.isEmpty() || apkUrl == null) return@synchronized null
-            ReleaseUpdate(
-                versionName = ver,
-                htmlUrl = obj.optString("htmlUrl", FORGEJO_LAN_BASE),
-                apkDownloadUrl = apkUrl,
-                releaseNotes = obj.optString("releaseNotes", ""),
-                isPrerelease = obj.optBoolean("isPrerelease", false),
-                viaPhoneProxy = true
-            )
-        } catch (_: Exception) {
-            pendingCheckLatch = null
+        } catch (_: Throwable) {
             null
+        }
+
+        var acquiredNet: Network? = findActiveWifiNetwork(appCtx)
+        var netCallback: ConnectivityManager.NetworkCallback? = null
+        if (acquiredNet == null && cm != null) {
+            try {
+                val latch = CountDownLatch(1)
+                val req = NetworkRequest.Builder()
+                    .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .build()
+                val cb = object : ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: Network) {
+                        acquiredNet = network
+                        latch.countDown()
+                    }
+                    override fun onUnavailable() {
+                        latch.countDown()
+                    }
+                }
+                netCallback = cb
+                cm.requestNetwork(req, cb, timeoutMs.toInt())
+                latch.await(timeoutMs, TimeUnit.MILLISECONDS)
+                if (acquiredNet == null) {
+                    acquiredNet = findActiveWifiNetwork(appCtx)
+                }
+            } catch (_: Throwable) {}
+        }
+
+        try {
+            return block(acquiredNet)
+        } finally {
+            if (netCallback != null && cm != null) {
+                try { cm.unregisterNetworkCallback(netCallback) } catch (_: Throwable) {}
+            }
+            try { if (wifiLock?.isHeld == true) wifiLock.release() } catch (_: Throwable) {}
+            synchronized(wifiStateLock) {
+                wifiRefCount = (wifiRefCount - 1).coerceAtLeast(0)
+                if (wifiRefCount == 0 && modifiedWifiSettings) {
+                    modifiedWifiSettings = false
+                    if (!UtilityActions.isWirelessAdbEnabled(appCtx)) {
+                        if (savedWifiMediator == 0) {
+                            try {
+                                Settings.Global.putInt(appCtx.contentResolver, "cw_disable_wifimediator", savedWifiMediator)
+                            } catch (_: Throwable) {}
+                        }
+                        if (savedWifiOn == 0 || !savedWifiEnabled) {
+                            try {
+                                Settings.Global.putInt(appCtx.contentResolver, "wifi_on", savedWifiOn)
+                            } catch (_: Throwable) {}
+                            try { wm?.setWifiEnabled(false) } catch (_: Throwable) {}
+                            try {
+                                LocalAdbClient.activeInstance?.takeIf { it.isConnected }?.exec("svc wifi disable")
+                            } catch (_: Throwable) {}
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -458,14 +528,12 @@ object UpdateChecker {
                 try { acquire(5 * 60 * 1000L) } catch (_: Throwable) {}
             }
             try {
-                mainHandler.post { onProgress(0f, appCtx.getString(R.string.update_downloading)) }
-                val wifiNet = findActiveWifiNetwork(appCtx)
-                val usePhoneProxy = update.viaPhoneProxy ||
-                    (wifiNet == null && apkUrl.startsWith(FORGEJO_LAN_BASE))
-
-                if (usePhoneProxy) {
-                    downloadViaPhoneProxy(appCtx, update, apkUrl, onProgress)
-                } else {
+                withTemporaryWifi(
+                    appCtx,
+                    timeoutMs = 15_000L,
+                    onWakingWifi = { mainHandler.post { onProgress(0f, "Activando Wi-Fi...") } }
+                ) { wifiNet ->
+                    mainHandler.post { onProgress(0f, appCtx.getString(R.string.update_downloading)) }
                     val networksToTry = buildList {
                         if (wifiNet != null) add(wifiNet)
                         add(null)
@@ -474,7 +542,8 @@ object UpdateChecker {
                     var succeeded = false
                     for (net in networksToTry) {
                         try {
-                            val conn = openDownloadConnection(apkUrl, net, 12000)
+                            val timeoutMs = if (net != null) 12000 else 15000
+                            val conn = openDownloadConnection(apkUrl, net, timeoutMs)
                             if (conn.responseCode == 200) {
                                 installFromConnection(appCtx, conn, update.versionName, onProgress)
                                 succeeded = true
@@ -500,60 +569,6 @@ object UpdateChecker {
             } finally {
                 try { if (wakeLock?.isHeld == true) wakeLock.release() } catch (_: Throwable) {}
             }
-        }
-    }
-
-    private fun downloadViaPhoneProxy(
-        appCtx: Context,
-        update: ReleaseUpdate,
-        apkUrl: String,
-        onProgress: (Float, String) -> Unit
-    ) {
-        val nodes = Tasks.await(Wearable.getNodeClient(appCtx).connectedNodes, 4, TimeUnit.SECONDS)
-        if (nodes.isNullOrEmpty()) {
-            throw java.io.IOException("Móvil desconectado")
-        }
-
-        val openLatch = CountDownLatch(1)
-        val doneLatch = CountDownLatch(1)
-        proxyTransferError = null
-        proxyTransferredFile = null
-        activeTransferProgressCb = onProgress
-        proxyChannelOpenLatch = openLatch
-        proxyTransferDoneLatch = doneLatch
-
-        try {
-            val reqBytes = JSONObject().apply {
-                put("apkUrl", apkUrl)
-                put("versionName", update.versionName)
-            }.toString().toByteArray(Charsets.UTF_8)
-
-            val msgClient = Wearable.getMessageClient(appCtx)
-            var sent = false
-            for (node in nodes) {
-                try {
-                    Tasks.await(msgClient.sendMessage(node.id, CompanionSyncService.PATH_OTA_APK_REQ, reqBytes), 5, TimeUnit.SECONDS)
-                    sent = true
-                } catch (_: Exception) {}
-            }
-            if (!sent) throw java.io.IOException("No se pudo contactar con móvil")
-
-            if (!openLatch.await(25, TimeUnit.SECONDS)) {
-                throw java.io.IOException("Tiempo agotado esperando APK del móvil")
-            }
-            proxyTransferError?.let { throw java.io.IOException(it) }
-
-            if (!doneLatch.await(5, TimeUnit.MINUTES)) {
-                throw java.io.IOException("Transferencia Bluetooth agotada")
-            }
-            proxyTransferError?.let { throw java.io.IOException(it) }
-
-            val apkFile = proxyTransferredFile ?: throw java.io.IOException("APK no recibida")
-            launchApkInstaller(appCtx, apkFile, onProgress)
-        } finally {
-            activeTransferProgressCb = null
-            proxyChannelOpenLatch = null
-            proxyTransferDoneLatch = null
         }
     }
 
