@@ -114,45 +114,50 @@ object UpdateChecker {
             val isBeta = isBetaChannel(context)
             var best: ReleaseUpdate? = null
 
-            // 1. Private Forgejo LAN OTA Source FIRST (default route, then explicit Wi-Fi network if BT SysProxy is active)
-            var forgejoBody = fetchUrlText(
-                FORGEJO_LAN_RELEASES_API,
-                userAgent,
-                "application/json",
-                connectTimeoutMs = 2500,
-                readTimeoutMs = 3000
-            )
-            if (forgejoBody == null) {
-                val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-                val wifiNet = cm?.allNetworks?.firstOrNull { net ->
-                    cm.getNetworkCapabilities(net)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-                }
-                if (wifiNet != null) {
-                    forgejoBody = fetchUrlText(
-                        FORGEJO_LAN_RELEASES_API,
-                        userAgent,
-                        "application/json",
-                        connectTimeoutMs = 2500,
-                        readTimeoutMs = 3000,
-                        network = wifiNet
-                    )
-                }
-            }
-            forgejoBody?.let { body ->
-                try {
-                    val arr = org.json.JSONArray(body)
-                    for (i in 0 until arr.length()) {
-                        val obj = arr.optJSONObject(i) ?: continue
-                        if (obj.optBoolean("draft", false)) continue
-                        val parsed = parseRelease(obj, "Aaronhrndz/ultra-remapper", FORGEJO_LAN_BASE) ?: continue
-                        best = pickHigherVersion(best, parsed)
+            // 1. Private Forgejo OTA Sources FIRST (LAN, then Tailscale/remote, matching Antigravity-on-wear-os)
+            for ((apiUrl, originBase) in listOf(
+                FORGEJO_LAN_RELEASES_API to FORGEJO_LAN_BASE,
+                "$FORGEJO_TAILSCALE_BASE/api/v1/repos/Aaronhrndz/ultra-remapper/releases?limit=5" to FORGEJO_TAILSCALE_BASE
+            )) {
+                var forgejoBody = fetchUrlText(
+                    apiUrl,
+                    userAgent,
+                    "application/json",
+                    connectTimeoutMs = 3000,
+                    readTimeoutMs = 3000
+                )
+                if (forgejoBody == null && originBase == FORGEJO_LAN_BASE) {
+                    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                    val wifiNet = cm?.allNetworks?.firstOrNull { net ->
+                        cm.getNetworkCapabilities(net)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
                     }
-                } catch (_: Exception) {}
-            }
-            if (!best?.apkDownloadUrl.isNullOrEmpty()) {
-                val forgejoUpdate = best?.takeIf { isNewerVersion(it.versionName, cleanCurrent) }
-                mainHandler.post { onResult(forgejoUpdate) }
-                return@execute
+                    if (wifiNet != null) {
+                        forgejoBody = fetchUrlText(
+                            apiUrl,
+                            userAgent,
+                            "application/json",
+                            connectTimeoutMs = 3000,
+                            readTimeoutMs = 3000,
+                            network = wifiNet
+                        )
+                    }
+                }
+                forgejoBody?.let { body ->
+                    try {
+                        val arr = org.json.JSONArray(body)
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.optJSONObject(i) ?: continue
+                            if (obj.optBoolean("draft", false)) continue
+                            val parsed = parseRelease(obj, "Aaronhrndz/ultra-remapper", originBase) ?: continue
+                            best = pickHigherVersion(best, parsed)
+                        }
+                    } catch (_: Exception) {}
+                }
+                if (!best?.apkDownloadUrl.isNullOrEmpty()) {
+                    val forgejoUpdate = best?.takeIf { isNewerVersion(it.versionName, cleanCurrent) }
+                    mainHandler.post { onResult(forgejoUpdate) }
+                    return@execute
+                }
             }
 
             // 2. Codeberg Master Manifest (update.json)
