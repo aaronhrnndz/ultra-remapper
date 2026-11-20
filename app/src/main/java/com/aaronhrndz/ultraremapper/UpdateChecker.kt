@@ -166,8 +166,8 @@ object UpdateChecker {
                             apiUrl,
                             userAgent,
                             "application/json",
-                            connectTimeoutMs = 3000,
-                            readTimeoutMs = 4000,
+                            connectTimeoutMs = 6000,
+                            readTimeoutMs = 6000,
                             network = net
                         )?.let { body ->
                             try {
