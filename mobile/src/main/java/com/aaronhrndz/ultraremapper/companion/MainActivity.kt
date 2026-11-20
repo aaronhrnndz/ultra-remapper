@@ -308,6 +308,8 @@ fun CompanionAppRoot(
     }
     var pairPort by remember { mutableStateOf("") }
     var watchPort by remember { mutableStateOf(adbHelper.getLastPort()?.toString() ?: "") }
+    var userEditedPairPort by remember { mutableStateOf(false) }
+    var userEditedWatchPort by remember { mutableStateOf(false) }
     var pairingCode by remember { mutableStateOf("") }
     var mdnsPairDetected by remember { mutableStateOf(false) }
     var mdnsConnectDetected by remember { mutableStateOf(false) }
@@ -390,14 +392,14 @@ fun CompanionAppRoot(
                 if (!state.capturedHostIp.isNullOrBlank() && !state.capturedHostIp.startsWith("192.168.167.")) {
                     watchIp = state.capturedHostIp
                 }
-                if (state.capturedPairingPort != null && state.capturedPairingPort > 0) {
+                if (state.capturedPairingPort != null && state.capturedPairingPort > 0 && !userEditedPairPort) {
                     pairPort = state.capturedPairingPort.toString()
                     mdnsPairDetected = true
                     if (isMdnsScanning && adbWizardStep == 2) {
                         isMdnsScanning = false
                     }
                 }
-                if (state.capturedConnectPort != null && state.capturedConnectPort > 0 && !isAdbConnected && !isAdbConnecting) {
+                if (state.capturedConnectPort != null && state.capturedConnectPort > 0 && !isAdbConnected && !isAdbConnecting && !userEditedWatchPort) {
                     if (watchPort.isBlank() || watchPort != state.capturedConnectPort.toString()) {
                         watchPort = state.capturedConnectPort.toString()
                         mdnsConnectDetected = true
@@ -567,15 +569,15 @@ fun CompanionAppRoot(
     // or when entering Step 3 (Connect) without a known ADB port
     LaunchedEffect(isAdbExpanded, adbWizardStep, pairingCode, pairPort, watchPort) {
         if (!isAdbExpanded || activeTab != CompanionTab.SETTINGS) return@LaunchedEffect
-        if (adbWizardStep == 2 && pairPort.isEmpty() && !isMdnsScanning) {
+        if (adbWizardStep == 2 && pairPort.isEmpty() && !isMdnsScanning && !userEditedPairPort) {
             // Give Bluetooth Accessibility sync 350ms to deliver capturedPairingPort before opening NsdPicker
             delay(350L)
-            if (adbWizardStep == 2 && pairPort.isEmpty() && !isMdnsScanning) {
+            if (adbWizardStep == 2 && pairPort.isEmpty() && !isMdnsScanning && !userEditedPairPort) {
                 isMdnsScanning = true
             }
-        } else if (adbWizardStep == 3 && !isAdbConnected && watchPort.isEmpty() && !isMdnsScanning) {
+        } else if (adbWizardStep == 3 && !isAdbConnected && watchPort.isEmpty() && !isMdnsScanning && !userEditedWatchPort) {
             delay(350L)
-            if (adbWizardStep == 3 && !isAdbConnected && watchPort.isEmpty() && !isMdnsScanning) {
+            if (adbWizardStep == 3 && !isAdbConnected && watchPort.isEmpty() && !isMdnsScanning && !userEditedWatchPort) {
                 isMdnsScanning = true
             }
         }
@@ -1481,7 +1483,10 @@ fun CompanionAppRoot(
                                             )
                                             OutlinedTextField(
                                                 value = pairPort,
-                                                onValueChange = { pairPort = it.filter { c -> c.isDigit() } },
+                                                onValueChange = {
+                                                    userEditedPairPort = true
+                                                    pairPort = it.filter { c -> c.isDigit() }
+                                                },
                                                 label = { Text(stringResource(R.string.label_pairing_port), fontSize = 11.sp) },
                                                 placeholder = { Text("38123") },
                                                 singleLine = true,
@@ -1645,7 +1650,10 @@ fun CompanionAppRoot(
                                             )
                                             OutlinedTextField(
                                                 value = watchPort,
-                                                onValueChange = { watchPort = it.filter { c -> c.isDigit() } },
+                                                onValueChange = {
+                                                    userEditedWatchPort = true
+                                                    watchPort = it.filter { c -> c.isDigit() }
+                                                },
                                                 label = { Text(stringResource(R.string.label_adb_port), fontSize = 11.sp) },
                                                 placeholder = { Text("45183") },
                                                 singleLine = true,
