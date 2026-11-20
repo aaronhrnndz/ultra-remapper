@@ -14,6 +14,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.Log
 import android.widget.Toast
 import androidx.wear.remote.interactions.RemoteActivityHelper
 import com.aaronhrndz.ultraremapper.adb.LocalAdbClient
@@ -155,15 +156,19 @@ object UpdateChecker {
 
                 // 1. Wake temporary Wi-Fi if not outdoors on standalone LTE -> check Forgejo LAN directly
                 withTemporaryWifi(appCtx, timeoutMs = 12_000L) { wifiNet ->
-                    if (wifiNet != null) {
-                        val apiUrl = "$FORGEJO_LAN_BASE/api/v1/repos/$FORGEJO_REPO/releases?limit=5"
+                    val apiUrl = "$FORGEJO_LAN_BASE/api/v1/repos/$FORGEJO_REPO/releases?limit=5"
+                    val networksToTry = buildList<Network?> {
+                        if (wifiNet != null) add(wifiNet)
+                        if (!hasActiveCellularNetwork(appCtx)) add(null)
+                    }
+                    for (net in networksToTry) {
                         fetchUrlText(
                             apiUrl,
                             userAgent,
                             "application/json",
-                            connectTimeoutMs = 2500,
-                            readTimeoutMs = 3500,
-                            network = wifiNet
+                            connectTimeoutMs = 3000,
+                            readTimeoutMs = 4000,
+                            network = net
                         )?.let { body ->
                             try {
                                 val arr = org.json.JSONArray(body)
@@ -176,6 +181,7 @@ object UpdateChecker {
                                 }
                             } catch (_: Exception) {}
                         }
+                        if (!best?.apkDownloadUrl.isNullOrEmpty()) break
                     }
                 }
 
@@ -426,9 +432,11 @@ object UpdateChecker {
             if (conn.responseCode == 200) {
                 conn.inputStream.bufferedReader().use { it.readText() }
             } else {
+                Log.w("UpdateChecker", "HTTP ${conn.responseCode} for $urlStr")
                 null
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.w("UpdateChecker", "fetchUrlText failed: $urlStr net=$network -> ${e.javaClass.simpleName}: ${e.message}")
             null
         } finally {
             try { conn?.disconnect() } catch (_: Exception) {}
