@@ -13,8 +13,8 @@ android {
         applicationId = "com.aaronhrndz.ultraremapper"
         minSdk = 30
         targetSdk = 34
-        versionCode = 280
-        versionName = "2.4.40"
+        versionCode = 281
+        versionName = "2.4.41"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

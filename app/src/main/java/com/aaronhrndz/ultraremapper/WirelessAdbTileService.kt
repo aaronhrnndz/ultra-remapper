@@ -239,10 +239,10 @@ class WirelessAdbTileService : TileService() {
                     )
                     .setPadding(
                         ModifiersBuilders.Padding.Builder()
-                            .setStart(DimensionBuilders.dp(14f))
-                            .setEnd(DimensionBuilders.dp(14f))
-                            .setTop(DimensionBuilders.dp(10f))
-                            .setBottom(DimensionBuilders.dp(10f))
+                            .setStart(DimensionBuilders.dp(12f))
+                            .setEnd(DimensionBuilders.dp(12f))
+                            .setTop(DimensionBuilders.dp(12f))
+                            .setBottom(DimensionBuilders.dp(12f))
                             .build()
                     )
                     .build()
@@ -254,7 +254,7 @@ class WirelessAdbTileService : TileService() {
                     .setOverflow(LayoutElementBuilders.TEXT_OVERFLOW_ELLIPSIZE)
                     .setFontStyle(
                         LayoutElementBuilders.FontStyle.Builder()
-                            .setSize(DimensionBuilders.sp(14f))
+                            .setSize(DimensionBuilders.sp(15f))
                             .setWeight(LayoutElementBuilders.FONT_WEIGHT_BOLD)
                             .setColor(ColorBuilders.argb(addressColor))
                             .build()
@@ -294,6 +294,8 @@ class WirelessAdbTileService : TileService() {
         }
 
         val actionButton = LayoutElementBuilders.Box.Builder()
+            .setWidth(DimensionBuilders.expand())
+            .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
             .setModifiers(
                 ModifiersBuilders.Modifiers.Builder()
                     .setClickable(
@@ -307,17 +309,17 @@ class WirelessAdbTileService : TileService() {
                             .setColor(ColorBuilders.argb(btnBgColor))
                             .setCorner(
                                 ModifiersBuilders.Corner.Builder()
-                                    .setRadius(DimensionBuilders.dp(18f))
+                                    .setRadius(DimensionBuilders.dp(22f))
                                     .build()
                             )
                             .build()
                     )
                     .setPadding(
                         ModifiersBuilders.Padding.Builder()
-                            .setStart(DimensionBuilders.dp(18f))
-                            .setEnd(DimensionBuilders.dp(18f))
-                            .setTop(DimensionBuilders.dp(9f))
-                            .setBottom(DimensionBuilders.dp(9f))
+                            .setStart(DimensionBuilders.dp(16f))
+                            .setEnd(DimensionBuilders.dp(16f))
+                            .setTop(DimensionBuilders.dp(11f))
+                            .setBottom(DimensionBuilders.dp(11f))
                             .build()
                     )
                     .build()
@@ -328,7 +330,7 @@ class WirelessAdbTileService : TileService() {
                     .setMaxLines(1)
                     .setFontStyle(
                         LayoutElementBuilders.FontStyle.Builder()
-                            .setSize(DimensionBuilders.sp(13f))
+                            .setSize(DimensionBuilders.sp(14f))
                             .setWeight(LayoutElementBuilders.FONT_WEIGHT_BOLD)
                             .setColor(ColorBuilders.argb(0xFFFFFFFF.toInt()))
                             .build()
@@ -339,18 +341,18 @@ class WirelessAdbTileService : TileService() {
 
         val column = LayoutElementBuilders.Column.Builder()
             .setWidth(DimensionBuilders.expand())
-            .setHeight(DimensionBuilders.wrap())
+            .setHeight(DimensionBuilders.expand())
             .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
             .addContent(headerPill)
             .addContent(
                 LayoutElementBuilders.Spacer.Builder()
-                    .setHeight(DimensionBuilders.dp(8f))
+                    .setHeight(DimensionBuilders.weight(1f))
                     .build()
             )
             .addContent(addressCard)
             .addContent(
                 LayoutElementBuilders.Spacer.Builder()
-                    .setHeight(DimensionBuilders.dp(10f))
+                    .setHeight(DimensionBuilders.weight(1f))
                     .build()
             )
             .addContent(actionButton)
@@ -370,8 +372,10 @@ class WirelessAdbTileService : TileService() {
                     )
                     .setPadding(
                         ModifiersBuilders.Padding.Builder()
-                            .setStart(DimensionBuilders.dp(14f))
-                            .setEnd(DimensionBuilders.dp(14f))
+                            .setStart(DimensionBuilders.dp(16f))
+                            .setEnd(DimensionBuilders.dp(16f))
+                            .setTop(DimensionBuilders.dp(16f))
+                            .setBottom(DimensionBuilders.dp(16f))
                             .build()
                     )
                     .build()
