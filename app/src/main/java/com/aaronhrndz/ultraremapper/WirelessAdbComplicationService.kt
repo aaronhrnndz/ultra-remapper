@@ -12,7 +12,6 @@ import androidx.wear.watchface.complications.data.LongTextComplicationData
 import androidx.wear.watchface.complications.data.MonochromaticImage
 import androidx.wear.watchface.complications.data.MonochromaticImageComplicationData
 import androidx.wear.watchface.complications.data.PlainComplicationText
-import androidx.wear.watchface.complications.data.RangedValueComplicationData
 import androidx.wear.watchface.complications.data.ShortTextComplicationData
 import androidx.wear.watchface.complications.data.SmallImage
 import androidx.wear.watchface.complications.data.SmallImageComplicationData
@@ -24,7 +23,16 @@ import androidx.wear.watchface.complications.datasource.SuspendingComplicationDa
 class WirelessAdbToggleReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val appCtx = context.applicationContext
-        UtilityActions.openWirelessDebugging(appCtx, backToHome = false)
+        if (SystemRouteHelper.hasSecureSettingsPermission(appCtx)) {
+            val next = !UtilityActions.isWirelessAdbEnabled(appCtx)
+            UtilityActions.setWirelessAdbEnabled(appCtx, next)
+            HapticFeedbackHelper.playButtonHaptic(appCtx)
+            WirelessAdbComplicationService.requestUpdate(appCtx)
+            WirelessAdbTileService.requestTileUpdate(appCtx)
+        } else {
+            HapticFeedbackHelper.playUiTap(appCtx)
+            UtilityActions.openWirelessDebuggingScreen(appCtx, backToHome = true)
+        }
     }
 }
 
@@ -61,9 +69,9 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
         val isOn = UtilityActions.isWirelessAdbEnabled(this)
         val ip = UtilityActions.getWatchWifiIpv4(this)
         val port = if (isOn) {
-            UtilityActions.resolveAdbConnectPortBlocking(this, 1000L)
+            UtilityActions.lastResolvedAdbPort
                 ?: BottomButtonService.capturedConnectPort
-                ?: UtilityActions.lastResolvedAdbPort
+                ?: UtilityActions.resolveAdbConnectPortBlocking(this, 1000L)
         } else {
             null
         }
@@ -88,7 +96,8 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
         val shortTitleStr = if (isOn && lastOctet != null && port != null) lastOctet else "ADB"
         val shortTextStr = if (isOn && lastOctet != null && port != null) "$port" else compactAddr
         val desc = PlainComplicationText.Builder(compactAddr).build()
-        val icon = Icon.createWithResource(this, R.mipmap.ic_launcher)
+        val monoIcon = Icon.createWithResource(this, R.drawable.ic_adb_complication)
+        val smallIcon = Icon.createWithResource(this, R.mipmap.ic_launcher)
 
         return when (type) {
             ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
@@ -96,7 +105,7 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
                 contentDescription = desc
             )
                 .setTitle(PlainComplicationText.Builder(shortTitleStr).build())
-                .setMonochromaticImage(MonochromaticImage.Builder(icon).build())
+                .setMonochromaticImage(MonochromaticImage.Builder(monoIcon).build())
                 .setTapAction(tapAction)
                 .build()
 
@@ -105,31 +114,19 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
                 contentDescription = desc
             )
                 .setTitle(PlainComplicationText.Builder("ADB").build())
-                .setMonochromaticImage(MonochromaticImage.Builder(icon).build())
-                .setTapAction(tapAction)
-                .build()
-
-            ComplicationType.RANGED_VALUE -> RangedValueComplicationData.Builder(
-                value = if (isOn) 1f else 0f,
-                min = 0f,
-                max = 1f,
-                contentDescription = desc
-            )
-                .setText(PlainComplicationText.Builder(compactAddr).build())
-                .setTitle(PlainComplicationText.Builder("ADB").build())
-                .setMonochromaticImage(MonochromaticImage.Builder(icon).build())
+                .setMonochromaticImage(MonochromaticImage.Builder(monoIcon).build())
                 .setTapAction(tapAction)
                 .build()
 
             ComplicationType.SMALL_IMAGE -> SmallImageComplicationData.Builder(
-                smallImage = SmallImage.Builder(icon, SmallImageType.ICON).build(),
+                smallImage = SmallImage.Builder(smallIcon, SmallImageType.ICON).build(),
                 contentDescription = desc
             )
                 .setTapAction(tapAction)
                 .build()
 
             ComplicationType.MONOCHROMATIC_IMAGE -> MonochromaticImageComplicationData.Builder(
-                monochromaticImage = MonochromaticImage.Builder(icon).build(),
+                monochromaticImage = MonochromaticImage.Builder(monoIcon).build(),
                 contentDescription = desc
             )
                 .setTapAction(tapAction)

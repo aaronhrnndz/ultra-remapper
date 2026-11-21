@@ -29,6 +29,8 @@ class WirelessAdbTileService : TileService() {
         private const val ID_TOGGLE_ADB = "toggle_adb"
         private const val ID_REFRESH_ADB = "refresh_adb"
         private const val ID_OPEN_SETTINGS = "open_adb_settings"
+        private const val MAX_PORT_RETRIES = 5
+        private val portRetryCount = java.util.concurrent.atomic.AtomicInteger(0)
 
         fun requestTileUpdate(context: Context) {
             try {
@@ -37,6 +39,7 @@ class WirelessAdbTileService : TileService() {
         }
 
         private fun schedulePortRetry(context: Context) {
+            if (portRetryCount.getAndIncrement() >= MAX_PORT_RETRIES) return
             val appCtx = context.applicationContext
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 if (UtilityActions.isWirelessAdbEnabled(appCtx) && UtilityActions.lastResolvedAdbPort == null) {
@@ -58,10 +61,13 @@ class WirelessAdbTileService : TileService() {
                 when (clickId) {
                     ID_TOGGLE_ADB -> {
                         if (hasPerm) {
+                            portRetryCount.set(0)
                             val next = !UtilityActions.isWirelessAdbEnabled(appCtx)
                             UtilityActions.setWirelessAdbEnabled(appCtx, next)
                             HapticFeedbackHelper.playButtonHaptic(appCtx)
+                            WirelessAdbComplicationService.requestUpdate(appCtx)
                         } else {
+                            HapticFeedbackHelper.playUiTap(appCtx)
                             UtilityActions.openWirelessDebuggingScreen(appCtx, backToHome = true)
                         }
                     }
@@ -70,6 +76,7 @@ class WirelessAdbTileService : TileService() {
                         UtilityActions.openWirelessDebuggingScreen(appCtx, backToHome = true)
                     }
                     ID_REFRESH_ADB -> {
+                        portRetryCount.set(0)
                         HapticFeedbackHelper.playUiTap(appCtx)
                         UtilityActions.lastResolvedAdbPort = null
                     }
@@ -89,6 +96,8 @@ class WirelessAdbTileService : TileService() {
                 }
                 if (isAdbOn && port == null) {
                     schedulePortRetry(appCtx)
+                } else {
+                    portRetryCount.set(0)
                 }
 
                 val rootLayout = buildTileLayout(hasPerm, isAdbOn, ip, port)
@@ -128,6 +137,7 @@ class WirelessAdbTileService : TileService() {
     override fun onTileEnterEvent(requestParams: androidx.wear.tiles.EventBuilders.TileEnterEvent) {
         super.onTileEnterEvent(requestParams)
         if (UtilityActions.isWirelessAdbEnabled(applicationContext)) {
+            portRetryCount.set(0)
             UtilityActions.lastResolvedAdbPort = null
             requestTileUpdate(applicationContext)
         }
@@ -189,9 +199,9 @@ class WirelessAdbTileService : TileService() {
 
         val addressText = when {
             isAdbOn && ip == null -> getString(R.string.tile_no_wifi)
-            isAdbOn && port != null -> "$ip:$port"
-            isAdbOn -> ip ?: getString(R.string.tile_no_wifi)
-            else -> ip ?: getString(R.string.tile_no_wifi)
+            isAdbOn && port != null -> "ADB $ip:$port"
+            ip != null -> "ADB $ip"
+            else -> getString(R.string.tile_no_wifi)
         }
         val addressColor = if (isAdbOn) 0xFFFFFFFF.toInt() else 0xFF9EA7B8.toInt()
 
@@ -244,7 +254,7 @@ class WirelessAdbTileService : TileService() {
                     .setOverflow(LayoutElementBuilders.TEXT_OVERFLOW_ELLIPSIZE)
                     .setFontStyle(
                         LayoutElementBuilders.FontStyle.Builder()
-                            .setSize(DimensionBuilders.sp(16f))
+                            .setSize(DimensionBuilders.sp(14f))
                             .setWeight(LayoutElementBuilders.FONT_WEIGHT_BOLD)
                             .setColor(ColorBuilders.argb(addressColor))
                             .build()
