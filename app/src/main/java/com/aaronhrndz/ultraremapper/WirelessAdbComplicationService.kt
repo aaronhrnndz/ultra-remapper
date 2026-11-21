@@ -24,6 +24,8 @@ class WirelessAdbToggleReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val appCtx = context.applicationContext
         if (SystemRouteHelper.hasSecureSettingsPermission(appCtx)) {
+            UtilityActions.lastResolvedAdbPort = null
+            BottomButtonService.capturedConnectPort = null
             val next = !UtilityActions.isWirelessAdbEnabled(appCtx)
             UtilityActions.setWirelessAdbEnabled(appCtx, next)
             HapticFeedbackHelper.playButtonHaptic(appCtx)

@@ -62,6 +62,8 @@ class WirelessAdbTileService : TileService() {
                     ID_TOGGLE_ADB -> {
                         if (hasPerm) {
                             portRetryCount.set(0)
+                            UtilityActions.lastResolvedAdbPort = null
+                            BottomButtonService.capturedConnectPort = null
                             val next = !UtilityActions.isWirelessAdbEnabled(appCtx)
                             UtilityActions.setWirelessAdbEnabled(appCtx, next)
                             HapticFeedbackHelper.playButtonHaptic(appCtx)
@@ -79,6 +81,7 @@ class WirelessAdbTileService : TileService() {
                         portRetryCount.set(0)
                         HapticFeedbackHelper.playUiTap(appCtx)
                         UtilityActions.lastResolvedAdbPort = null
+                        BottomButtonService.capturedConnectPort = null
                     }
                 }
 
@@ -139,6 +142,7 @@ class WirelessAdbTileService : TileService() {
         if (UtilityActions.isWirelessAdbEnabled(applicationContext)) {
             portRetryCount.set(0)
             UtilityActions.lastResolvedAdbPort = null
+            BottomButtonService.capturedConnectPort = null
             requestTileUpdate(applicationContext)
         }
     }
@@ -185,7 +189,8 @@ class WirelessAdbTileService : TileService() {
             .addContent(
                 LayoutElementBuilders.Text.Builder()
                     .setText(statusText)
-                    .setMaxLines(1)
+                    .setMaxLines(2)
+                    .setMultilineAlignment(LayoutElementBuilders.TEXT_ALIGN_CENTER)
                     .setFontStyle(
                         LayoutElementBuilders.FontStyle.Builder()
                             .setSize(DimensionBuilders.sp(11f))
@@ -294,7 +299,7 @@ class WirelessAdbTileService : TileService() {
         }
 
         val actionButton = LayoutElementBuilders.Box.Builder()
-            .setWidth(DimensionBuilders.expand())
+            .setWidth(DimensionBuilders.dp(148f))
             .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
             .setModifiers(
                 ModifiersBuilders.Modifiers.Builder()
@@ -372,10 +377,10 @@ class WirelessAdbTileService : TileService() {
                     )
                     .setPadding(
                         ModifiersBuilders.Padding.Builder()
-                            .setStart(DimensionBuilders.dp(16f))
-                            .setEnd(DimensionBuilders.dp(16f))
-                            .setTop(DimensionBuilders.dp(16f))
-                            .setBottom(DimensionBuilders.dp(16f))
+                            .setStart(DimensionBuilders.dp(14f))
+                            .setEnd(DimensionBuilders.dp(14f))
+                            .setTop(DimensionBuilders.dp(14f))
+                            .setBottom(DimensionBuilders.dp(22f))
                             .build()
                     )
                     .build()
