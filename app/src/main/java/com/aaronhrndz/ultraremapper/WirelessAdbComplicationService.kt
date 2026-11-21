@@ -38,7 +38,7 @@ class WirelessAdbToggleReceiver : BroadcastReceiver() {
     }
 }
 
-class WirelessAdbComplicationService : SuspendingComplicationDataSourceService() {
+open class WirelessAdbComplicationService : SuspendingComplicationDataSourceService() {
 
     companion object {
         private const val MAX_RETRIES = 4
@@ -46,14 +46,19 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
 
         fun requestUpdate(context: Context, resetRetries: Boolean = true) {
             if (resetRetries) retryCount.set(0)
-            try {
-                val appCtx = context.applicationContext
-                val requester = ComplicationDataSourceUpdateRequester.create(
-                    appCtx,
-                    ComponentName(appCtx, WirelessAdbComplicationService::class.java)
-                )
-                requester.requestUpdateAll()
-            } catch (_: Throwable) {}
+            val appCtx = context.applicationContext
+            for (cls in listOf(
+                WirelessAdbComplicationService::class.java,
+                WirelessAdbLongComplicationService::class.java
+            )) {
+                try {
+                    val requester = ComplicationDataSourceUpdateRequester.create(
+                        appCtx,
+                        ComponentName(appCtx, cls)
+                    )
+                    requester.requestUpdateAll()
+                } catch (_: Throwable) {}
+            }
         }
 
         private fun scheduleRetry(context: Context) {
@@ -116,11 +121,12 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
             port != null -> ":$port"
             else -> "ADB"
         }
-        val shortTitleStr = if (isOn && lastOctet != null) "ADB:$lastOctet" else "ADB"
+        val shortTitleStr = if (isOn && lastOctet != null && port != null) "ADB:$lastOctet" else null
         val shortTextStr = when {
-            !isOn -> "OFF"
+            !isOn -> "ADB OFF"
             port != null -> "$port"
-            else -> "..."
+            lastOctet != null -> "ADB:$lastOctet"
+            else -> "ADB ..."
         }
         val longTextStr = when {
             !isOn -> "ADB OFF"
@@ -137,8 +143,11 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
             ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
                 text = PlainComplicationText.Builder(shortTextStr).build(),
                 contentDescription = desc
-            )
-                .setTitle(PlainComplicationText.Builder(shortTitleStr).build())
+            ).apply {
+                if (shortTitleStr != null) {
+                    setTitle(PlainComplicationText.Builder(shortTitleStr).build())
+                }
+            }
                 .setMonochromaticImage(MonochromaticImage.Builder(monoIcon).build())
                 .setTapAction(tapAction)
                 .build()
@@ -169,3 +178,5 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
         }
     }
 }
+
+class WirelessAdbLongComplicationService : WirelessAdbComplicationService()
