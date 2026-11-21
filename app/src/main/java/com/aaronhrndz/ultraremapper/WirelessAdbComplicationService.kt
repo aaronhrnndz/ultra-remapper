@@ -93,8 +93,15 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
             port != null -> ":$port"
             else -> "ADB"
         }
-        val shortTitleStr = if (isOn && lastOctet != null && port != null) lastOctet else "ADB"
+        val shortTitleStr = if (isOn && lastOctet != null && port != null) "ADB: $lastOctet" else "ADB"
         val shortTextStr = if (isOn && lastOctet != null && port != null) "$port" else compactAddr
+        val longTextStr = when {
+            !isOn -> "OFF"
+            ip != null && port != null -> "$ip:$port"
+            ip != null -> ip
+            port != null -> ":$port"
+            else -> "OFF"
+        }
         val desc = PlainComplicationText.Builder(compactAddr).build()
         val monoIcon = Icon.createWithResource(this, R.drawable.ic_adb_complication)
         val smallIcon = Icon.createWithResource(this, R.mipmap.ic_launcher)
@@ -110,10 +117,9 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
                 .build()
 
             ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
-                text = PlainComplicationText.Builder(compactAddr).build(),
-                contentDescription = desc
+                text = PlainComplicationText.Builder(longTextStr).build(),
+                contentDescription = PlainComplicationText.Builder(longTextStr).build()
             )
-                .setTitle(PlainComplicationText.Builder("ADB").build())
                 .setMonochromaticImage(MonochromaticImage.Builder(monoIcon).build())
                 .setTapAction(tapAction)
                 .build()
