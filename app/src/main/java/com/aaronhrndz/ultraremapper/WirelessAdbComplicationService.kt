@@ -41,7 +41,11 @@ class WirelessAdbToggleReceiver : BroadcastReceiver() {
 class WirelessAdbComplicationService : SuspendingComplicationDataSourceService() {
 
     companion object {
-        fun requestUpdate(context: Context) {
+        private const val MAX_RETRIES = 4
+        private val retryCount = java.util.concurrent.atomic.AtomicInteger(0)
+
+        fun requestUpdate(context: Context, resetRetries: Boolean = true) {
+            if (resetRetries) retryCount.set(0)
             try {
                 val appCtx = context.applicationContext
                 val requester = ComplicationDataSourceUpdateRequester.create(
@@ -50,6 +54,16 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
                 )
                 requester.requestUpdateAll()
             } catch (_: Throwable) {}
+        }
+
+        private fun scheduleRetry(context: Context) {
+            if (retryCount.getAndIncrement() >= MAX_RETRIES) return
+            val appCtx = context.applicationContext
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                if (UtilityActions.isWirelessAdbEnabled(appCtx)) {
+                    requestUpdate(appCtx, resetRetries = false)
+                }
+            }, 2000L)
         }
     }
 
@@ -78,6 +92,11 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
                 }
         } else {
             null
+        }
+        if (isOn && (ip == null || port == null)) {
+            scheduleRetry(this)
+        } else {
+            retryCount.set(0)
         }
         return buildData(request.complicationType, isOn, ip, port, buildTapPendingIntent())
     }
