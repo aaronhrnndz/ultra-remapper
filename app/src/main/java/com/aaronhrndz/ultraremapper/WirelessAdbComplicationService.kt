@@ -71,7 +71,7 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
         val port = if (isOn) {
             UtilityActions.lastResolvedAdbPort
                 ?: BottomButtonService.capturedConnectPort
-                ?: UtilityActions.resolveAdbConnectPortBlocking(this, 1000L)
+                ?: UtilityActions.resolveAdbConnectPortBlocking(this, 2000L)
         } else {
             null
         }
@@ -93,14 +93,18 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
             port != null -> ":$port"
             else -> "ADB"
         }
-        val shortTitleStr = if (isOn && lastOctet != null && port != null) "ADB: $lastOctet" else "ADB"
-        val shortTextStr = if (isOn && lastOctet != null && port != null) "$port" else compactAddr
-        val longTextStr = when {
+        val shortTitleStr = if (isOn && lastOctet != null) "ADB:$lastOctet" else "ADB"
+        val shortTextStr = when {
             !isOn -> "OFF"
+            port != null -> "$port"
+            else -> "..."
+        }
+        val longTextStr = when {
+            !isOn -> "ADB OFF"
             ip != null && port != null -> "$ip:$port"
             ip != null -> ip
             port != null -> ":$port"
-            else -> "OFF"
+            else -> "ADB OFF"
         }
         val desc = PlainComplicationText.Builder(compactAddr).build()
         val monoIcon = Icon.createWithResource(this, R.drawable.ic_adb_complication)
