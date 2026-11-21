@@ -359,7 +359,8 @@ object UtilityActions {
         onLateResolved: ((Int) -> Unit)? = null
     ): Int? {
         val appCtx = context.applicationContext
-        val port = queryMdnsSrvPortRaw("_adb-tls-connect._tcp.local", timeoutMs.toInt().coerceIn(400, 2500))
+        val localIp = getWatchWifiIpv4(appCtx)
+        val port = queryMdnsSrvPortRaw("_adb-tls-connect._tcp.local", timeoutMs.toInt().coerceIn(400, 2500), localIp)
         if (port != null && port in 1024..65535) {
             lastResolvedAdbPort = port
             BottomButtonService.capturedConnectPort = port
@@ -372,7 +373,7 @@ object UtilityActions {
      * Pure-UDP mDNS PTR query to 224.0.0.251:5353 for _adb-tls-connect._tcp.local.
      * Avoids Android NsdManager.discoverServices() which triggers the system NsdPickerActivity popup on Wear OS.
      */
-    private fun queryMdnsSrvPortRaw(serviceType: String, timeoutMs: Int): Int? {
+    private fun queryMdnsSrvPortRaw(serviceType: String, timeoutMs: Int, localIp: String?): Int? {
         var socket: java.net.MulticastSocket? = null
         return try {
             val queryBytes = buildMdnsPtrQuery(serviceType)
@@ -389,10 +390,14 @@ object UtilityActions {
             } catch (_: Exception) {}
 
             val buf = ByteArray(2048)
+            val marker = "_adb-tls-connect".toByteArray(Charsets.US_ASCII)
             val deadline = System.currentTimeMillis() + timeoutMs
             while (System.currentTimeMillis() < deadline) {
                 val pkt = java.net.DatagramPacket(buf, buf.size)
                 socket.receive(pkt)
+                val senderIp = pkt.address?.hostAddress
+                if (senderIp != "127.0.0.1" && (localIp == null || senderIp != localIp)) continue
+                if (!containsBytes(pkt.data, pkt.length, marker)) continue
                 val port = parseMdnsSrvPort(pkt.data, pkt.length)
                 if (port != null && port in 1024..65535) {
                     return port
@@ -404,6 +409,17 @@ object UtilityActions {
         } finally {
             try { socket?.close() } catch (_: Exception) {}
         }
+    }
+
+    private fun containsBytes(data: ByteArray, len: Int, needle: ByteArray): Boolean {
+        if (needle.isEmpty() || len < needle.size) return false
+        outer@ for (i in 0..(len - needle.size)) {
+            for (j in needle.indices) {
+                if (data[i + j] != needle[j]) continue@outer
+            }
+            return true
+        }
+        return false
     }
 
     private fun buildMdnsPtrQuery(name: String): ByteArray {
