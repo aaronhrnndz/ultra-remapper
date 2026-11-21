@@ -73,7 +73,9 @@ class WirelessAdbComplicationService : SuspendingComplicationDataSourceService()
         val port = if (isOn) {
             UtilityActions.lastResolvedAdbPort
                 ?: BottomButtonService.capturedConnectPort
-                ?: UtilityActions.resolveAdbConnectPortBlocking(this, 2000L)
+                ?: kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    UtilityActions.resolveAdbConnectPortBlocking(this@WirelessAdbComplicationService, 2000L)
+                }
         } else {
             null
         }

@@ -369,9 +369,27 @@ object UtilityActions {
         return lastResolvedAdbPort ?: BottomButtonService.capturedConnectPort
     }
 
+    private fun isLocalPortListening(port: Int, localIp: String?): Boolean {
+        val hosts = buildList {
+            if (!localIp.isNullOrBlank()) add(localIp)
+            add("127.0.0.1")
+        }
+        for (host in hosts) {
+            try {
+                java.net.Socket().use { s ->
+                    s.connect(java.net.InetSocketAddress(host, port), 150)
+                    return true
+                }
+            } catch (_: Exception) {}
+        }
+        return false
+    }
+
     /**
-     * Pure-UDP mDNS PTR query to 224.0.0.251:5353 for _adb-tls-connect._tcp.local.
+     * Pure-UDP mDNS PTR query for _adb-tls-connect._tcp.local.
      * Avoids Android NsdManager.discoverServices() which triggers the system NsdPickerActivity popup on Wear OS.
+     * Filters by watch IP + _adb-tls-connect marker, collects ALL SRV ports (handles stale mdnsd entries like "(2)"),
+     * and verifies which port is actually listening via a fast local TCP probe.
      */
     private fun queryMdnsSrvPortRaw(serviceType: String, timeoutMs: Int, localIp: String?): Int? {
         var socket: java.net.MulticastSocket? = null
@@ -384,26 +402,37 @@ object UtilityActions {
                 soTimeout = timeoutMs
                 try { joinGroup(group) } catch (_: Exception) {}
             }
-            socket.send(java.net.DatagramPacket(queryBytes, queryBytes.size, group, 5353))
+            if (!localIp.isNullOrBlank()) {
+                try {
+                    socket.send(java.net.DatagramPacket(queryBytes, queryBytes.size, java.net.InetAddress.getByName(localIp), 5353))
+                } catch (_: Exception) {}
+            }
             try {
                 socket.send(java.net.DatagramPacket(queryBytes, queryBytes.size, localhost, 5353))
             } catch (_: Exception) {}
+            socket.send(java.net.DatagramPacket(queryBytes, queryBytes.size, group, 5353))
 
-            val buf = ByteArray(2048)
+            val buf = ByteArray(4096)
             val marker = "_adb-tls-connect".toByteArray(Charsets.US_ASCII)
             val deadline = System.currentTimeMillis() + timeoutMs
+            var fallbackPort: Int? = null
             while (System.currentTimeMillis() < deadline) {
                 val pkt = java.net.DatagramPacket(buf, buf.size)
                 socket.receive(pkt)
                 val senderIp = pkt.address?.hostAddress
                 if (senderIp != "127.0.0.1" && (localIp == null || senderIp != localIp)) continue
                 if (!containsBytes(pkt.data, pkt.length, marker)) continue
-                val port = parseMdnsSrvPort(pkt.data, pkt.length)
-                if (port != null && port in 1024..65535) {
-                    return port
+                val ports = parseMdnsSrvPorts(pkt.data, pkt.length)
+                if (ports.isEmpty()) continue
+                // Check newest/last SRV record first; verify port is actually listening
+                for (p in ports.asReversed()) {
+                    if (isLocalPortListening(p, localIp)) {
+                        return p
+                    }
                 }
+                fallbackPort = ports.last()
             }
-            null
+            fallbackPort
         } catch (_: Exception) {
             null
         } finally {
@@ -449,8 +478,8 @@ object UtilityActions {
         return len
     }
 
-    private fun parseMdnsSrvPort(data: ByteArray, len: Int): Int? {
-        if (len < 12) return null
+    private fun parseMdnsSrvPorts(data: ByteArray, len: Int): List<Int> {
+        if (len < 12) return emptyList()
         val qdCount = ((data[4].toInt() and 0xFF) shl 8) or (data[5].toInt() and 0xFF)
         val anCount = ((data[6].toInt() and 0xFF) shl 8) or (data[7].toInt() and 0xFF)
         val nsCount = ((data[8].toInt() and 0xFF) shl 8) or (data[9].toInt() and 0xFF)
@@ -459,24 +488,25 @@ object UtilityActions {
         var pos = 12
         for (i in 0 until qdCount) {
             pos = skipDnsName(data, len, pos) + 4
-            if (pos > len) return null
+            if (pos > len) return emptyList()
         }
+        val ports = mutableListOf<Int>()
         val totalRr = anCount + nsCount + arCount
         for (i in 0 until totalRr) {
             pos = skipDnsName(data, len, pos)
-            if (pos + 10 > len) return null
+            if (pos + 10 > len) break
             val rType = ((data[pos].toInt() and 0xFF) shl 8) or (data[pos + 1].toInt() and 0xFF)
             val rdLength = ((data[pos + 8].toInt() and 0xFF) shl 8) or (data[pos + 9].toInt() and 0xFF)
             pos += 10
-            if (pos + rdLength > len) return null
+            if (pos + rdLength > len) break
             // SRV record = 33; RDATA: priority(2) + weight(2) + port(2) + target
             if (rType == 33 && rdLength >= 6) {
                 val port = ((data[pos + 4].toInt() and 0xFF) shl 8) or (data[pos + 5].toInt() and 0xFF)
-                if (port in 1024..65535) return port
+                if (port in 1024..65535 && port !in ports) ports.add(port)
             }
             pos += rdLength
         }
-        return null
+        return ports
     }
 
     fun openWirelessDebuggingScreen(context: Context, backToHome: Boolean = false) {
