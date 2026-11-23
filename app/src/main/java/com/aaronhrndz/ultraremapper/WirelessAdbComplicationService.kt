@@ -121,19 +121,22 @@ open class WirelessAdbComplicationService : SuspendingComplicationDataSourceServ
             port != null -> ":$port"
             else -> "ADB"
         }
-        val shortTitleStr = if (isOn && lastOctet != null && port != null) "ADB:$lastOctet" else null
+        val shortTitleStr = when {
+            !isOn -> "ADB"
+            lastOctet != null && port != null -> "ADB:$lastOctet"
+            else -> null
+        }
         val shortTextStr = when {
-            !isOn -> "ADB OFF"
+            !isOn -> "OFF"
+            ip == null -> "NO WIFI"
             port != null -> "$port"
-            lastOctet != null -> "ADB:$lastOctet"
-            else -> "ADB ..."
+            else -> "ADB:$lastOctet"
         }
         val longTextStr = when {
             !isOn -> "ADB OFF"
             ip != null && port != null -> "$ip:$port"
             ip != null -> ip
-            port != null -> ":$port"
-            else -> "ADB OFF"
+            else -> "ADB (No WiFi)"
         }
         val desc = PlainComplicationText.Builder(compactAddr).build()
         val monoIcon = Icon.createWithResource(this, R.drawable.ic_adb_complication)
