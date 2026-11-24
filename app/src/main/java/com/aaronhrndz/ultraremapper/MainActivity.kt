@@ -415,6 +415,8 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    var hasPlayedIntroZoom by remember { mutableStateOf(false) }
+
                     if (splashVisible) {
                         AnimatedSplashScreen(onFinished = { splashVisible = false })
                     } else {
@@ -424,6 +426,8 @@ class MainActivity : ComponentActivity() {
                                 setup = setup,
                                 updateInfo = updateInfo,
                                 mappingVersion = mappingVersion,
+                                playIntroZoom = !hasPlayedIntroZoom,
+                                onIntroZoomFinished = { hasPlayedIntroZoom = true },
                                 localAdbClient = localAdbClient,
                                 onClientConnected = { client ->
                                     localAdbClient = client
@@ -739,6 +743,8 @@ private fun Home(
     setup: SetupState,
     updateInfo: ReleaseUpdate?,
     mappingVersion: Int,
+    playIntroZoom: Boolean,
+    onIntroZoomFinished: () -> Unit,
     localAdbClient: LocalAdbClient?,
     onClientConnected: (LocalAdbClient) -> Unit,
     onRefreshPermissions: () -> Unit,
@@ -766,18 +772,22 @@ private fun Home(
     val activeModeId = modesState.activeModeId
     val totalPages = modes.size + 2 // [0]=Settings, [1..N]=Modes, [N+1]=Add Mode
     val pagerState = rememberPagerState(initialPage = 1, pageCount = { totalPages })
-    val zoomScale = remember { Animatable(0.62f) }
+    val introStartScale = (1f / totalPages.coerceIn(3, 5)).coerceIn(0.24f, 0.34f)
+    val zoomScale = remember { Animatable(if (playIntroZoom) introStartScale else 1f) }
     var hasSwiped by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        delay(1000L)
-        zoomScale.animateTo(
-            1f,
-            tween(
-                durationMillis = 650,
-                easing = androidx.compose.animation.core.EaseInOutCubic
+    LaunchedEffect(playIntroZoom) {
+        if (playIntroZoom) {
+            delay(1000L)
+            zoomScale.animateTo(
+                1f,
+                tween(
+                    durationMillis = 900,
+                    easing = androidx.compose.animation.core.EaseInOutCubic
+                )
             )
-        )
+            onIntroZoomFinished()
+        }
     }
     LaunchedEffect(pagerState.currentPage) {
         if (pagerState.currentPage != 1) hasSwiped = true
@@ -799,8 +809,8 @@ private fun Home(
         HorizontalPager(
             state = pagerState,
             contentPadding = PaddingValues(horizontal = sidePad),
-            pageSpacing = (10f * pageScale).dp,
-            beyondViewportPageCount = 1,
+            pageSpacing = (8f * pageScale).dp,
+            beyondViewportPageCount = 2,
             modifier = Modifier.fillMaxSize()
         ) { page ->
             val isCurrentPage = pagerState.currentPage == page
