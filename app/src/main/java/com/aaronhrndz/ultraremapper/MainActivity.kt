@@ -769,7 +769,7 @@ private fun Home(
     val activeModeId = modesState.activeModeId
     val totalPages = modes.size + 2 // [0]=Settings, [1..N]=Modes, [N+1]=Add Mode
     val pagerState = rememberPagerState(initialPage = 1, pageCount = { totalPages })
-    val introStartScale = (0.86f / totalPages.coerceAtLeast(3)).coerceIn(0.14f, 0.28f)
+    val introStartScale = (0.92f / totalPages.coerceAtLeast(3)).coerceIn(0.14f, 0.30f)
     val zoomScale = remember { Animatable(if (playIntroZoom) introStartScale else 1f) }
     var hasSwiped by remember { mutableStateOf(false) }
     val versionLabel = remember {
@@ -809,13 +809,22 @@ private fun Home(
         val screenH = maxHeight
         val pageScale = zoomScale.value
         val sidePad = screenW * ((1f - pageScale) / 2f)
+        val introAlpha = if (introStartScale < 0.99f) {
+            ((1f - pageScale) / (1f - introStartScale)).coerceIn(0f, 1f)
+        } else 0f
+        // Center the entire carousel row edge-to-edge during zoom-out, then smoothly zoom into page 1
+        val centerPageIdx = (totalPages - 1) / 2f
+        val pageSlotDp = screenW * pageScale + (4f * pageScale).dp
+        val introOffsetX = pageSlotDp * (1f - centerPageIdx) * introAlpha
 
         HorizontalPager(
             state = pagerState,
             contentPadding = PaddingValues(horizontal = sidePad),
             pageSpacing = (4f * pageScale).dp,
             beyondViewportPageCount = totalPages.coerceAtLeast(3),
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { translationX = introOffsetX.toPx() }
         ) { page ->
             val isCurrentPage = pagerState.currentPage == page
             Box(
@@ -928,46 +937,50 @@ private fun Home(
             }
         }
 
-        // Intro zoom-out overlay texts: top swipe hint, bottom modes count, and curved bottom version
-        val introAlpha = if (introStartScale < 0.99f) {
-            ((1f - pageScale) / (1f - introStartScale)).coerceIn(0f, 1f)
-        } else 0f
+        // Intro zoom-out overlay texts: top swipe hint, bottom modes pill, and curved orange bottom version
         if (introAlpha > 0.02f) {
             Text(
                 text = context.getString(R.string.intro_swipe_hint),
-                color = Color.White.copy(alpha = 0.88f * introAlpha),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
+                color = Color.White.copy(alpha = 0.95f * introAlpha),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 34.dp, start = 24.dp, end = 24.dp)
+                    .padding(top = 34.dp, start = 20.dp, end = 20.dp)
             )
-            Text(
-                text = context.getString(R.string.intro_modes_count, modes.size),
-                color = Color(0xFFB8C2D4).copy(alpha = 0.9f * introAlpha),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center,
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 36.dp, start = 24.dp, end = 24.dp)
-            )
-            // Curved version string along bottom bezel
+                    .padding(bottom = 38.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color(0xFF222834).copy(alpha = 0.92f * introAlpha))
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = context.getString(R.string.intro_modes_count, modes.size),
+                    color = Color.White.copy(alpha = 0.95f * introAlpha),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center
+                )
+            }
+            // Curved orange version string along bottom bezel
             androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-                val r = kotlin.math.min(size.width, size.height) / 2f - 12.dp.toPx()
+                val r = kotlin.math.min(size.width, size.height) / 2f - 10.dp.toPx()
                 val cx = size.width / 2f
                 val cy = size.height / 2f
                 val path = android.graphics.Path().apply {
                     addArc(
                         android.graphics.RectF(cx - r, cy - r, cx + r, cy + r),
-                        150f,
-                        -120f
+                        160f,
+                        -140f
                     )
                 }
                 val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                    color = android.graphics.Color.argb((introAlpha * 185f).toInt(), 200, 210, 225)
-                    textSize = 10.5.sp.toPx()
+                    color = android.graphics.Color.argb((introAlpha * 255f).toInt(), 255, 85, 0)
+                    textSize = 13.sp.toPx()
+                    letterSpacing = 0.08f
                     textAlign = android.graphics.Paint.Align.CENTER
                     typeface = android.graphics.Typeface.DEFAULT_BOLD
                 }
