@@ -12,9 +12,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,10 +31,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
+import kotlinx.coroutines.launch
 import kotlin.math.*
 
 private val UltraOrange = Color(0xFFFF5500)
@@ -823,119 +831,203 @@ fun MobileModesHeaderCard(
     onColorClick: () -> Unit
 ) {
     val palette = LocalPalette.current
-    val modeColor = Color(selectedMode.colorArgb)
-    val isActive = selectedMode.id == activeModeId
+    val scope = rememberCoroutineScope()
+    val totalPages = modes.size + 1 // modes + "+ New" card
+    val selectedIdx = modes.indexOfFirst { it.id == selectedMode.id }.coerceAtLeast(0)
+    val pagerState = rememberPagerState(initialPage = selectedIdx, pageCount = { totalPages })
+
+    LaunchedEffect(selectedIdx) {
+        if (pagerState.currentPage != selectedIdx && selectedIdx < modes.size) {
+            pagerState.animateScrollToPage(selectedIdx)
+        }
+    }
+
+    LaunchedEffect(pagerState.currentPage, modes) {
+        val page = pagerState.currentPage
+        if (page in modes.indices) {
+            val targetId = modes[page].id
+            if (targetId != selectedMode.id) {
+                onSelectMode(targetId)
+            }
+        }
+    }
 
     Column(
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(palette.cardBg)
-            .border(1.5.dp, modeColor.copy(alpha = 0.55f), RoundedCornerShape(18.dp))
-            .padding(12.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        // Horizontal mode pills + "+ New" pill
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-        ) {
-            modes.forEach { m ->
-                val sel = m.id == selectedMode.id
-                val mc = Color(m.colorArgb)
+        HorizontalPager(
+            state = pagerState,
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            pageSpacing = 10.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) { page ->
+            if (page < modes.size) {
+                val m = modes[page]
+                val modeColor = Color(m.colorArgb)
+                val isActive = m.id == activeModeId
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(if (sel) mc.copy(alpha = 0.20f) else palette.bg)
-                        .border(1.dp, if (sel) mc else palette.border, RoundedCornerShape(999.dp))
-                        .clickable { onSelectMode(m.id) }
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(palette.cardBg)
+                        .border(
+                            width = if (isActive) 2.dp else 1.2.dp,
+                            color = if (isActive) modeColor else modeColor.copy(alpha = 0.45f),
+                            shape = RoundedCornerShape(18.dp)
+                        )
+                        .padding(horizontal = 14.dp, vertical = 14.dp)
                 ) {
-                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(mc))
+                    // Color ball
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(modeColor)
+                            .border(1.5.dp, Color.White.copy(alpha = 0.35f), CircleShape)
+                            .clickable(enabled = enabled) {
+                                if (m.id != selectedMode.id) onSelectMode(m.id)
+                                onColorClick()
+                            }
+                    )
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    // Mode name + edit pencil
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(enabled = enabled) {
+                                if (m.id != selectedMode.id) onSelectMode(m.id)
+                                onRenameClick()
+                            }
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = m.name,
+                                color = palette.textPrimary,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = null,
+                                tint = palette.textSecondary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                        Text(
+                            text = "${page + 1}/${modes.size} · ${stringResource(R.string.mode_tap_to_edit_hint)}",
+                            color = palette.textSecondary,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Active on watch badge / Activate button
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(if (isActive) modeColor.copy(alpha = 0.22f) else palette.bg)
+                            .border(1.dp, if (isActive) modeColor else palette.border, RoundedCornerShape(999.dp))
+                            .clickable(enabled = enabled && !isActive) { onActivateMode(m.id) }
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                    ) {
+                        if (isActive) {
+                            Icon(
+                                imageVector = Icons.Rounded.CheckCircle,
+                                contentDescription = null,
+                                tint = modeColor,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                        Text(
+                            text = if (isActive) stringResource(R.string.mode_badge_active) else stringResource(R.string.mode_btn_activate),
+                            color = if (isActive) modeColor else palette.textPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            } else {
+                // "+ New mode" card
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color(0xFF00E676).copy(alpha = 0.12f))
+                        .border(1.5.dp, Color(0xFF00E676).copy(alpha = 0.55f), RoundedCornerShape(18.dp))
+                        .clickable(enabled = enabled) { onCreateMode() }
+                        .padding(horizontal = 14.dp, vertical = 22.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = null,
+                        tint = Color(0xFF00E676),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = m.name,
-                        color = if (sel) palette.textPrimary else palette.textSecondary,
-                        fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium,
-                        fontSize = 12.sp
+                        text = stringResource(R.string.mode_add_short),
+                        color = Color(0xFF00E676),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
                     )
                 }
-            }
-            // Add Mode chip
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(Color(0xFF00E676).copy(alpha = 0.16f))
-                    .border(1.dp, Color(0xFF00E676).copy(alpha = 0.55f), RoundedCornerShape(999.dp))
-                    .clickable(enabled = enabled) { onCreateMode() }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = "+ " + stringResource(R.string.mode_add_short),
-                    color = Color(0xFF00E676),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
-                )
             }
         }
 
-        // Smart Mode Header: Large clickable color ball + clickable mode name + Active/Activate pill
+        // Clickable dot indicator row
         Row(
+            horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                // Large clickable color ball
+            modes.forEachIndexed { idx, m ->
+                val isPage = pagerState.currentPage == idx
+                val mc = Color(m.colorArgb)
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .padding(horizontal = 4.dp)
+                        .size(if (isPage) 10.dp else 7.dp)
                         .clip(CircleShape)
-                        .background(modeColor)
-                        .clickable(enabled = enabled) { onColorClick() }
+                        .background(if (isPage) mc else mc.copy(alpha = 0.35f))
+                        .clickable {
+                            scope.launch { pagerState.animateScrollToPage(idx) }
+                        }
                 )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(enabled = enabled) { onRenameClick() }
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = selectedMode.name,
-                        color = palette.textPrimary,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = stringResource(R.string.mode_tap_to_edit_hint),
-                        color = palette.textSecondary,
-                        fontSize = 11.sp
-                    )
-                }
             }
-            Box(
+            val isAddPage = pagerState.currentPage == modes.size
+            Icon(
+                imageVector = Icons.Rounded.Add,
+                contentDescription = null,
+                tint = if (isAddPage) Color(0xFF00E676) else Color(0xFF00E676).copy(alpha = 0.45f),
                 modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(if (isActive) modeColor.copy(alpha = 0.22f) else palette.bg)
-                    .border(1.dp, if (isActive) modeColor else palette.border, RoundedCornerShape(999.dp))
-                    .clickable(enabled = enabled && !isActive) { onActivateMode(selectedMode.id) }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = if (isActive) stringResource(R.string.mode_badge_active) else stringResource(R.string.mode_btn_activate),
-                    color = if (isActive) modeColor else palette.textPrimary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
-                )
-            }
+                    .padding(horizontal = 4.dp)
+                    .size(if (isAddPage) 15.dp else 12.dp)
+                    .clip(CircleShape)
+                    .clickable {
+                        scope.launch { pagerState.animateScrollToPage(modes.size) }
+                    }
+            )
         }
     }
 }
