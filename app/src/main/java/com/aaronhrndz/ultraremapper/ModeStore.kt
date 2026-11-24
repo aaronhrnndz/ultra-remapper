@@ -263,7 +263,11 @@ object ModeStore {
             } catch (_: Exception) {
                 "Mode $nextIdx"
             }
-            val finalColor = colorArgb ?: PALETTE[(nextIdx - 1) % PALETTE.size]
+            val existingColors = state.modes.map { it.colorArgb }.toSet()
+            val finalColor = colorArgb ?: PALETTE.firstOrNull { it !in existingColors } ?: run {
+                val hue = ((state.modes.size * 137.508f) % 360f)
+                android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.9f, 1f))
+            }
             created = ButtonMode(
                 id = UUID.randomUUID().toString().substring(0, 8),
                 name = finalName,

@@ -324,7 +324,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
-                AppScaffold {
+                AppScaffold(timeText = {}) {
                     val context = LocalContext.current
                     val lifecycleOwner = LocalLifecycleOwner.current
                     var setup by remember { mutableStateOf(readSetupState(context)) }
@@ -912,7 +912,7 @@ private fun ModeHomePage(
     val cardConfiguredColors = ButtonDefaults.buttonColors(
         containerColor = Color(0xFF282E38),
         contentColor = Color.White,
-        secondaryContentColor = modeAccent
+        secondaryContentColor = UltraOrange
     )
     val cardUnconfiguredColors = ButtonDefaults.buttonColors(
         containerColor = Color(0xFF282E38),
@@ -1001,9 +1001,6 @@ private fun ModeHomePage(
             needsSamsungPayFreeze
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Subtle colored perimeter ring of current mode
-        ModePerimeterRing(colorArgb = mode.colorArgb)
-
         ScreenScaffold(scrollState = columnState) { _ ->
             var isTopExpanded by remember { mutableStateOf(false) }
             var isActionExpanded by remember { mutableStateOf(false) }
@@ -1012,7 +1009,7 @@ private fun ModeHomePage(
 
             TransformingLazyColumn(
                 state = columnState,
-                contentPadding = PaddingValues(top = 34.dp, bottom = 76.dp, start = 10.dp, end = 10.dp)
+                contentPadding = PaddingValues(top = 44.dp, bottom = 76.dp, start = 10.dp, end = 10.dp)
             ) {
                 // Smart Mode Header: Large clickable color ball + clickable mode name + Active chip
                 item(key = "mode_header_${mode.id}") {
@@ -1066,7 +1063,7 @@ private fun ModeHomePage(
                         ) {
                             Text(
                                 text = if (isActiveMode) context.getString(R.string.mode_badge_active) else context.getString(R.string.mode_btn_activate),
-                                color = if (isActiveMode) modeAccent else Color(0xFFC5CDD9),
+                                color = if (isActiveMode) Color(0xFF00E676) else Color(0xFFC5CDD9),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1860,7 +1857,7 @@ private fun ModeHomePage(
                         },
                         label = {
                             Text(
-                                text = context.getString(R.string.mode_delete_btn),
+                                text = "🗑  " + context.getString(R.string.mode_delete_btn),
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
                                 textAlign = TextAlign.Center,
@@ -1868,7 +1865,7 @@ private fun ModeHomePage(
                             )
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF5A1A1A),
+                            containerColor = Color(0xFFC62828),
                             contentColor = Color.White
                         ),
                         transformation = SurfaceTransformation(transformationSpec),
@@ -1880,6 +1877,8 @@ private fun ModeHomePage(
             }
         }
         }
+        // Colored perimeter ring drawn above cards so it never gets covered
+        ModePerimeterRing(colorArgb = mode.colorArgb)
     }
 }
 

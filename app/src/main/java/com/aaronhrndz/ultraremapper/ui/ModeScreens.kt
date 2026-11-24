@@ -654,24 +654,40 @@ fun ModeRenameScreen(
                     )
                 }
             }
-            item(key = "ren_save") {
-                Button(
-                    onClick = {
-                        val trimmed = text.trim()
-                        if (trimmed.isNotEmpty()) onSave(trimmed) else onCancel()
-                    },
-                    label = { Text(context.getString(R.string.btn_save), fontWeight = FontWeight.Bold) },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            item(key = "ren_cancel") {
-                Button(
-                    onClick = onCancel,
-                    label = { Text(context.getString(R.string.btn_cancel)) },
-                    colors = ButtonDefaults.buttonColors(containerColor = SlateCardBg, contentColor = Color.White),
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-                )
+            item(key = "ren_actions") {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF2B313D))
+                            .clickable {
+                                HapticFeedbackHelper.playUiTap(context)
+                                onCancel()
+                            }
+                    ) {
+                        Text("✕", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(AccentOrange)
+                            .clickable {
+                                HapticFeedbackHelper.playButtonHaptic(context)
+                                val trimmed = text.trim()
+                                if (trimmed.isNotEmpty()) onSave(trimmed) else onCancel()
+                            }
+                    ) {
+                        Text("✓", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     }
@@ -712,21 +728,39 @@ fun DeleteModeConfirmScreen(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                 )
             }
-            item(key = "del_yes") {
-                Button(
-                    onClick = onConfirm,
-                    label = { Text(context.getString(R.string.mode_delete_btn), fontWeight = FontWeight.Bold) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB71C1C), contentColor = Color.White),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            item(key = "del_no") {
-                Button(
-                    onClick = onCancel,
-                    label = { Text(context.getString(R.string.btn_cancel)) },
-                    colors = ButtonDefaults.buttonColors(containerColor = SlateCardBg, contentColor = Color.White),
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-                )
+            item(key = "del_actions") {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF2B313D))
+                            .clickable {
+                                HapticFeedbackHelper.playUiTap(context)
+                                onCancel()
+                            }
+                    ) {
+                        Text("✕", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFC62828))
+                            .clickable {
+                                HapticFeedbackHelper.playButtonHaptic(context)
+                                onConfirm()
+                            }
+                    ) {
+                        Text("🗑", color = Color.White, fontSize = 19.sp)
+                    }
+                }
             }
         }
     }
