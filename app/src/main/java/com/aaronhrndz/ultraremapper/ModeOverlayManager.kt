@@ -2,59 +2,103 @@ package com.aaronhrndz.ultraremapper
 
 import android.content.Context
 import android.graphics.*
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
-import android.widget.FrameLayout
-import android.widget.TextView
 import kotlin.math.*
 
 /**
  * Non-blocking system overlay showing futuristic perimeter ring animation
- * + solid (or user-configured opacity) mode-colored native TextView pill with soft glow.
+ * + solid (or user-configured opacity) mode-colored pill.
+ * Prefers trusted TYPE_ACCESSIBILITY_OVERLAY when BottomButtonService is active,
+ * falling back cleanly to TYPE_APPLICATION_OVERLAY.
  */
 object ModeOverlayManager {
     private val mainHandler = Handler(Looper.getMainLooper())
-    private var activeRoot: FrameLayout? = null
     private var activeRingView: ModeOverlayCanvasView? = null
-    private var activeWm: WindowManager? = null
+    private var activeRingWm: WindowManager? = null
+    private var activePillView: ModePillView? = null
+    private var activePillWm: WindowManager? = null
 
     fun show(context: Context, mode: ButtonMode, config: ModeOverlayConfig = ModeStore.getOverlayConfig(context)) {
         val appCtx = context.applicationContext
-        if (!Settings.canDrawOverlays(appCtx)) return
+        val a11ySvc = BottomButtonService.instance
+        if (a11ySvc == null && !Settings.canDrawOverlays(appCtx)) return
         mainHandler.post {
             dismissNow()
             try {
-                val wm = appCtx.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return@post
-                val dm = appCtx.resources.displayMetrics
+                val winCtx: Context = a11ySvc ?: appCtx
+                val primaryWm = winCtx.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return@post
+                val fallbackWm = if (a11ySvc != null && Settings.canDrawOverlays(appCtx)) {
+                    appCtx.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+                } else null
+
+                val dm = winCtx.resources.displayMetrics
                 val screenMinPx = min(dm.widthPixels, dm.heightPixels).toFloat()
                 val scale = (config.pillSizePct / 100f) * (screenMinPx / 400f)
 
-                val root = FrameLayout(appCtx).apply {
-                    clipChildren = false
-                    clipToPadding = false
-                    setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+                // 1. Perimeter Ring Window (MATCH_PARENT, pass-through)
+                val ringView = ModeOverlayCanvasView(winCtx)
+                val ringFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+
+                fun makeRingParams(windowType: Int) = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    windowType,
+                    ringFlags,
+                    PixelFormat.TRANSLUCENT
+                ).apply {
+                    alpha = 1.0f
+                    windowAnimations = 0
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        layoutInDisplayCutoutMode =
+                            WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                    }
                 }
 
-                // 1. Perimeter Ring Canvas View (no forced LAYER_TYPE_HARDWARE)
-                val ringView = ModeOverlayCanvasView(appCtx)
-                root.addView(
-                    ringView,
-                    FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                    )
-                )
+                val usedTrusted: Boolean
+                val ringWm: WindowManager
+                val ringWindowType: Int
+                if (a11ySvc != null) {
+                    var addedTrusted = false
+                    try {
+                        primaryWm.addView(ringView, makeRingParams(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY))
+                        addedTrusted = true
+                    } catch (_: Throwable) {
+                        addedTrusted = false
+                    }
+                    if (addedTrusted) {
+                        usedTrusted = true
+                        ringWm = primaryWm
+                        ringWindowType = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+                    } else if (fallbackWm != null) {
+                        usedTrusted = false
+                        ringWm = fallbackWm
+                        ringWindowType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                        ringWm.addView(ringView, makeRingParams(ringWindowType))
+                    } else {
+                        return@post
+                    }
+                } else {
+                    usedTrusted = false
+                    ringWm = primaryWm
+                    ringWindowType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                    ringWm.addView(ringView, makeRingParams(ringWindowType))
+                }
+                activeRingView = ringView
+                activeRingWm = ringWm
 
-                // 2. Native TextView Pill — guarantees 100% solid opaque pixels when pillAlphaPct == 100
-                var pillView: TextView? = null
+                // 2. Separate Pill Window added AFTER Ring Window — no FLAG_NOT_TOUCHABLE so
+                // Android/Samsung untrusted-touch obscuring-opacity clamping never applies
+                var pillView: ModePillView? = null
                 if (config.showPill && mode.name.isNotBlank()) {
                     val modeColorOpaque = Color.rgb(
                         Color.red(mode.colorArgb),
@@ -62,94 +106,64 @@ object ModeOverlayManager {
                         Color.blue(mode.colorArgb)
                     )
                     val bgAlphaInt = ((config.pillAlphaPct.coerceIn(20, 100) / 100f) * 255f).roundToInt()
-                    val pillFillColor = Color.argb(
-                        bgAlphaInt,
-                        Color.red(modeColorOpaque),
-                        Color.green(modeColorOpaque),
-                        Color.blue(modeColorOpaque)
-                    )
                     val lum = (0.299f * Color.red(modeColorOpaque) +
                         0.587f * Color.green(modeColorOpaque) +
                         0.114f * Color.blue(modeColorOpaque)) / 255f
                     val contrastTextColor = if (lum > 0.58f) Color.rgb(10, 13, 18) else Color.WHITE
+                    val maxWidthPx = (screenMinPx * 0.84f).roundToInt().coerceAtLeast(80)
 
-                    val bgDrawable = GradientDrawable().apply {
-                        shape = GradientDrawable.RECTANGLE
-                        cornerRadius = 999f * dm.density
-                        setColor(modeColorOpaque)
-                        alpha = bgAlphaInt
-                    }
+                    val pillCtx = if (usedTrusted) winCtx else appCtx
+                    val pv = ModePillView(
+                        context = pillCtx,
+                        modeName = mode.name,
+                        modeColorOpaque = modeColorOpaque,
+                        contrastTextColor = contrastTextColor,
+                        bgAlphaInt = bgAlphaInt,
+                        scale = scale,
+                        maxWidthPx = maxWidthPx
+                    )
 
-                    val padH = (18f * scale).roundToInt().coerceAtLeast(8)
-                    val padV = (8f * scale).roundToInt().coerceAtLeast(4)
+                    val pillFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
 
-                    val tv = TextView(appCtx).apply {
-                        text = mode.name
-                        setTextColor(contrastTextColor)
-                        setTextSize(TypedValue.COMPLEX_UNIT_PX, 15f * scale)
-                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                        includeFontPadding = false
-                        background = bgDrawable
-                        setPadding(padH, padV, padH, padV)
-                        alpha = 0f
-                    }
-
-                    val marginPx = (36f * (screenMinPx / 400f)).roundToInt()
-                    val lp = FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.WRAP_CONTENT,
-                        FrameLayout.LayoutParams.WRAP_CONTENT
+                    val pillParams = WindowManager.LayoutParams(
+                        WindowManager.LayoutParams.WRAP_CONTENT,
+                        WindowManager.LayoutParams.WRAP_CONTENT,
+                        ringWindowType,
+                        pillFlags,
+                        PixelFormat.TRANSLUCENT
                     ).apply {
+                        alpha = 1.0f
+                        windowAnimations = 0
                         gravity = when (config.pillPosition) {
                             ModeOverlayConfig.POS_CENTER -> Gravity.CENTER
                             ModeOverlayConfig.POS_BOTTOM -> Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
                             else -> Gravity.TOP or Gravity.CENTER_HORIZONTAL
                         }
-                        if (config.pillPosition == ModeOverlayConfig.POS_TOP) topMargin = marginPx
-                        if (config.pillPosition == ModeOverlayConfig.POS_BOTTOM) bottomMargin = marginPx
+                        y = if (config.pillPosition == ModeOverlayConfig.POS_CENTER) {
+                            0
+                        } else {
+                            (36f * (screenMinPx / 400f)).roundToInt()
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            layoutInDisplayCutoutMode =
+                                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                        }
                     }
-                    root.addView(tv, lp)
-                    pillView = tv
-                }
 
-                val flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-
-                val params = WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                    flags,
-                    PixelFormat.TRANSLUCENT
-                ).apply {
-                    alpha = 1.0f
+                    ringWm.addView(pv, pillParams)
+                    activePillView = pv
+                    activePillWm = ringWm
+                    pillView = pv
                 }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    params.layoutInDisplayCutoutMode =
-                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-                }
-
-                wm.addView(root, params)
-                activeRoot = root
-                activeRingView = ringView
-                activeWm = wm
 
                 ringView.play(
                     colorArgb = mode.colorArgb,
                     cfg = config,
                     onFrame = { t ->
-                        pillView?.let { tv ->
-                            val pillAlpha = when {
-                                t < 0.08f -> (t / 0.08f).coerceIn(0f, 1f)
-                                t > 0.86f -> ((1f - (t - 0.86f) / 0.08f)).coerceIn(0f, 1f)
-                                else -> 1f
-                            }
-                            val entryScale = if (t < 0.10f) 0.92f + (t / 0.10f) * 0.08f else 1f
-                            tv.alpha = pillAlpha
-                            tv.scaleX = entryScale
-                            tv.scaleY = entryScale
-                        }
+                        pillView?.setProgress(t)
                     },
                     onEnd = { dismissNow() }
                 )
@@ -160,22 +174,129 @@ object ModeOverlayManager {
     }
 
     private fun dismissNow() {
-        val root = activeRoot
         val ring = activeRingView
-        val wm = activeWm
-        activeRoot = null
+        val ringWm = activeRingWm
+        val pill = activePillView
+        val pillWm = activePillWm
         activeRingView = null
-        activeWm = null
+        activeRingWm = null
+        activePillView = null
+        activePillWm = null
         ring?.stop()
-        if (root != null) {
+        if (pill != null) {
             try {
-                wm?.removeViewImmediate(root)
+                pillWm?.removeViewImmediate(pill)
             } catch (_: Throwable) {
                 try {
-                    wm?.removeView(root)
+                    pillWm?.removeView(pill)
                 } catch (_: Throwable) {}
             }
         }
+        if (ring != null) {
+            try {
+                ringWm?.removeViewImmediate(ring)
+            } catch (_: Throwable) {
+                try {
+                    ringWm?.removeView(ring)
+                } catch (_: Throwable) {}
+            }
+        }
+    }
+}
+
+/**
+ * Software-rendered pill writing exact 0xAARRGGBB pixels via PorterDuff.Mode.SRC
+ * so 100% opacity produces completely solid, non-blended background pixels.
+ */
+private class ModePillView(
+    context: Context,
+    private val modeName: String,
+    private val modeColorOpaque: Int,
+    private val contrastTextColor: Int,
+    private val bgAlphaInt: Int,
+    scale: Float,
+    private val maxWidthPx: Int
+) : View(context) {
+
+    private val padH: Float = max(8f, 18f * scale)
+    private val padV: Float = max(4f, 8f * scale)
+    private var fadeEnv: Float = 1f
+
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textAlign = Paint.Align.CENTER
+        textSize = 15f * scale
+        val maxTextW = (maxWidthPx - padH * 2f).coerceAtLeast(24f)
+        while (textSize > 9f && measureText(modeName) > maxTextW) {
+            textSize *= 0.9f
+        }
+    }
+
+    private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC)
+    }
+
+    private val pillRect = RectF()
+
+    init {
+        setLayerType(LAYER_TYPE_SOFTWARE, null)
+        alpha = 1f
+    }
+
+    fun setProgress(t: Float) {
+        val nextFade = if (t > 0.88f) {
+            ((1f - (t - 0.88f) / 0.12f)).coerceIn(0f, 1f)
+        } else {
+            1f
+        }
+        val nextScale = if (t < 0.08f) 0.94f + (t / 0.08f) * 0.06f else 1f
+        scaleX = nextScale
+        scaleY = nextScale
+        if (nextFade != fadeEnv) {
+            fadeEnv = nextFade
+            invalidate()
+        }
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val fm = textPaint.fontMetrics
+        val textH = fm.descent - fm.ascent
+        val textW = textPaint.measureText(modeName)
+        val w = (textW + padH * 2f).roundToInt().coerceIn(1, maxWidthPx)
+        val h = (textH + padV * 2f).roundToInt().coerceAtLeast(1)
+        setMeasuredDimension(w, h)
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        val w = width.toFloat()
+        val h = height.toFloat()
+        if (w <= 0f || h <= 0f) return
+
+        canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+
+        val effBgAlpha = (bgAlphaInt * fadeEnv).roundToInt().coerceIn(0, 255)
+        val effTextAlpha = (255f * fadeEnv).roundToInt().coerceIn(0, 255)
+
+        bgPaint.color = Color.argb(
+            effBgAlpha,
+            Color.red(modeColorOpaque),
+            Color.green(modeColorOpaque),
+            Color.blue(modeColorOpaque)
+        )
+        pillRect.set(0f, 0f, w, h)
+        canvas.drawRoundRect(pillRect, h / 2f, h / 2f, bgPaint)
+
+        textPaint.color = Color.argb(
+            effTextAlpha,
+            Color.red(contrastTextColor),
+            Color.green(contrastTextColor),
+            Color.blue(contrastTextColor)
+        )
+        val fm = textPaint.fontMetrics
+        val baseline = h / 2f - (fm.ascent + fm.descent) / 2f
+        canvas.drawText(modeName, w / 2f, baseline, textPaint)
     }
 }
 

@@ -177,8 +177,19 @@ object HapticFeedbackHelper {
                 timings[i * 2 + 1] = 50L // crisp pulse
                 amplitudes[i * 2 + 1] = 255
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
+            val effect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                VibrationEffect.createWaveform(timings, amplitudes, -1)
+            } else null
+            vibrator.cancel()
+            if (effect != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val attrs = VibrationAttributes.Builder()
+                        .setUsage(VibrationAttributes.USAGE_TOUCH)
+                        .build()
+                    vibrator.vibrate(effect, attrs)
+                } else {
+                    vibrator.vibrate(effect)
+                }
             } else {
                 @Suppress("DEPRECATION")
                 vibrator.vibrate(timings, -1)

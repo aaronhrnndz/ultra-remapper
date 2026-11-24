@@ -1,6 +1,7 @@
 package com.aaronhrndz.ultraremapper
 
 import com.aaronhrndz.ultraremapper.R
+import com.aaronhrndz.ultraremapper.adb.AdbLocalManager
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
@@ -128,8 +129,20 @@ class BottomButtonService : AccessibilityService() {
 
     private val onHoldTimeout = Runnable {
         actionFired = true
-        android.util.Log.d("BottomButton", "onHoldTimeout: arming for Samsung Wallet launch")
-        HapticFeedbackHelper.playButtonHaptic(this)
+        val bottomLongAction = Mapping.get(this, "bottom_long")
+        val isModeSwitch = ModeStore.isModeSwitchAction(bottomLongAction)
+        android.util.Log.d("BottomButton", "onHoldTimeout: action=$bottomLongAction isModeSwitch=$isModeSwitch")
+        if (!isModeSwitch) {
+            HapticFeedbackHelper.playButtonHaptic(this)
+        }
+        // If Samsung Pay is disabled and this is a mode switch, execute immediately (no 650ms Wallet wait)
+        if (isModeSwitch && !AdbLocalManager.isSamsungPayEnabled(this)) {
+            pendingWalletDismissAction = false
+            handler.removeCallbacks(walletFallbackAction)
+            Mapping.perform(this, "bottom_long", backToHome = true)
+            UpdateChecker.checkOpportunistic(applicationContext)
+            return@Runnable
+        }
         // Set flag to wait for Samsung Wallet/Pay window to appear
         pendingWalletDismissAction = true
         handler.removeCallbacks(walletFallbackAction)
