@@ -43,8 +43,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -280,6 +282,21 @@ fun CompanionAppRoot(
     // Navigation state
     var activeTab by remember { mutableStateOf(CompanionTab.BUTTONS) }
     var showDevOptionsScreen by remember { mutableStateOf(false) }
+    var showAnimationEditor by remember { mutableStateOf(false) }
+
+    // v3.0.0 Dynamic Modes & Overlay Config State
+    var watchModes by remember {
+        mutableStateOf(
+            listOf(WatchButtonMode("mode_default", context.getString(R.string.mode_default_name), 0xFFFF5500.toInt(), emptyMap()))
+        )
+    }
+    var activeModeId by remember { mutableStateOf("mode_default") }
+    var selectedModeId by remember { mutableStateOf("mode_default") }
+    var overlayConfig by remember { mutableStateOf(WatchOverlayConfig()) }
+    var showColorPicker by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var showDeleteModeDialog by remember { mutableStateOf(false) }
+    var reservedDialogOwnerName by remember { mutableStateOf<String?>(null) }
 
     // Bluetooth / DataLayer Sync State
     var isBtSynced by remember { mutableStateOf(false) }
@@ -378,6 +395,14 @@ fun CompanionAppRoot(
                 for ((k, v) in state.mappings) {
                     gestureMappings[k] = v
                 }
+                if (state.modes.isNotEmpty()) {
+                    watchModes = state.modes
+                    activeModeId = state.activeModeId
+                    if (state.modes.none { it.id == selectedModeId }) {
+                        selectedModeId = state.activeModeId
+                    }
+                }
+                overlayConfig = state.overlayConfig
                 for (perm in WatchPermission.values()) {
                     state.permissions[perm.key]?.let { permissionStates[perm] = it }
                 }
@@ -629,11 +654,47 @@ fun CompanionAppRoot(
         }
     }
 
-    // Helper to update a button/gesture mapping
+    val selectedMode = watchModes.firstOrNull { it.id == selectedModeId } ?: watchModes.first()
+
+    // Compute globally reserved mode-switch gestures across all modes
+    val reservedSwitchByGesture: Map<String, WatchButtonMode> = remember(watchModes) {
+        val map = linkedMapOf<String, WatchButtonMode>()
+        for (m in watchModes) {
+            for ((g, a) in m.mappings) {
+                if ((a == "mode_next" || a == "mode_prev") && !map.containsKey(g)) {
+                    map[g] = m
+                }
+            }
+        }
+        map
+    }
+
+    fun getSelectedModeAction(gesture: String): String {
+        val reservedOwner = reservedSwitchByGesture[gesture]
+        if (reservedOwner != null) return reservedOwner.mappings[gesture] ?: "mode_next"
+        return selectedMode.mappings[gesture] ?: "none"
+    }
+
+    // Helper to update a button/gesture mapping for the currently selected mode
     fun updateWatchMapping(gesture: String, action: String) {
-        gestureMappings[gesture] = action
+        val targetModeId = selectedMode.id
+        if (targetModeId == activeModeId) {
+            gestureMappings[gesture] = action
+        }
+        watchModes = watchModes.map { m ->
+            if (m.id != targetModeId) {
+                if ((action == "mode_next" || action == "mode_prev") && m.mappings.containsKey(gesture)) {
+                    m.copy(mappings = m.mappings - gesture)
+                } else m
+            } else {
+                val nm = m.mappings.toMutableMap()
+                if (action == "none") nm.remove(gesture) else nm[gesture] = action
+                m.copy(mappings = nm)
+            }
+        }
         val cmd = JSONObject().apply {
             put("type", "set_mapping")
+            put("modeId", targetModeId)
             put("gesture", gesture)
             put("action", action)
         }
@@ -678,6 +739,27 @@ fun CompanionAppRoot(
         (isSamsungPayEnabled == true)
 
     val watchConnectedAny = isBtSynced || isAdbConnected
+
+    // Animation Editor Dedicated Subscreen
+    if (showAnimationEditor) {
+        BackHandler { showAnimationEditor = false }
+        MobileAnimationEditorScreen(
+            initialConfig = overlayConfig,
+            modes = watchModes,
+            onSaveAndPreviewOnWatch = { nextCfg, previewOnWatch ->
+                overlayConfig = nextCfg
+                dataLayerBridge.sendCommandToWatch(
+                    JSONObject().apply {
+                        put("type", "set_overlay_config")
+                        put("config", nextCfg.toJson())
+                        put("preview", previewOnWatch)
+                    }
+                )
+            },
+            onBack = { showAnimationEditor = false }
+        )
+        return
+    }
 
     // Developer Options Dedicated Subscreen (7 taps on version in Settings)
     if (showDevOptionsScreen) {
@@ -966,6 +1048,32 @@ fun CompanionAppRoot(
                     }
                 }
 
+                // 2.5 DYNAMIC MODES CAROUSEL & SMART HEADER
+                item(key = "modes_header_card") {
+                    MobileModesHeaderCard(
+                        modes = watchModes,
+                        selectedMode = selectedMode,
+                        activeModeId = activeModeId,
+                        enabled = watchConnectedAny,
+                        onSelectMode = { selectedModeId = it },
+                        onCreateMode = {
+                            dataLayerBridge.sendCommandToWatch(JSONObject().put("type", "mode_create"))
+                        },
+                        onActivateMode = { id ->
+                            activeModeId = id
+                            dataLayerBridge.sendCommandToWatch(
+                                JSONObject().apply {
+                                    put("type", "mode_set_active")
+                                    put("id", id)
+                                    put("showOverlay", true)
+                                }
+                            )
+                        },
+                        onRenameClick = { showRenameDialog = true },
+                        onColorClick = { showColorPicker = true }
+                    )
+                }
+
                 // 3. BUTTON & GESTURE CONFIGURATION
                 item(key = "hdr_remap_config") {
                     Row(
@@ -991,7 +1099,7 @@ fun CompanionAppRoot(
 
                 // Top Button Collapsible
                 item(key = "card_top_button") {
-                    val count = WatchActionCatalog.topGestures.count { (gestureMappings[it.first] ?: "none") != "none" }
+                    val count = WatchActionCatalog.topGestures.count { getSelectedModeAction(it.first) != "none" }
                     WatchSectionCollapsible(
                         iconRes = R.drawable.ic_watch_top_button,
                         title = stringResource(R.string.btn_top_title),
@@ -1001,15 +1109,21 @@ fun CompanionAppRoot(
                         onToggle = { isTopExpanded = !isTopExpanded }
                     ) {
                         WatchActionCatalog.topGestures.forEach { (gesture, nameRes) ->
-                            val act = gestureMappings[gesture] ?: "none"
+                            val act = getSelectedModeAction(gesture)
+                            val reservedOwner = reservedSwitchByGesture[gesture]?.takeIf { it.id != selectedMode.id }
                             GestureMappingRow(
-                                gestureName = stringResource(nameRes),
-                                actionLabel = WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
+                                gestureName = if (reservedOwner != null) "🔒 " + stringResource(nameRes) else stringResource(nameRes),
+                                actionLabel = if (reservedOwner != null) stringResource(R.string.mode_reserved_subtitle)
+                                    else WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
                                 isConfigured = act != "none",
                                 enabled = watchConnectedAny
                             ) {
-                                pickingAppSublist = false
-                                pickingGesture = gesture
+                                if (reservedOwner != null) {
+                                    reservedDialogOwnerName = reservedOwner.name
+                                } else {
+                                    pickingAppSublist = false
+                                    pickingGesture = gesture
+                                }
                             }
                         }
                     }
@@ -1017,7 +1131,7 @@ fun CompanionAppRoot(
 
                 // Center / Action Button Collapsible
                 item(key = "card_action_button") {
-                    val count = WatchActionCatalog.actionGestures.count { (gestureMappings[it.first] ?: "none") != "none" }
+                    val count = WatchActionCatalog.actionGestures.count { getSelectedModeAction(it.first) != "none" }
                     WatchSectionCollapsible(
                         iconRes = R.drawable.ic_watch_quick_button,
                         title = stringResource(R.string.btn_center_title),
@@ -1033,15 +1147,21 @@ fun CompanionAppRoot(
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                         )
                         WatchActionCatalog.actionGestures.forEach { (gesture, nameRes) ->
-                            val act = gestureMappings[gesture] ?: "none"
+                            val act = getSelectedModeAction(gesture)
+                            val reservedOwner = reservedSwitchByGesture[gesture]?.takeIf { it.id != selectedMode.id }
                             GestureMappingRow(
-                                gestureName = stringResource(nameRes),
-                                actionLabel = WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
+                                gestureName = if (reservedOwner != null) "🔒 " + stringResource(nameRes) else stringResource(nameRes),
+                                actionLabel = if (reservedOwner != null) stringResource(R.string.mode_reserved_subtitle)
+                                    else WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
                                 isConfigured = act != "none",
                                 enabled = watchConnectedAny
                             ) {
-                                pickingAppSublist = false
-                                pickingGesture = gesture
+                                if (reservedOwner != null) {
+                                    reservedDialogOwnerName = reservedOwner.name
+                                } else {
+                                    pickingAppSublist = false
+                                    pickingGesture = gesture
+                                }
                             }
                         }
                     }
@@ -1049,7 +1169,7 @@ fun CompanionAppRoot(
 
                 // Bottom Button Collapsible
                 item(key = "card_bottom_button") {
-                    val count = WatchActionCatalog.bottomGestures.count { (gestureMappings[it.first] ?: "none") != "none" }
+                    val count = WatchActionCatalog.bottomGestures.count { getSelectedModeAction(it.first) != "none" }
                     WatchSectionCollapsible(
                         iconRes = R.drawable.ic_watch_bottom_button,
                         title = stringResource(R.string.btn_bottom_title),
@@ -1059,15 +1179,21 @@ fun CompanionAppRoot(
                         onToggle = { isBottomExpanded = !isBottomExpanded }
                     ) {
                         WatchActionCatalog.bottomGestures.forEach { (gesture, nameRes) ->
-                            val act = gestureMappings[gesture] ?: "none"
+                            val act = getSelectedModeAction(gesture)
+                            val reservedOwner = reservedSwitchByGesture[gesture]?.takeIf { it.id != selectedMode.id }
                             GestureMappingRow(
-                                gestureName = stringResource(nameRes),
-                                actionLabel = WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
+                                gestureName = if (reservedOwner != null) "🔒 " + stringResource(nameRes) else stringResource(nameRes),
+                                actionLabel = if (reservedOwner != null) stringResource(R.string.mode_reserved_subtitle)
+                                    else WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
                                 isConfigured = act != "none",
                                 enabled = watchConnectedAny
                             ) {
-                                pickingAppSublist = false
-                                pickingGesture = gesture
+                                if (reservedOwner != null) {
+                                    reservedDialogOwnerName = reservedOwner.name
+                                } else {
+                                    pickingAppSublist = false
+                                    pickingGesture = gesture
+                                }
                             }
                         }
                     }
@@ -1075,7 +1201,7 @@ fun CompanionAppRoot(
 
                 // Gestures (Toc toc) Collapsible
                 item(key = "card_gestures") {
-                    val count = WatchActionCatalog.gestureList.count { (gestureMappings[it.first] ?: "none") != "none" }
+                    val count = WatchActionCatalog.gestureList.count { getSelectedModeAction(it.first) != "none" }
                     WatchSectionCollapsible(
                         iconRes = R.drawable.ic_wrist_gesture,
                         title = stringResource(R.string.btn_gestures_title),
@@ -1085,16 +1211,40 @@ fun CompanionAppRoot(
                         onToggle = { isGesturesExpanded = !isGesturesExpanded }
                     ) {
                         WatchActionCatalog.gestureList.forEach { (gesture, nameRes) ->
-                            val act = gestureMappings[gesture] ?: "none"
+                            val act = getSelectedModeAction(gesture)
+                            val reservedOwner = reservedSwitchByGesture[gesture]?.takeIf { it.id != selectedMode.id }
                             GestureMappingRow(
-                                gestureName = stringResource(nameRes),
-                                actionLabel = WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
+                                gestureName = if (reservedOwner != null) "🔒 " + stringResource(nameRes) else stringResource(nameRes),
+                                actionLabel = if (reservedOwner != null) stringResource(R.string.mode_reserved_subtitle)
+                                    else WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
                                 isConfigured = act != "none",
                                 enabled = watchConnectedAny
                             ) {
-                                pickingAppSublist = false
-                                pickingGesture = gesture
+                                if (reservedOwner != null) {
+                                    reservedDialogOwnerName = reservedOwner.name
+                                } else {
+                                    pickingAppSublist = false
+                                    pickingGesture = gesture
+                                }
                             }
+                        }
+                    }
+                }
+
+                // Delete Mode button at the very bottom (hidden if only 1 mode remains)
+                if (watchModes.size > 1) {
+                    item(key = "delete_mode_bottom") {
+                        OutlinedButton(
+                            onClick = { showDeleteModeDialog = true },
+                            enabled = watchConnectedAny,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = RedAlert),
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.mode_delete_btn),
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -1273,6 +1423,32 @@ fun CompanionAppRoot(
                             enabled = watchConnectedAny,
                             onToggle = { updateHapticSwitch(!isHapticEnabled) }
                         )
+                        // Mode Switch Animation Editor Entry
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(palette.bg)
+                                .clickable { showAnimationEditor = true }
+                                .padding(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = stringResource(R.string.anim_editor_title),
+                                    color = palette.textPrimary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = stringResource(R.string.anim_editor_subtitle),
+                                    color = palette.textSecondary,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            Text("›", color = UltraOrange, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        }
                         ThemeTripleSwitchRow(
                             title = stringResource(R.string.theme_selector_title),
                             subtitle = stringResource(R.string.theme_selector_sub),
@@ -2028,11 +2204,116 @@ fun CompanionAppRoot(
         }
     }
 
+    // RGB Color Picker Dialog for selected mode
+    if (showColorPicker) {
+        MobileRgbColorPickerDialog(
+            initialColorArgb = selectedMode.colorArgb,
+            onConfirm = { newColor ->
+                showColorPicker = false
+                watchModes = watchModes.map { if (it.id == selectedMode.id) it.copy(colorArgb = newColor) else it }
+                dataLayerBridge.sendCommandToWatch(
+                    JSONObject().apply {
+                        put("type", "mode_update")
+                        put("id", selectedMode.id)
+                        put("color", newColor)
+                    }
+                )
+            },
+            onDismiss = { showColorPicker = false }
+        )
+    }
+
+    // Rename Mode Dialog
+    if (showRenameDialog) {
+        var nameInput by remember(selectedMode.id) { mutableStateOf(selectedMode.name) }
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            containerColor = palette.cardBg,
+            title = { Text(stringResource(R.string.mode_rename_title), color = palette.textPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = nameInput,
+                    onValueChange = { if (it.length <= 24) nameInput = it },
+                    singleLine = true,
+                    placeholder = { Text(stringResource(R.string.mode_rename_hint)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val trimmed = nameInput.trim()
+                    if (trimmed.isNotEmpty()) {
+                        watchModes = watchModes.map { if (it.id == selectedMode.id) it.copy(name = trimmed) else it }
+                        dataLayerBridge.sendCommandToWatch(
+                            JSONObject().apply {
+                                put("type", "mode_update")
+                                put("id", selectedMode.id)
+                                put("name", trimmed)
+                            }
+                        )
+                    }
+                    showRenameDialog = false
+                }) {
+                    Text(stringResource(R.string.btn_save), color = UltraOrange, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) {
+                    Text(stringResource(R.string.btn_cancel), color = palette.textSecondary)
+                }
+            }
+        )
+    }
+
+    // Delete Mode Confirmation Dialog
+    if (showDeleteModeDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteModeDialog = false },
+            containerColor = palette.cardBg,
+            title = { Text(stringResource(R.string.mode_delete_confirm_title, selectedMode.name), color = RedAlert, fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.mode_delete_confirm_body), color = palette.textSecondary) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val delId = selectedMode.id
+                    showDeleteModeDialog = false
+                    dataLayerBridge.sendCommandToWatch(
+                        JSONObject().apply {
+                            put("type", "mode_delete")
+                            put("id", delId)
+                        }
+                    )
+                }) {
+                    Text(stringResource(R.string.mode_delete_btn), color = RedAlert, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteModeDialog = false }) {
+                    Text(stringResource(R.string.btn_cancel), color = palette.textSecondary)
+                }
+            }
+        )
+    }
+
+    // Reserved Mode-Switch Gesture Explanatory Dialog
+    reservedDialogOwnerName?.let { ownerName ->
+        AlertDialog(
+            onDismissRequest = { reservedDialogOwnerName = null },
+            containerColor = palette.cardBg,
+            title = { Text(stringResource(R.string.mode_reserved_title), color = Color(0xFFFFB74D), fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.mode_reserved_body, ownerName), color = palette.textSecondary) },
+            confirmButton = {
+                TextButton(onClick = { reservedDialogOwnerName = null }) {
+                    Text(stringResource(R.string.btn_understood), color = UltraOrange, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
     // MODAL BOTTOM SHEET FOR PICKING BUTTON / GESTURE ACTION
     val activeGesture = pickingGesture
     if (activeGesture != null) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        val currentAct = gestureMappings[activeGesture] ?: "none"
+        val currentAct = getSelectedModeAction(activeGesture)
 
         ModalBottomSheet(
             onDismissRequest = { pickingGesture = null },
@@ -2178,6 +2459,36 @@ fun CompanionAppRoot(
                                     selected = currentAct == "none"
                                 ) {
                                     updateWatchMapping(activeGesture, "none")
+                                    pickingGesture = null
+                                }
+                            }
+                        }
+
+                        // 0. SECTION: MODES
+                        val filteredModeActions = if (query.isEmpty()) {
+                            WatchActionCatalog.modeActions
+                        } else {
+                            WatchActionCatalog.modeActions.filter { (_, labelRes) ->
+                                context.getString(labelRes).contains(query, ignoreCase = true)
+                            }
+                        }
+                        if (filteredModeActions.isNotEmpty()) {
+                            item(key = "section_modes_hdr") {
+                                Text(
+                                    text = stringResource(R.string.hdr_section_modes),
+                                    color = UltraOrange,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(top = 14.dp, bottom = 4.dp, start = 4.dp)
+                                )
+                            }
+                            items(filteredModeActions, key = { it.first }) { (actKey, labelRes) ->
+                                ActionRadioRow(
+                                    label = stringResource(labelRes),
+                                    subtitle = null,
+                                    selected = currentAct == actKey
+                                ) {
+                                    updateWatchMapping(activeGesture, actKey)
                                     pickingGesture = null
                                 }
                             }

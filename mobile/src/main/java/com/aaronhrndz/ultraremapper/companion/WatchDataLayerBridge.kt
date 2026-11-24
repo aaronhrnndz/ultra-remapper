@@ -18,12 +18,57 @@ data class WatchAppEntry(
     val iconB64: String? = null
 )
 
+data class WatchButtonMode(
+    val id: String,
+    val name: String,
+    val colorArgb: Int,
+    val mappings: Map<String, String>
+)
+
+data class WatchOverlayConfig(
+    val style: String = "breathing",
+    val thicknessPct: Int = 13,
+    val durationMs: Int = 1000,
+    val intensityPct: Int = 90,
+    val showPill: Boolean = true,
+    val pillPosition: String = "top",
+    val pillSizePct: Int = 100
+) {
+    fun toJson(): JSONObject = JSONObject().apply {
+        put("style", style)
+        put("thicknessPct", thicknessPct)
+        put("durationMs", durationMs)
+        put("intensityPct", intensityPct)
+        put("showPill", showPill)
+        put("pillPosition", pillPosition)
+        put("pillSizePct", pillSizePct)
+    }
+
+    companion object {
+        fun fromJson(obj: JSONObject?): WatchOverlayConfig {
+            if (obj == null) return WatchOverlayConfig()
+            return WatchOverlayConfig(
+                style = obj.optString("style", "breathing"),
+                thicknessPct = obj.optInt("thicknessPct", 13).coerceIn(6, 26),
+                durationMs = obj.optInt("durationMs", 1000).coerceIn(400, 2000),
+                intensityPct = obj.optInt("intensityPct", 90).coerceIn(40, 100),
+                showPill = obj.optBoolean("showPill", true),
+                pillPosition = obj.optString("pillPosition", "top"),
+                pillSizePct = obj.optInt("pillSizePct", 100).coerceIn(70, 150)
+            )
+        }
+    }
+}
+
 data class WatchSyncedState(
     val versionName: String,
     val masterEnabled: Boolean,
     val hapticEnabled: Boolean,
     val betaChannelEnabled: Boolean = false,
     val mappings: Map<String, String>,
+    val modes: List<WatchButtonMode> = emptyList(),
+    val activeModeId: String = "mode_default",
+    val overlayConfig: WatchOverlayConfig = WatchOverlayConfig(),
     val permissions: Map<String, Boolean>,
     val installedApps: List<WatchAppEntry>,
     val wirelessAdbEnabled: Boolean = false,
@@ -224,6 +269,39 @@ class WatchDataLayerBridge(
                     }
                 }
 
+                val modes = mutableListOf<WatchButtonMode>()
+                root.optJSONArray("modes")?.let { arr ->
+                    for (i in 0 until arr.length()) {
+                        val item = arr.optJSONObject(i) ?: continue
+                        val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
+                        val name = item.optString("name", "Mode ${i + 1}")
+                        val color = item.optInt("color", 0xFFFF5500.toInt())
+                        val mmap = mutableMapOf<String, String>()
+                        item.optJSONObject("mappings")?.let { mo ->
+                            val ks = mo.keys()
+                            while (ks.hasNext()) {
+                                val k = ks.next()
+                                val v = mo.optString(k)
+                                if (v.isNotBlank() && v != "none") mmap[k] = v
+                            }
+                        }
+                        modes.add(WatchButtonMode(id = id, name = name, colorArgb = color, mappings = mmap))
+                    }
+                }
+                if (modes.isEmpty()) {
+                    modes.add(
+                        WatchButtonMode(
+                            id = "mode_default",
+                            name = "Mode 1",
+                            colorArgb = 0xFFFF5500.toInt(),
+                            mappings = mappings.filterValues { it != "none" && it.isNotBlank() }
+                        )
+                    )
+                }
+                val activeModeId = root.optString("activeModeId", modes.first().id)
+                    .takeIf { id -> modes.any { it.id == id } } ?: modes.first().id
+                val overlayConfig = WatchOverlayConfig.fromJson(root.optJSONObject("overlayConfig"))
+
                 val perms = mutableMapOf<String, Boolean>()
                 root.optJSONObject("permissions")?.let { pObj ->
                     val keys = pObj.keys()
@@ -258,6 +336,9 @@ class WatchDataLayerBridge(
                     hapticEnabled = hapticEnabled,
                     betaChannelEnabled = betaChannelEnabled,
                     mappings = mappings,
+                    modes = modes,
+                    activeModeId = activeModeId,
+                    overlayConfig = overlayConfig,
                     permissions = perms,
                     installedApps = apps,
                     wirelessAdbEnabled = wirelessAdbEnabled,

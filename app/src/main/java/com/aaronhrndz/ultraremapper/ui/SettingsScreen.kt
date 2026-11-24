@@ -102,6 +102,7 @@ fun SettingsScreen(
     onOpenPermissions: () -> Unit,
     onOpenWizard: () -> Unit,
     onRefreshPermissions: () -> Unit,
+    onOpenAnimationEditor: () -> Unit = {},
     onOpenDevOptions: () -> Unit = {},
     onDone: () -> Unit
 ) {
@@ -331,6 +332,52 @@ fun SettingsScreen(
                                         .background(Color.White)
                                 )
                             }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SlateCard,
+                        contentColor = Color.White
+                    ),
+                    transformation = SurfaceTransformation(transformationSpec),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp)
+                        .transformedHeight(this, transformationSpec)
+                )
+            }
+
+            // Mode Switch Animation Editor entry
+            item(key = "mode_animation_entry") {
+                Button(
+                    onClick = {
+                        HapticFeedbackHelper.playUiTap(context)
+                        onOpenAnimationEditor()
+                    },
+                    label = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = context.getString(R.string.anim_editor_title),
+                                    maxLines = 1,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.basicMarquee()
+                                )
+                                Text(
+                                    text = context.getString(R.string.anim_editor_subtitle),
+                                    maxLines = 1,
+                                    color = Color(0xFF9EA7B8),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.basicMarquee()
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            ForwardChevron()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(

@@ -163,10 +163,52 @@ class CompanionSyncService : WearableListenerService() {
                         "set_mapping" -> {
                             val gesture = json.optString("gesture")
                             val action = json.optString("action")
+                            val modeId = json.optString("modeId").takeIf { it.isNotBlank() }
                             if (gesture.isNotBlank() && action.isNotBlank()) {
-                                Mapping.set(context, gesture, action)
+                                if (modeId != null) {
+                                    ModeStore.setMappingForMode(context, modeId, gesture, action)
+                                } else {
+                                    Mapping.set(context, gesture, action)
+                                }
                                 SystemRouteHelper.isActionButtonRouted(context, autoFix = true)
                                 SystemRouteHelper.syncSamsungRoutes(context)
+                            }
+                        }
+                        "mode_create" -> {
+                            val name = json.optString("name").takeIf { it.isNotBlank() }
+                            val color = if (json.has("color")) json.optInt("color") else null
+                            ModeStore.createMode(context, name = name, colorArgb = color)
+                        }
+                        "mode_update" -> {
+                            val id = json.optString("id")
+                            if (id.isNotBlank()) {
+                                val name = json.optString("name").takeIf { it.isNotBlank() }
+                                val color = if (json.has("color")) json.optInt("color") else null
+                                ModeStore.updateMode(context, id, name = name, colorArgb = color)
+                            }
+                        }
+                        "mode_delete" -> {
+                            val id = json.optString("id")
+                            if (id.isNotBlank()) {
+                                ModeStore.deleteMode(context, id)
+                            }
+                        }
+                        "mode_set_active" -> {
+                            val id = json.optString("id")
+                            val showOverlay = json.optBoolean("showOverlay", true)
+                            if (id.isNotBlank()) {
+                                ModeStore.setActiveMode(context, id, showOverlay = showOverlay)
+                            }
+                        }
+                        "set_overlay_config" -> {
+                            val cfgObj = json.optJSONObject("config")
+                            if (cfgObj != null) {
+                                val cfg = ModeOverlayConfig.fromJson(cfgObj)
+                                ModeStore.setOverlayConfig(context, cfg)
+                                if (json.optBoolean("preview", false)) {
+                                    val st = ModeStore.getState(context)
+                                    ModeOverlayManager.show(context, st.activeMode, cfg)
+                                }
                             }
                         }
                         "set_master" -> {
@@ -336,12 +378,16 @@ class CompanionSyncService : WearableListenerService() {
                 root.put("capturedConnectPort", it)
             }
 
-            // Mappings
+            // Mappings (active mode for legacy compat) + Full v3.0 Modes & Overlay Config
+            val modesState = ModeStore.getState(context)
             val mappingsObj = JSONObject()
             for ((gesture, _) in Mapping.gestures) {
-                mappingsObj.put(gesture, Mapping.get(context, gesture))
+                mappingsObj.put(gesture, ModeStore.getActiveAction(context, gesture))
             }
             root.put("mappings", mappingsObj)
+            root.put("modes", ModeStore.serializeModes(modesState.modes))
+            root.put("activeModeId", modesState.activeModeId)
+            root.put("overlayConfig", modesState.overlayConfig.toJson())
 
             // Permissions & System States
             val overlayOk = Settings.canDrawOverlays(context)

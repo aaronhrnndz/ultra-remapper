@@ -85,7 +85,12 @@ object Mapping {
         "phone_ha_event" to R.string.action_phone_ha_event,
     )
 
-    val actionDefinitions = (shealthActions + samsungActions + devActions + utilityActions + phoneActions + homeAssistantActions + mediaActions)
+    val modeActions = listOf(
+        "mode_next" to R.string.action_mode_next,
+        "mode_prev" to R.string.action_mode_prev,
+    )
+
+    val actionDefinitions = (modeActions + shealthActions + samsungActions + devActions + utilityActions + phoneActions + homeAssistantActions + mediaActions)
 
     private val defaults = emptyMap<String, String>()
 
@@ -111,11 +116,11 @@ object Mapping {
     }
 
     fun get(context: Context, gesture: String): String =
-        prefs(context).getString(gesture, defaults[gesture]) ?: "none"
+        ModeStore.getActiveAction(context, gesture)
 
     fun set(context: Context, gesture: String, action: String) {
-        prefs(context).edit().putString(gesture, action).apply()
-        CompanionSyncService.syncStateToDataLayer(context)
+        val activeId = ModeStore.getState(context).activeModeId
+        ModeStore.setMappingForMode(context, activeId, gesture, action)
     }
 
     fun label(context: Context, action: String): String {
@@ -135,6 +140,7 @@ object Mapping {
     fun categoryLabel(context: Context, action: String): String = when {
         action == "none" -> ""
         action.startsWith("app:") -> "App"
+        modeActions.any { it.first == action } -> "Modes"
         shealthActions.any { it.first == action } -> "Health"
         samsungActions.any { it.first == action } -> "Samsung"
         devActions.any { it.first == action } -> "Dev"
@@ -164,6 +170,8 @@ object Mapping {
         val audio = context.getSystemService(AudioManager::class.java)
         when (action) {
             "none" -> Unit
+            "mode_next" -> ModeStore.cycleMode(context, +1, showOverlay = true)
+            "mode_prev" -> ModeStore.cycleMode(context, -1, showOverlay = true)
             "flashlight" -> toggleFlashlight(context, backToHome)
             "red_flashlight" -> toggleRedFlashlight(context)
             "dnd_toggle" -> toggleDoNotDisturb(context)

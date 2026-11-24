@@ -82,7 +82,12 @@ object WatchActionCatalog {
         "phone_ha_event" to R.string.action_phone_ha_event
     )
 
-    private val allStaticActions = (shealthActions + samsungActions + devActions + utilityActions + phoneActions + homeAssistantActions + mediaActions).toMap()
+    val modeActions = listOf(
+        "mode_next" to R.string.action_mode_next,
+        "mode_prev" to R.string.action_mode_prev
+    )
+
+    private val allStaticActions = (modeActions + shealthActions + samsungActions + devActions + utilityActions + phoneActions + homeAssistantActions + mediaActions).toMap()
 
     fun getActionLabel(context: Context, action: String, installedApps: List<WatchAppEntry>): String {
         if (action == "none" || action.isBlank()) return context.getString(R.string.action_none)

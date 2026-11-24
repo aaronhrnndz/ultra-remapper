@@ -4,8 +4,18 @@ import com.aaronhrndz.ultraremapper.R
 import com.aaronhrndz.ultraremapper.adb.AdbLocalManager
 import com.aaronhrndz.ultraremapper.adb.LocalAdbClient
 import com.aaronhrndz.ultraremapper.ui.AdbWizardScreen
-import com.aaronhrndz.ultraremapper.ui.SettingsScreen
+import com.aaronhrndz.ultraremapper.ui.AnimationEditorScreen
+import com.aaronhrndz.ultraremapper.ui.CurvedModePageIndicator
+import com.aaronhrndz.ultraremapper.ui.DeleteModeConfirmScreen
+import com.aaronhrndz.ultraremapper.ui.ModePerimeterRing
+import com.aaronhrndz.ultraremapper.ui.ModeRenameScreen
 import com.aaronhrndz.ultraremapper.ui.PermissionsScreen
+import com.aaronhrndz.ultraremapper.ui.ReservedGestureInfoScreen
+import com.aaronhrndz.ultraremapper.ui.RgbColorPickerScreen
+import com.aaronhrndz.ultraremapper.ui.SettingsScreen
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.rememberCoroutineScope
 
 import android.content.ComponentName
 import android.content.Context
@@ -410,6 +420,17 @@ class MainActivity : ComponentActivity() {
                                 setup = setup,
                                 updateInfo = updateInfo,
                                 mappingVersion = mappingVersion,
+                                localAdbClient = localAdbClient,
+                                onClientConnected = { client ->
+                                    localAdbClient = client
+                                    setup = readSetupState(context)
+                                },
+                                onRefreshPermissions = {
+                                    setup = readSetupState(context)
+                                },
+                                onOpenPermissions = { nav.navigate("permissions") },
+                                onOpenWizard = { nav.navigate("adb_wizard") },
+                                onOpenAnimationEditor = { nav.navigate("animation_editor") },
                                 onOpenUpdateDetails = {
                                     nav.navigate("update_details")
                                 },
@@ -439,9 +460,71 @@ class MainActivity : ComponentActivity() {
                                 onShowAdbHelp = { helpText, targetKey ->
                                     nav.navigate("help/${Uri.encode(helpText)}?target=${Uri.encode(targetKey ?: "")}")
                                 },
-                                onPick = { nav.navigate("pick/$it") },
+                                onPick = { modeId, gesture -> nav.navigate("pick/$modeId/$gesture") },
+                                onReservedGesture = { ownerName ->
+                                    nav.navigate("reserved_gesture/${Uri.encode(ownerName)}")
+                                },
+                                onOpenColorPicker = { modeId -> nav.navigate("mode_color/$modeId") },
+                                onOpenRenameMode = { modeId -> nav.navigate("mode_rename/$modeId") },
+                                onOpenDeleteMode = { modeId -> nav.navigate("mode_delete/$modeId") },
+                                onModesMutated = { mappingVersion++ },
                                 onOpenSettings = { nav.navigate("settings") },
                                 onOpenDevOptions = { nav.navigate("dev_options") }
+                            )
+                        }
+                        composable("animation_editor") {
+                            AnimationEditorScreen(onDone = { nav.popBackStack() })
+                        }
+                        composable("mode_color/{modeId}") { entry ->
+                            val modeId = entry.arguments?.getString("modeId") ?: ""
+                            val curMode = remember(modeId, mappingVersion) {
+                                ModeStore.getState(context).modes.firstOrNull { it.id == modeId }
+                            }
+                            RgbColorPickerScreen(
+                                initialColorArgb = curMode?.colorArgb ?: 0xFFFF5500.toInt(),
+                                onConfirm = { newColor ->
+                                    ModeStore.updateMode(context, modeId, colorArgb = newColor)
+                                    mappingVersion++
+                                    nav.popBackStack()
+                                },
+                                onCancel = { nav.popBackStack() }
+                            )
+                        }
+                        composable("mode_rename/{modeId}") { entry ->
+                            val modeId = entry.arguments?.getString("modeId") ?: ""
+                            val curMode = remember(modeId, mappingVersion) {
+                                ModeStore.getState(context).modes.firstOrNull { it.id == modeId }
+                            }
+                            ModeRenameScreen(
+                                currentName = curMode?.name ?: "",
+                                onSave = { newName ->
+                                    ModeStore.updateMode(context, modeId, name = newName)
+                                    mappingVersion++
+                                    nav.popBackStack()
+                                },
+                                onCancel = { nav.popBackStack() }
+                            )
+                        }
+                        composable("mode_delete/{modeId}") { entry ->
+                            val modeId = entry.arguments?.getString("modeId") ?: ""
+                            val curMode = remember(modeId, mappingVersion) {
+                                ModeStore.getState(context).modes.firstOrNull { it.id == modeId }
+                            }
+                            DeleteModeConfirmScreen(
+                                modeName = curMode?.name ?: "",
+                                onConfirm = {
+                                    ModeStore.deleteMode(context, modeId)
+                                    mappingVersion++
+                                    nav.popBackStack()
+                                },
+                                onCancel = { nav.popBackStack() }
+                            )
+                        }
+                        composable("reserved_gesture/{ownerName}") { entry ->
+                            val ownerName = Uri.decode(entry.arguments?.getString("ownerName") ?: "")
+                            ReservedGestureInfoScreen(
+                                ownerModeName = ownerName,
+                                onDone = { nav.popBackStack() }
                             )
                         }
                         composable("settings") { entry ->
@@ -458,6 +541,7 @@ class MainActivity : ComponentActivity() {
                                 onRefreshPermissions = {
                                     setup = readSetupState(context)
                                 },
+                                onOpenAnimationEditor = { nav.navigate("animation_editor") },
                                 onOpenDevOptions = { nav.navigate("dev_options") },
                                 onDone = { nav.popBackStack() }
                             )
@@ -476,6 +560,7 @@ class MainActivity : ComponentActivity() {
                                 onRefreshPermissions = {
                                     setup = readSetupState(context)
                                 },
+                                onOpenAnimationEditor = { nav.navigate("animation_editor") },
                                 onOpenDevOptions = { nav.navigate("dev_options") },
                                 onDone = { nav.popBackStack() }
                             )
@@ -588,15 +673,17 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
-                        composable("pick/{gesture}") { entry ->
+                        composable("pick/{modeId}/{gesture}") { entry ->
+                            val modeId = entry.arguments?.getString("modeId")!!
                             val gesture = entry.arguments?.getString("gesture")!!
                             ActionPicker(
+                                modeId = modeId,
                                 gesture = gesture,
                                 appsCount = installedApps.size,
                                 haInstalled = setup.haInstalled,
-                                onOpenAppList = { nav.navigate("pick_app/$gesture") },
+                                onOpenAppList = { nav.navigate("pick_app/$modeId/$gesture") },
                                 onSelect = { action ->
-                                    Mapping.set(context, gesture, action)
+                                    ModeStore.setMappingForMode(context, modeId, gesture, action)
                                     isActionButtonRouted(context)
                                     syncTopButtonRoute(context)
                                     mappingVersion++
@@ -612,13 +699,14 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-                        composable("pick_app/{gesture}") { entry ->
+                        composable("pick_app/{modeId}/{gesture}") { entry ->
+                            val modeId = entry.arguments?.getString("modeId")!!
                             val gesture = entry.arguments?.getString("gesture")!!
                             AppListPicker(
                                 gesture = gesture,
                                 apps = installedApps,
                                 onSelect = { action ->
-                                    Mapping.set(context, gesture, action)
+                                    ModeStore.setMappingForMode(context, modeId, gesture, action)
                                     isActionButtonRouted(context)
                                     syncTopButtonRoute(context)
                                     mappingVersion++
@@ -647,18 +735,169 @@ private fun Home(
     setup: SetupState,
     updateInfo: ReleaseUpdate?,
     mappingVersion: Int,
+    localAdbClient: LocalAdbClient?,
+    onClientConnected: (LocalAdbClient) -> Unit,
+    onRefreshPermissions: () -> Unit,
+    onOpenPermissions: () -> Unit,
+    onOpenWizard: () -> Unit,
+    onOpenAnimationEditor: () -> Unit,
     onOpenUpdateDetails: () -> Unit,
     onOpenA11ySettings: () -> Unit,
     onOpenAppInfo: () -> Unit,
     onOpenNotifListeners: () -> Unit,
     onShowAdbHelp: (String, String?) -> Unit,
-    onPick: (String) -> Unit,
+    onPick: (String, String) -> Unit,
+    onReservedGesture: (String) -> Unit,
+    onOpenColorPicker: (String) -> Unit,
+    onOpenRenameMode: (String) -> Unit,
+    onOpenDeleteMode: (String) -> Unit,
+    onModesMutated: () -> Unit,
     onOpenSettings: () -> Unit = {},
     onOpenDevOptions: () -> Unit,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val modesState = remember(mappingVersion) { ModeStore.getState(context) }
+    val modes = modesState.modes
+    val activeModeId = modesState.activeModeId
+    val totalPages = modes.size + 2 // [0]=Settings, [1..N]=Modes, [N+1]=Add Mode
+    val pagerState = rememberPagerState(initialPage = 1, pageCount = { totalPages })
+
+    // Keep pager within bounds if a mode is deleted
+    LaunchedEffect(totalPages) {
+        if (pagerState.currentPage >= totalPages) {
+            pagerState.scrollToPage((totalPages - 2).coerceAtLeast(1))
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            when {
+                page == 0 -> {
+                    SettingsScreen(
+                        client = localAdbClient,
+                        targetHighlight = null,
+                        onClientConnected = onClientConnected,
+                        onOpenPermissions = onOpenPermissions,
+                        onOpenWizard = onOpenWizard,
+                        onRefreshPermissions = onRefreshPermissions,
+                        onOpenAnimationEditor = onOpenAnimationEditor,
+                        onOpenDevOptions = onOpenDevOptions,
+                        onDone = {
+                            scope.launch { pagerState.animateScrollToPage(1) }
+                        }
+                    )
+                }
+                page == totalPages - 1 -> {
+                    // Add New Mode Page
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black)
+                            .padding(horizontal = 20.dp)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF00E676))
+                                    .clickable {
+                                        HapticFeedbackHelper.playButtonHaptic(context)
+                                        val created = ModeStore.createMode(context)
+                                        onModesMutated()
+                                        val targetPage = modes.size + 1
+                                        scope.launch {
+                                            delay(80)
+                                            pagerState.animateScrollToPage(targetPage)
+                                        }
+                                    }
+                            ) {
+                                Text("+", color = Color(0xFF06150C), fontSize = 36.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = context.getString(R.string.mode_add_title),
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = context.getString(R.string.mode_add_subtitle),
+                                color = Color(0xFF9EA7B8),
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+                else -> {
+                    val mode = modes.getOrNull(page - 1) ?: modes.first()
+                    ModeHomePage(
+                        mode = mode,
+                        isActiveMode = mode.id == activeModeId,
+                        canDelete = modes.size > 1,
+                        setup = setup,
+                        updateInfo = if (page == 1) updateInfo else null,
+                        mappingVersion = mappingVersion,
+                        onOpenUpdateDetails = onOpenUpdateDetails,
+                        onOpenA11ySettings = onOpenA11ySettings,
+                        onShowAdbHelp = onShowAdbHelp,
+                        onPick = { gesture -> onPick(mode.id, gesture) },
+                        onReservedGesture = onReservedGesture,
+                        onOpenColorPicker = { onOpenColorPicker(mode.id) },
+                        onOpenRenameMode = { onOpenRenameMode(mode.id) },
+                        onActivateMode = {
+                            HapticFeedbackHelper.playButtonHaptic(context)
+                            ModeStore.setActiveMode(context, mode.id, showOverlay = true)
+                            onModesMutated()
+                        },
+                        onOpenDeleteMode = { onOpenDeleteMode(mode.id) }
+                    )
+                }
+            }
+        }
+
+        // Samsung-style curved top indicator across all pages
+        CurvedModePageIndicator(
+            modes = modes,
+            currentPage = pagerState.currentPage
+        )
+    }
+}
+
+@Composable
+private fun ModeHomePage(
+    mode: ButtonMode,
+    isActiveMode: Boolean,
+    canDelete: Boolean,
+    setup: SetupState,
+    updateInfo: ReleaseUpdate?,
+    mappingVersion: Int,
+    onOpenUpdateDetails: () -> Unit,
+    onOpenA11ySettings: () -> Unit,
+    onShowAdbHelp: (String, String?) -> Unit,
+    onPick: (String) -> Unit,
+    onReservedGesture: (String) -> Unit,
+    onOpenColorPicker: () -> Unit,
+    onOpenRenameMode: () -> Unit,
+    onActivateMode: () -> Unit,
+    onOpenDeleteMode: () -> Unit,
+) {
+    val context = LocalContext.current
     val columnState = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
+    val modeAccent = Color(mode.colorArgb)
 
     val orangeColors = ButtonDefaults.buttonColors(
         containerColor = UltraOrange,
@@ -670,40 +909,46 @@ private fun Home(
         contentColor = Color.White,
         secondaryContentColor = Color.White.copy(alpha = 0.85f)
     )
-    val highlightColors = ButtonDefaults.buttonColors(containerColor = SlateHighlight)
     val cardConfiguredColors = ButtonDefaults.buttonColors(
         containerColor = Color(0xFF282E38),
         contentColor = Color.White,
-        secondaryContentColor = UltraOrange
+        secondaryContentColor = modeAccent
     )
     val cardUnconfiguredColors = ButtonDefaults.buttonColors(
         containerColor = Color(0xFF282E38),
         contentColor = Color.White,
         secondaryContentColor = Color(0xFF9EA7B8)
     )
+    val cardLockedColors = ButtonDefaults.buttonColors(
+        containerColor = Color(0xFF1D212A),
+        contentColor = Color(0xFF9AA5B8),
+        secondaryContentColor = WarnAmber
+    )
 
-    val actionRows = remember(mappingVersion) {
+    val reservedMap = remember(mappingVersion) { ModeStore.getReservedSwitchGestures(context) }
+
+    val actionRows = remember(mappingVersion, mode.id) {
         Mapping.actionGestures.map { (gesture, nameRes) ->
-            val act = Mapping.get(context, gesture)
+            val act = ModeStore.getActionForMode(context, mode.id, gesture)
             Triple(gesture, context.getString(nameRes), act to Mapping.label(context, act))
         }
     }
-    val topRows = remember(mappingVersion) {
+    val topRows = remember(mappingVersion, mode.id) {
         Mapping.topGestures.map { (gesture, nameRes) ->
-            val act = Mapping.get(context, gesture)
+            val act = ModeStore.getActionForMode(context, mode.id, gesture)
             Triple(gesture, context.getString(nameRes), act to Mapping.label(context, act))
         }
     }
-    val bottomRows = remember(mappingVersion) {
+    val bottomRows = remember(mappingVersion, mode.id) {
         Mapping.bottomGestures.map { (gesture, nameRes) ->
-            val act = Mapping.get(context, gesture)
+            val act = ModeStore.getActionForMode(context, mode.id, gesture)
             Triple(gesture, context.getString(nameRes), act to Mapping.label(context, act))
         }
     }
 
-    val gestureRows = remember(mappingVersion) {
+    val gestureRows = remember(mappingVersion, mode.id) {
         Mapping.gestureList.map { (gesture, nameRes) ->
-            val act = Mapping.get(context, gesture)
+            val act = ModeStore.getActionForMode(context, mode.id, gesture)
             Triple(gesture, context.getString(nameRes), act to Mapping.label(context, act))
         }
     }
@@ -720,27 +965,30 @@ private fun Home(
     val needsSecureSettings = remember(allConfiguredActions, gestureRows, topRows) {
         allConfiguredActions.any { it in setOf("lte_toggle", "adb_mode") } ||
                 gestureRows.any { it.third.first != "none" } ||
-                Mapping.get(context, "top_double") != "none" ||
-                Mapping.get(context, "top_long") != "none"
+                ModeStore.getActionForMode(context, mode.id, "top_double") != "none" ||
+                ModeStore.getActionForMode(context, mode.id, "top_long") != "none"
     }
     val needsMediaBridge = remember(allConfiguredActions, setup.a11yEnabled) {
         setup.a11yEnabled || allConfiguredActions.any { act -> act == "flashlight" || Mapping.mediaActions.any { it.first == act } }
     }
 
     val needsOverlay = remember(allConfiguredActions) {
-        allConfiguredActions.contains("red_flashlight") || allConfiguredActions.contains("flashlight")
+        allConfiguredActions.contains("red_flashlight") ||
+                allConfiguredActions.contains("flashlight") ||
+                allConfiguredActions.contains("mode_next") ||
+                allConfiguredActions.contains("mode_prev")
     }
     val needsAssistant = remember(allConfiguredActions, isMasterEnabled) {
-        val topLong = Mapping.get(context, "top_long")
+        val topLong = ModeStore.getActionForMode(context, mode.id, "top_long")
         isMasterEnabled && topLong != "none" && topLong != "assistant"
     }
 
     val needsTocToc = remember(allConfiguredActions, isMasterEnabled) {
-        isMasterEnabled && Mapping.get(context, "toctoc") != "none"
+        isMasterEnabled && ModeStore.getActionForMode(context, mode.id, "toctoc") != "none"
     }
 
     val needsSamsungPayFreeze = remember(allConfiguredActions, isMasterEnabled, mappingVersion) {
-        isMasterEnabled && Mapping.get(context, "bottom_long") != "none" && AdbLocalManager.isSamsungPayEnabled(context)
+        isMasterEnabled && ModeStore.getActionForMode(context, mode.id, "bottom_long") != "none" && AdbLocalManager.isSamsungPayEnabled(context)
     }
 
     val hasPendingRequiredAction = (!setup.a11yEnabled && needsA11y) ||
@@ -752,17 +1000,79 @@ private fun Home(
             (!setup.isTocTocConfigured && needsTocToc) ||
             needsSamsungPayFreeze
 
-    ScreenScaffold(scrollState = columnState) { _ ->
-        var isHapticEnabled by remember(mappingVersion) { mutableStateOf(Mapping.isHapticFeedbackEnabled(context)) }
-        var isTopExpanded by remember { mutableStateOf(false) }
-        var isActionExpanded by remember { mutableStateOf(false) }
-        var isBottomExpanded by remember { mutableStateOf(false) }
-        var isGesturesExpanded by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Subtle colored perimeter ring of current mode
+        ModePerimeterRing(colorArgb = mode.colorArgb)
 
-        TransformingLazyColumn(
-            state = columnState,
-            contentPadding = PaddingValues(top = 42.dp, bottom = 76.dp, start = 10.dp, end = 10.dp)
-        ) {
+        ScreenScaffold(scrollState = columnState) { _ ->
+            var isTopExpanded by remember { mutableStateOf(false) }
+            var isActionExpanded by remember { mutableStateOf(false) }
+            var isBottomExpanded by remember { mutableStateOf(false) }
+            var isGesturesExpanded by remember { mutableStateOf(false) }
+
+            TransformingLazyColumn(
+                state = columnState,
+                contentPadding = PaddingValues(top = 34.dp, bottom = 76.dp, start = 10.dp, end = 10.dp)
+            ) {
+                // Smart Mode Header: Large clickable color ball + clickable mode name + Active chip
+                item(key = "mode_header_${mode.id}") {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 2.dp, bottom = 6.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // Large clickable color ball -> RGB Color Picker
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(modeAccent)
+                                    .clickable {
+                                        HapticFeedbackHelper.playUiTap(context)
+                                        onOpenColorPicker()
+                                    }
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            // Clickable mode name -> Rename editor
+                            Text(
+                                text = mode.name,
+                                color = Color.White,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        HapticFeedbackHelper.playUiTap(context)
+                                        onOpenRenameMode()
+                                    }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .basicMarquee()
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(if (isActiveMode) modeAccent.copy(alpha = 0.22f) else Color(0xFF232833))
+                                .clickable(enabled = !isActiveMode) { onActivateMode() }
+                                .padding(horizontal = 10.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = if (isActiveMode) context.getString(R.string.mode_badge_active) else context.getString(R.string.mode_btn_activate),
+                                color = if (isActiveMode) modeAccent else Color(0xFFC5CDD9),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
 
 
 
@@ -1205,22 +1515,37 @@ private fun Home(
                         topRows.forEachIndexed { idx, (gesture, name, actPair) ->
                             if (idx > 0) Spacer(modifier = Modifier.height(4.dp))
                             val (currentAction, currentLabel) = actPair
+                            val reserved = reservedMap[gesture]?.takeIf { it.ownerModeId != mode.id }
                             val isConfigured = currentAction != "none"
-                            val subtitleText = if (gesture == "top_long" && isConfigured) {
-                                if (currentAction == "assistant") context.getString(R.string.sub_native_google, currentLabel)
-                                else context.getString(R.string.sub_auto_routed_adb, currentLabel)
-                            } else {
-                                currentLabel
+                            val subtitleText = when {
+                                reserved != null -> context.getString(R.string.mode_reserved_subtitle)
+                                gesture == "top_long" && isConfigured -> {
+                                    if (currentAction == "assistant") context.getString(R.string.sub_native_google, currentLabel)
+                                    else context.getString(R.string.sub_auto_routed_adb, currentLabel)
+                                }
+                                else -> currentLabel
                             }
                             Button(
-                                onClick = { onPick(gesture) },
+                                onClick = {
+                                    if (reserved != null) onReservedGesture(reserved.ownerModeName)
+                                    else onPick(gesture)
+                                },
                                 label = {
-                                    Text(name, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.basicMarquee())
+                                    Text(
+                                        if (reserved != null) "🔒 $name" else name,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        modifier = Modifier.basicMarquee()
+                                    )
                                 },
                                 secondaryLabel = {
                                     Text(subtitleText, maxLines = 1, modifier = Modifier.basicMarquee())
                                 },
-                                colors = if (isConfigured) cardConfiguredColors else cardUnconfiguredColors,
+                                colors = when {
+                                    reserved != null -> cardLockedColors
+                                    isConfigured -> cardConfiguredColors
+                                    else -> cardUnconfiguredColors
+                                },
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -1298,16 +1623,33 @@ private fun Home(
                             actionRows.forEachIndexed { idx, (gesture, name, actPair) ->
                                 if (idx > 0) Spacer(modifier = Modifier.height(4.dp))
                                 val (currentAction, currentLabel) = actPair
+                                val reserved = reservedMap[gesture]?.takeIf { it.ownerModeId != mode.id }
                                 val isConfigured = currentAction != "none"
                                 Button(
-                                    onClick = { onPick(gesture) },
+                                    onClick = {
+                                        if (reserved != null) onReservedGesture(reserved.ownerModeName)
+                                        else onPick(gesture)
+                                    },
                                     label = {
-                                        Text(name, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.basicMarquee())
+                                        Text(
+                                            if (reserved != null) "🔒 $name" else name,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            modifier = Modifier.basicMarquee()
+                                        )
                                     },
                                     secondaryLabel = {
-                                        Text(currentLabel, maxLines = 1, modifier = Modifier.basicMarquee())
+                                        Text(
+                                            if (reserved != null) context.getString(R.string.mode_reserved_subtitle) else currentLabel,
+                                            maxLines = 1,
+                                            modifier = Modifier.basicMarquee()
+                                        )
                                     },
-                                    colors = if (isConfigured) cardConfiguredColors else cardUnconfiguredColors,
+                                    colors = when {
+                                        reserved != null -> cardLockedColors
+                                        isConfigured -> cardConfiguredColors
+                                        else -> cardUnconfiguredColors
+                                    },
                                     modifier = Modifier.fillMaxWidth()
                                 )
                             }
@@ -1382,16 +1724,33 @@ private fun Home(
                         bottomRows.forEachIndexed { idx, (gesture, name, actPair) ->
                             if (idx > 0) Spacer(modifier = Modifier.height(4.dp))
                             val (currentAction, currentLabel) = actPair
+                            val reserved = reservedMap[gesture]?.takeIf { it.ownerModeId != mode.id }
                             val isConfigured = currentAction != "none"
                             Button(
-                                onClick = { onPick(gesture) },
+                                onClick = {
+                                    if (reserved != null) onReservedGesture(reserved.ownerModeName)
+                                    else onPick(gesture)
+                                },
                                 label = {
-                                    Text(name, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.basicMarquee())
+                                    Text(
+                                        if (reserved != null) "🔒 $name" else name,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        modifier = Modifier.basicMarquee()
+                                    )
                                 },
                                 secondaryLabel = {
-                                    Text(currentLabel, maxLines = 1, modifier = Modifier.basicMarquee())
+                                    Text(
+                                        if (reserved != null) context.getString(R.string.mode_reserved_subtitle) else currentLabel,
+                                        maxLines = 1,
+                                        modifier = Modifier.basicMarquee()
+                                    )
                                 },
-                                colors = if (isConfigured) cardConfiguredColors else cardUnconfiguredColors,
+                                colors = when {
+                                    reserved != null -> cardLockedColors
+                                    isConfigured -> cardConfiguredColors
+                                    else -> cardUnconfiguredColors
+                                },
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -1455,16 +1814,33 @@ private fun Home(
                         gestureRows.forEachIndexed { idx, (gesture, name, actPair) ->
                             if (idx > 0) Spacer(modifier = Modifier.height(4.dp))
                             val (currentAction, currentLabel) = actPair
+                            val reserved = reservedMap[gesture]?.takeIf { it.ownerModeId != mode.id }
                             val isConfigured = currentAction != "none"
                             Button(
-                                onClick = { onPick(gesture) },
+                                onClick = {
+                                    if (reserved != null) onReservedGesture(reserved.ownerModeName)
+                                    else onPick(gesture)
+                                },
                                 label = {
-                                    Text(name, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.basicMarquee())
+                                    Text(
+                                        if (reserved != null) "🔒 $name" else name,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        modifier = Modifier.basicMarquee()
+                                    )
                                 },
                                 secondaryLabel = {
-                                    Text(currentLabel, maxLines = 1, modifier = Modifier.basicMarquee())
+                                    Text(
+                                        if (reserved != null) context.getString(R.string.mode_reserved_subtitle) else currentLabel,
+                                        maxLines = 1,
+                                        modifier = Modifier.basicMarquee()
+                                    )
                                 },
-                                colors = if (isConfigured) cardConfiguredColors else cardUnconfiguredColors,
+                                colors = when {
+                                    reserved != null -> cardLockedColors
+                                    isConfigured -> cardConfiguredColors
+                                    else -> cardUnconfiguredColors
+                                },
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -1472,56 +1848,44 @@ private fun Home(
                 }
             }
 
-            item(key = "haptic_top_spacer") {
-                Spacer(modifier = Modifier.height(14.dp))
+            if (canDelete) {
+                item(key = "delete_mode_spacer") {
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+                item(key = "delete_mode_btn") {
+                    Button(
+                        onClick = {
+                            HapticFeedbackHelper.playUiTap(context)
+                            onOpenDeleteMode()
+                        },
+                        label = {
+                            Text(
+                                text = context.getString(R.string.mode_delete_btn),
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF5A1A1A),
+                            contentColor = Color.White
+                        ),
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .transformedHeight(this, transformationSpec)
+                    )
+                }
             }
-
-            item(key = "settings_menu_entry") {
-                Button(
-                    onClick = onOpenSettings,
-                    label = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = context.getString(R.string.settings_title),
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 1,
-                                    modifier = Modifier.basicMarquee()
-                                )
-                                Text(
-                                    text = context.getString(R.string.settings_subtitle),
-                                    maxLines = 1,
-                                    color = Color(0xFF9EA7B8),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    modifier = Modifier.basicMarquee()
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            ForwardChevron()
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = SlateCard,
-                        contentColor = Color.White
-                    ),
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .transformedHeight(this, transformationSpec)
-                )
-            }
+        }
         }
     }
 }
 
 @Composable
 private fun ActionPicker(
+    modeId: String,
     gesture: String,
     appsCount: Int,
     haInstalled: Boolean,
@@ -1529,7 +1893,7 @@ private fun ActionPicker(
     onSelect: (String) -> Unit,
 ) {
     val context = LocalContext.current
-    val current = remember(gesture) { Mapping.get(context, gesture) }
+    val current = remember(modeId, gesture) { ModeStore.getActionForMode(context, modeId, gesture) }
     val currentLabel = remember(current) { Mapping.label(context, current) }
     val titleRes = remember(gesture) { Mapping.gestures.toMap()[gesture] }
     val title = remember(titleRes, gesture) { if (titleRes != null) context.getString(titleRes) else gesture }
@@ -1620,6 +1984,46 @@ private fun ActionPicker(
                     label = {
                         Text(
                             context.getString(R.string.nothing),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                            modifier = Modifier.basicMarquee()
+                        )
+                    },
+                    colors = radioColors,
+                    transformation = SurfaceTransformation(transformationSpec),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .transformedHeight(this, transformationSpec)
+                )
+            }
+
+            // ==================== SECTION: MODES ====================
+            item(key = "section_hdr_modes") {
+                ListHeader(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 18.dp, bottom = 4.dp)
+                        .transformedHeight(this, transformationSpec),
+                    transformation = SurfaceTransformation(transformationSpec)
+                ) {
+                    Text(
+                        context.getString(R.string.hdr_section_modes),
+                        color = UltraOrange,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+            }
+
+            items(Mapping.modeActions, key = { "mode_${it.first}" }) { (action, labelRes) ->
+                val selected = action == current
+                RadioButton(
+                    selected = selected,
+                    onSelect = { onSelect(action) },
+                    label = {
+                        Text(
+                            context.getString(labelRes),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 1,
