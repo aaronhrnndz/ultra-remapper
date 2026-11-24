@@ -165,8 +165,10 @@ object Mapping {
 
     /** [backToHome]: Back from a launched app returns to the watch face instead of the previous task. */
     fun perform(context: Context, gesture: String, backToHome: Boolean = false) {
-        HapticFeedbackHelper.playButtonHaptic(context)
         val action = get(context, gesture)
+        if (!ModeStore.isModeSwitchAction(action) && action != "none") {
+            HapticFeedbackHelper.playButtonHaptic(context)
+        }
         val audio = context.getSystemService(AudioManager::class.java)
         when (action) {
             "none" -> Unit

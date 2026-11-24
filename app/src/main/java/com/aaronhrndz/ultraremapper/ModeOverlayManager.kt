@@ -40,6 +40,7 @@ object ModeOverlayManager {
                 val root = FrameLayout(appCtx).apply {
                     clipChildren = false
                     clipToPadding = false
+                    setLayerType(View.LAYER_TYPE_SOFTWARE, null)
                 }
 
                 // 1. Perimeter Ring Canvas View (no forced LAYER_TYPE_HARDWARE)
@@ -75,7 +76,8 @@ object ModeOverlayManager {
                     val bgDrawable = GradientDrawable().apply {
                         shape = GradientDrawable.RECTANGLE
                         cornerRadius = 999f * dm.density
-                        setColor(pillFillColor)
+                        setColor(modeColorOpaque)
+                        alpha = bgAlphaInt
                     }
 
                     val padH = (18f * scale).roundToInt().coerceAtLeast(8)
@@ -89,11 +91,6 @@ object ModeOverlayManager {
                         includeFontPadding = false
                         background = bgDrawable
                         setPadding(padH, padV, padH, padV)
-                        elevation = 14f * dm.density
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                            outlineAmbientShadowColor = modeColorOpaque
-                            outlineSpotShadowColor = modeColorOpaque
-                        }
                         alpha = 0f
                     }
 
@@ -117,8 +114,7 @@ object ModeOverlayManager {
                 val flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
 
                 val params = WindowManager.LayoutParams(
                     WindowManager.LayoutParams.MATCH_PARENT,
