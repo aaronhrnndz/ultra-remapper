@@ -298,4 +298,6 @@ Uhr-Einstellungen › Apps › Standard-Apps › Digitaler Assistent › Ultra R
     <string name="anim_pill_opacity">Pillen-Deckkraft</string>
     <string name="anim_section_ring">Ring</string>
     <string name="anim_section_pill">Pille</string>
+    <string name="intro_swipe_hint">Links oder rechts wischen</string>
+    <string name="intro_modes_count">%1$d Modi konfiguriert</string>
 </resources>

@@ -304,4 +304,6 @@ The definitive fix to make it work reliably is to freeze Samsung Pay from Ultra 
     <string name="anim_pill_opacity">Pill opacity</string>
     <string name="anim_section_ring">Ring</string>
     <string name="anim_section_pill">Pill</string>
+    <string name="intro_swipe_hint">Swipe left or right</string>
+    <string name="intro_modes_count">%1$d modes configured</string>
 </resources>

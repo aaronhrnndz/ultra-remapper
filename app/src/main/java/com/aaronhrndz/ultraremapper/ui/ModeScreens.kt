@@ -449,7 +449,7 @@ fun AnimationEditorScreen(onDone: () -> Unit) {
                 ) {
                     Text(
                         text = context.getString(R.string.anim_section_ring),
-                        color = AccentOrange,
+                        color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center,
@@ -548,7 +548,7 @@ fun AnimationEditorScreen(onDone: () -> Unit) {
                 ) {
                     Text(
                         text = context.getString(R.string.anim_section_pill),
-                        color = AccentOrange,
+                        color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center,

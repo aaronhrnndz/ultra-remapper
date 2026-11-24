@@ -19,6 +19,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.wear.compose.foundation.hierarchicalFocusGroup
 
 import android.content.ComponentName
@@ -417,10 +418,7 @@ class MainActivity : ComponentActivity() {
 
                     var hasPlayedIntroZoom by remember { mutableStateOf(false) }
 
-                    if (splashVisible) {
-                        AnimatedSplashScreen(onFinished = { splashVisible = false })
-                    } else {
-                        SwipeDismissableNavHost(navController = nav, startDestination = "home") {
+                    SwipeDismissableNavHost(navController = nav, startDestination = "home") {
                         composable("home") {
                             Home(
                                 setup = setup,
@@ -731,7 +729,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
-                    }
                 }
             }
         }
@@ -772,17 +769,24 @@ private fun Home(
     val activeModeId = modesState.activeModeId
     val totalPages = modes.size + 2 // [0]=Settings, [1..N]=Modes, [N+1]=Add Mode
     val pagerState = rememberPagerState(initialPage = 1, pageCount = { totalPages })
-    val introStartScale = (1f / totalPages.coerceIn(3, 5)).coerceIn(0.24f, 0.34f)
+    val introStartScale = (0.86f / totalPages.coerceAtLeast(3)).coerceIn(0.14f, 0.28f)
     val zoomScale = remember { Animatable(if (playIntroZoom) introStartScale else 1f) }
     var hasSwiped by remember { mutableStateOf(false) }
+    val versionLabel = remember {
+        try {
+            "v" + (context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "3.0")
+        } catch (_: Exception) {
+            "v3.0"
+        }
+    }
 
     LaunchedEffect(playIntroZoom) {
         if (playIntroZoom) {
-            delay(1000L)
+            delay(1400L)
             zoomScale.animateTo(
                 1f,
                 tween(
-                    durationMillis = 900,
+                    durationMillis = 1250,
                     easing = androidx.compose.animation.core.EaseInOutCubic
                 )
             )
@@ -809,8 +813,8 @@ private fun Home(
         HorizontalPager(
             state = pagerState,
             contentPadding = PaddingValues(horizontal = sidePad),
-            pageSpacing = (8f * pageScale).dp,
-            beyondViewportPageCount = 2,
+            pageSpacing = (4f * pageScale).dp,
+            beyondViewportPageCount = totalPages.coerceAtLeast(3),
             modifier = Modifier.fillMaxSize()
         ) { page ->
             val isCurrentPage = pagerState.currentPage == page
@@ -921,6 +925,53 @@ private fun Home(
                         }
                     }
                 }
+            }
+        }
+
+        // Intro zoom-out overlay texts: top swipe hint, bottom modes count, and curved bottom version
+        val introAlpha = if (introStartScale < 0.99f) {
+            ((1f - pageScale) / (1f - introStartScale)).coerceIn(0f, 1f)
+        } else 0f
+        if (introAlpha > 0.02f) {
+            Text(
+                text = context.getString(R.string.intro_swipe_hint),
+                color = Color.White.copy(alpha = 0.88f * introAlpha),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 34.dp, start = 24.dp, end = 24.dp)
+            )
+            Text(
+                text = context.getString(R.string.intro_modes_count, modes.size),
+                color = Color(0xFFB8C2D4).copy(alpha = 0.9f * introAlpha),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 36.dp, start = 24.dp, end = 24.dp)
+            )
+            // Curved version string along bottom bezel
+            androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                val r = kotlin.math.min(size.width, size.height) / 2f - 12.dp.toPx()
+                val cx = size.width / 2f
+                val cy = size.height / 2f
+                val path = android.graphics.Path().apply {
+                    addArc(
+                        android.graphics.RectF(cx - r, cy - r, cx + r, cy + r),
+                        150f,
+                        -120f
+                    )
+                }
+                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = android.graphics.Color.argb((introAlpha * 185f).toInt(), 200, 210, 225)
+                    textSize = 10.5.sp.toPx()
+                    textAlign = android.graphics.Paint.Align.CENTER
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                }
+                drawContext.canvas.nativeCanvas.drawTextOnPath(versionLabel, path, 0f, 0f, paint)
             }
         }
 

@@ -298,4 +298,6 @@ Paramètres de la montre › Applications › Applications par défaut › Assis
     <string name="anim_pill_opacity">Opacité de la pilule</string>
     <string name="anim_section_ring">Anneau</string>
     <string name="anim_section_pill">Pilule</string>
+    <string name="intro_swipe_hint">Glissez gauche ou droite</string>
+    <string name="intro_modes_count">%1$d modes définis</string>
 </resources>

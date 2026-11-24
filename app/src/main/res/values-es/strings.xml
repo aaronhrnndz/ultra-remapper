@@ -304,4 +304,6 @@ La solución definitiva para que funcione siempre de forma fiable es congelar Sa
     <string name="anim_pill_opacity">Opacidad de píldora</string>
     <string name="anim_section_ring">Anillo</string>
     <string name="anim_section_pill">Píldora</string>
+    <string name="intro_swipe_hint">Desliza izquierda o derecha</string>
+    <string name="intro_modes_count">%1$d modos definidos</string>
 </resources>
