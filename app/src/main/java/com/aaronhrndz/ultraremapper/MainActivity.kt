@@ -774,7 +774,8 @@ private fun Home(
     var hasSwiped by remember { mutableStateOf(false) }
     val versionLabel = remember {
         try {
-            "v" + (context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "3.0")
+            val ver = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "3.0"
+            if (UpdateChecker.isBetaChannel(context)) "v$ver BETA" else "v$ver"
         } catch (_: Exception) {
             "v3.0"
         }
@@ -939,16 +940,23 @@ private fun Home(
 
         // Intro zoom-out overlay texts: top swipe hint, bottom modes pill, and curved orange bottom version
         if (introAlpha > 0.02f) {
-            Text(
-                text = context.getString(R.string.intro_swipe_hint),
-                color = Color.White.copy(alpha = 0.95f * introAlpha),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
+            val topGapH = (screenH * ((1f - introStartScale) / 2f) - 26.dp).coerceAtLeast(28.dp)
+            Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 34.dp, start = 20.dp, end = 20.dp)
-            )
+                    .padding(top = 26.dp, start = 22.dp, end = 22.dp)
+                    .height(topGapH)
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    text = context.getString(R.string.intro_swipe_hint),
+                    color = Color.White.copy(alpha = 0.95f * introAlpha),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
