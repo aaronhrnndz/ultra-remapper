@@ -1048,7 +1048,7 @@ fun CompanionAppRoot(
                     }
                 }
 
-                // 2.5 DYNAMIC MODES CAROUSEL & SMART HEADER
+                // 2.5 DYNAMIC MODES CAROUSEL (Header + Buttons/Gestures per mode card)
                 item(key = "modes_header_card") {
                     MobileModesHeaderCard(
                         modes = watchModes,
@@ -1071,180 +1071,184 @@ fun CompanionAppRoot(
                         },
                         onRenameClick = { showRenameDialog = true },
                         onColorClick = { showColorPicker = true }
-                    )
-                }
-
-                // 3. BUTTON & GESTURE CONFIGURATION
-                item(key = "hdr_remap_config") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = stringResource(R.string.hdr_buttons_gestures),
-                            color = palette.textPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-                        if (!watchConnectedAny) {
-                            Text(
-                                text = stringResource(R.string.sub_connect_to_configure),
-                                color = palette.textSecondary,
-                                fontSize = 11.sp
-                            )
+                    ) { pageMode ->
+                        fun getModeAction(gesture: String): String {
+                            val reserved = reservedSwitchByGesture[gesture]
+                            if (reserved != null) {
+                                return reserved.mappings[gesture] ?: "none"
+                            }
+                            return pageMode.mappings[gesture] ?: "none"
                         }
-                    }
-                }
 
-                // Top Button Collapsible
-                item(key = "card_top_button") {
-                    val count = WatchActionCatalog.topGestures.count { getSelectedModeAction(it.first) != "none" }
-                    WatchSectionCollapsible(
-                        iconRes = R.drawable.ic_watch_top_button,
-                        title = stringResource(R.string.btn_top_title),
-                        subtitle = if (count > 0) stringResource(R.string.count_configured, count) else stringResource(R.string.status_unassigned),
-                        isHighlighted = count > 0,
-                        isExpanded = isTopExpanded,
-                        onToggle = { isTopExpanded = !isTopExpanded }
-                    ) {
-                        WatchActionCatalog.topGestures.forEach { (gesture, nameRes) ->
-                            val act = getSelectedModeAction(gesture)
-                            val reservedOwner = reservedSwitchByGesture[gesture]?.takeIf { it.id != selectedMode.id }
-                            GestureMappingRow(
-                                gestureName = if (reservedOwner != null) "🔒 " + stringResource(nameRes) else stringResource(nameRes),
-                                actionLabel = if (reservedOwner != null) stringResource(R.string.mode_reserved_subtitle)
-                                    else WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
-                                isConfigured = act != "none",
-                                enabled = watchConnectedAny
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                if (reservedOwner != null) {
-                                    reservedDialogOwnerName = reservedOwner.name
-                                } else {
-                                    pickingAppSublist = false
-                                    pickingGesture = gesture
+                                Text(
+                                    text = stringResource(R.string.hdr_buttons_gestures),
+                                    color = palette.textPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                                if (!watchConnectedAny) {
+                                    Text(
+                                        text = stringResource(R.string.sub_connect_to_configure),
+                                        color = palette.textSecondary,
+                                        fontSize = 11.sp
+                                    )
                                 }
                             }
-                        }
-                    }
-                }
 
-                // Center / Action Button Collapsible
-                item(key = "card_action_button") {
-                    val count = WatchActionCatalog.actionGestures.count { getSelectedModeAction(it.first) != "none" }
-                    WatchSectionCollapsible(
-                        iconRes = R.drawable.ic_watch_quick_button,
-                        title = stringResource(R.string.btn_center_title),
-                        subtitle = if (count > 0) stringResource(R.string.count_configured, count) else stringResource(R.string.status_unassigned),
-                        isHighlighted = count > 0,
-                        isExpanded = isActionExpanded,
-                        onToggle = { isActionExpanded = !isActionExpanded }
-                    ) {
-                        Text(
-                            text = stringResource(R.string.btn_center_note),
-                            color = palette.textSecondary,
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                        )
-                        WatchActionCatalog.actionGestures.forEach { (gesture, nameRes) ->
-                            val act = getSelectedModeAction(gesture)
-                            val reservedOwner = reservedSwitchByGesture[gesture]?.takeIf { it.id != selectedMode.id }
-                            GestureMappingRow(
-                                gestureName = if (reservedOwner != null) "🔒 " + stringResource(nameRes) else stringResource(nameRes),
-                                actionLabel = if (reservedOwner != null) stringResource(R.string.mode_reserved_subtitle)
-                                    else WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
-                                isConfigured = act != "none",
-                                enabled = watchConnectedAny
+                            // Top Button Collapsible
+                            val topCount = WatchActionCatalog.topGestures.count { getModeAction(it.first) != "none" }
+                            WatchSectionCollapsible(
+                                iconRes = R.drawable.ic_watch_top_button,
+                                title = stringResource(R.string.btn_top_title),
+                                subtitle = if (topCount > 0) stringResource(R.string.count_configured, topCount) else stringResource(R.string.status_unassigned),
+                                isHighlighted = topCount > 0,
+                                isExpanded = isTopExpanded,
+                                onToggle = { isTopExpanded = !isTopExpanded }
                             ) {
-                                if (reservedOwner != null) {
-                                    reservedDialogOwnerName = reservedOwner.name
-                                } else {
-                                    pickingAppSublist = false
-                                    pickingGesture = gesture
+                                WatchActionCatalog.topGestures.forEach { (gesture, nameRes) ->
+                                    val act = getModeAction(gesture)
+                                    val reservedOwner = reservedSwitchByGesture[gesture]?.takeIf { it.id != pageMode.id }
+                                    GestureMappingRow(
+                                        gestureName = if (reservedOwner != null) "🔒 " + stringResource(nameRes) else stringResource(nameRes),
+                                        actionLabel = if (reservedOwner != null) stringResource(R.string.mode_reserved_subtitle)
+                                        else WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
+                                        isConfigured = act != "none",
+                                        enabled = watchConnectedAny
+                                    ) {
+                                        selectedModeId = pageMode.id
+                                        if (reservedOwner != null) {
+                                            reservedDialogOwnerName = reservedOwner.name
+                                        } else {
+                                            pickingAppSublist = false
+                                            pickingGesture = gesture
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    }
-                }
 
-                // Bottom Button Collapsible
-                item(key = "card_bottom_button") {
-                    val count = WatchActionCatalog.bottomGestures.count { getSelectedModeAction(it.first) != "none" }
-                    WatchSectionCollapsible(
-                        iconRes = R.drawable.ic_watch_bottom_button,
-                        title = stringResource(R.string.btn_bottom_title),
-                        subtitle = if (count > 0) stringResource(R.string.count_configured, count) else stringResource(R.string.status_unassigned),
-                        isHighlighted = count > 0,
-                        isExpanded = isBottomExpanded,
-                        onToggle = { isBottomExpanded = !isBottomExpanded }
-                    ) {
-                        WatchActionCatalog.bottomGestures.forEach { (gesture, nameRes) ->
-                            val act = getSelectedModeAction(gesture)
-                            val reservedOwner = reservedSwitchByGesture[gesture]?.takeIf { it.id != selectedMode.id }
-                            GestureMappingRow(
-                                gestureName = if (reservedOwner != null) "🔒 " + stringResource(nameRes) else stringResource(nameRes),
-                                actionLabel = if (reservedOwner != null) stringResource(R.string.mode_reserved_subtitle)
-                                    else WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
-                                isConfigured = act != "none",
-                                enabled = watchConnectedAny
+                            // Center / Action Button Collapsible
+                            val actionCount = WatchActionCatalog.actionGestures.count { getModeAction(it.first) != "none" }
+                            WatchSectionCollapsible(
+                                iconRes = R.drawable.ic_watch_quick_button,
+                                title = stringResource(R.string.btn_center_title),
+                                subtitle = if (actionCount > 0) stringResource(R.string.count_configured, actionCount) else stringResource(R.string.status_unassigned),
+                                isHighlighted = actionCount > 0,
+                                isExpanded = isActionExpanded,
+                                onToggle = { isActionExpanded = !isActionExpanded }
                             ) {
-                                if (reservedOwner != null) {
-                                    reservedDialogOwnerName = reservedOwner.name
-                                } else {
-                                    pickingAppSublist = false
-                                    pickingGesture = gesture
+                                Text(
+                                    text = stringResource(R.string.btn_center_note),
+                                    color = palette.textSecondary,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                )
+                                WatchActionCatalog.actionGestures.forEach { (gesture, nameRes) ->
+                                    val act = getModeAction(gesture)
+                                    val reservedOwner = reservedSwitchByGesture[gesture]?.takeIf { it.id != pageMode.id }
+                                    GestureMappingRow(
+                                        gestureName = if (reservedOwner != null) "🔒 " + stringResource(nameRes) else stringResource(nameRes),
+                                        actionLabel = if (reservedOwner != null) stringResource(R.string.mode_reserved_subtitle)
+                                        else WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
+                                        isConfigured = act != "none",
+                                        enabled = watchConnectedAny
+                                    ) {
+                                        selectedModeId = pageMode.id
+                                        if (reservedOwner != null) {
+                                            reservedDialogOwnerName = reservedOwner.name
+                                        } else {
+                                            pickingAppSublist = false
+                                            pickingGesture = gesture
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    }
-                }
 
-                // Gestures (Toc toc) Collapsible
-                item(key = "card_gestures") {
-                    val count = WatchActionCatalog.gestureList.count { getSelectedModeAction(it.first) != "none" }
-                    WatchSectionCollapsible(
-                        iconRes = R.drawable.ic_wrist_gesture,
-                        title = stringResource(R.string.btn_gestures_title),
-                        subtitle = if (count > 0) stringResource(R.string.status_toctoc_active) else stringResource(R.string.status_unassigned),
-                        isHighlighted = count > 0,
-                        isExpanded = isGesturesExpanded,
-                        onToggle = { isGesturesExpanded = !isGesturesExpanded }
-                    ) {
-                        WatchActionCatalog.gestureList.forEach { (gesture, nameRes) ->
-                            val act = getSelectedModeAction(gesture)
-                            val reservedOwner = reservedSwitchByGesture[gesture]?.takeIf { it.id != selectedMode.id }
-                            GestureMappingRow(
-                                gestureName = if (reservedOwner != null) "🔒 " + stringResource(nameRes) else stringResource(nameRes),
-                                actionLabel = if (reservedOwner != null) stringResource(R.string.mode_reserved_subtitle)
-                                    else WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
-                                isConfigured = act != "none",
-                                enabled = watchConnectedAny
+                            // Bottom Button Collapsible
+                            val bottomCount = WatchActionCatalog.bottomGestures.count { getModeAction(it.first) != "none" }
+                            WatchSectionCollapsible(
+                                iconRes = R.drawable.ic_watch_bottom_button,
+                                title = stringResource(R.string.btn_bottom_title),
+                                subtitle = if (bottomCount > 0) stringResource(R.string.count_configured, bottomCount) else stringResource(R.string.status_unassigned),
+                                isHighlighted = bottomCount > 0,
+                                isExpanded = isBottomExpanded,
+                                onToggle = { isBottomExpanded = !isBottomExpanded }
                             ) {
-                                if (reservedOwner != null) {
-                                    reservedDialogOwnerName = reservedOwner.name
-                                } else {
-                                    pickingAppSublist = false
-                                    pickingGesture = gesture
+                                WatchActionCatalog.bottomGestures.forEach { (gesture, nameRes) ->
+                                    val act = getModeAction(gesture)
+                                    val reservedOwner = reservedSwitchByGesture[gesture]?.takeIf { it.id != pageMode.id }
+                                    GestureMappingRow(
+                                        gestureName = if (reservedOwner != null) "🔒 " + stringResource(nameRes) else stringResource(nameRes),
+                                        actionLabel = if (reservedOwner != null) stringResource(R.string.mode_reserved_subtitle)
+                                        else WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
+                                        isConfigured = act != "none",
+                                        enabled = watchConnectedAny
+                                    ) {
+                                        selectedModeId = pageMode.id
+                                        if (reservedOwner != null) {
+                                            reservedDialogOwnerName = reservedOwner.name
+                                        } else {
+                                            pickingAppSublist = false
+                                            pickingGesture = gesture
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    }
-                }
 
-                // Delete Mode button at the very bottom (hidden if only 1 mode remains)
-                if (watchModes.size > 1) {
-                    item(key = "delete_mode_bottom") {
-                        OutlinedButton(
-                            onClick = { showDeleteModeDialog = true },
-                            enabled = watchConnectedAny,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = RedAlert),
-                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-                        ) {
-                            Text(
-                                text = stringResource(R.string.mode_delete_btn),
-                                fontWeight = FontWeight.Bold
-                            )
+                            // Gestures (Toc toc) Collapsible
+                            val gestureCount = WatchActionCatalog.gestureList.count { getModeAction(it.first) != "none" }
+                            WatchSectionCollapsible(
+                                iconRes = R.drawable.ic_wrist_gesture,
+                                title = stringResource(R.string.btn_gestures_title),
+                                subtitle = if (gestureCount > 0) stringResource(R.string.status_toctoc_active) else stringResource(R.string.status_unassigned),
+                                isHighlighted = gestureCount > 0,
+                                isExpanded = isGesturesExpanded,
+                                onToggle = { isGesturesExpanded = !isGesturesExpanded }
+                            ) {
+                                WatchActionCatalog.gestureList.forEach { (gesture, nameRes) ->
+                                    val act = getModeAction(gesture)
+                                    val reservedOwner = reservedSwitchByGesture[gesture]?.takeIf { it.id != pageMode.id }
+                                    GestureMappingRow(
+                                        gestureName = if (reservedOwner != null) "🔒 " + stringResource(nameRes) else stringResource(nameRes),
+                                        actionLabel = if (reservedOwner != null) stringResource(R.string.mode_reserved_subtitle)
+                                        else WatchActionCatalog.getActionLabel(context, act, watchInstalledApps),
+                                        isConfigured = act != "none",
+                                        enabled = watchConnectedAny
+                                    ) {
+                                        selectedModeId = pageMode.id
+                                        if (reservedOwner != null) {
+                                            reservedDialogOwnerName = reservedOwner.name
+                                        } else {
+                                            pickingAppSublist = false
+                                            pickingGesture = gesture
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Delete Mode button at the bottom of the mode card (hidden if only 1 mode remains)
+                            if (watchModes.size > 1) {
+                                OutlinedButton(
+                                    onClick = {
+                                        selectedModeId = pageMode.id
+                                        showDeleteModeDialog = true
+                                    },
+                                    enabled = watchConnectedAny,
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RedAlert),
+                                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.mode_delete_btn),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
                     }
                 }

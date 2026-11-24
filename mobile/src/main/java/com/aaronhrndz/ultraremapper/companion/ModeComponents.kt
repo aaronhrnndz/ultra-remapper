@@ -828,7 +828,8 @@ fun MobileModesHeaderCard(
     onCreateMode: () -> Unit,
     onActivateMode: (String) -> Unit,
     onRenameClick: () -> Unit,
-    onColorClick: () -> Unit
+    onColorClick: () -> Unit,
+    modeBody: @Composable (WatchButtonMode) -> Unit = {}
 ) {
     val palette = LocalPalette.current
     val scope = rememberCoroutineScope()
@@ -853,13 +854,14 @@ fun MobileModesHeaderCard(
     }
 
     Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         HorizontalPager(
             state = pagerState,
-            contentPadding = PaddingValues(horizontal = 12.dp),
-            pageSpacing = 10.dp,
+            contentPadding = PaddingValues(horizontal = 24.dp),
+            pageSpacing = 12.dp,
+            verticalAlignment = Alignment.Top,
             modifier = Modifier.fillMaxWidth()
         ) { page ->
             if (page < modes.size) {
@@ -867,103 +869,111 @@ fun MobileModesHeaderCard(
                 val modeColor = Color(m.colorArgb)
                 val isActive = m.id == activeModeId
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(20.dp))
                         .background(palette.cardBg)
                         .border(
                             width = if (isActive) 2.dp else 1.2.dp,
                             color = if (isActive) modeColor else modeColor.copy(alpha = 0.45f),
-                            shape = RoundedCornerShape(18.dp)
+                            shape = RoundedCornerShape(20.dp)
                         )
-                        .padding(horizontal = 14.dp, vertical = 14.dp)
+                        .padding(14.dp)
                 ) {
-                    // Color ball
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(modeColor)
-                            .border(1.5.dp, Color.White.copy(alpha = 0.35f), CircleShape)
-                            .clickable(enabled = enabled) {
-                                if (m.id != selectedMode.id) onSelectMode(m.id)
-                                onColorClick()
-                            }
-                    )
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    // Mode name + edit pencil
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(enabled = enabled) {
-                                if (m.id != selectedMode.id) onSelectMode(m.id)
-                                onRenameClick()
-                            }
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = m.name,
-                                color = palette.textPrimary,
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                            Icon(
-                                imageVector = Icons.Rounded.Edit,
-                                contentDescription = null,
-                                tint = palette.textSecondary,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                        Text(
-                            text = "${page + 1}/${modes.size} · ${stringResource(R.string.mode_tap_to_edit_hint)}",
-                            color = palette.textSecondary,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    // Active on watch badge / Activate button
+                    // Mode Header Row
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(if (isActive) modeColor.copy(alpha = 0.22f) else palette.bg)
-                            .border(1.dp, if (isActive) modeColor else palette.border, RoundedCornerShape(999.dp))
-                            .clickable(enabled = enabled && !isActive) { onActivateMode(m.id) }
-                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        if (isActive) {
-                            Icon(
-                                imageVector = Icons.Rounded.CheckCircle,
-                                contentDescription = null,
-                                tint = modeColor,
-                                modifier = Modifier.size(14.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(modeColor)
+                                .border(1.5.dp, Color.White.copy(alpha = 0.35f), CircleShape)
+                                .clickable(enabled = enabled) {
+                                    if (m.id != selectedMode.id) onSelectMode(m.id)
+                                    onColorClick()
+                                }
+                        )
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable(enabled = enabled) {
+                                    if (m.id != selectedMode.id) onSelectMode(m.id)
+                                    onRenameClick()
+                                }
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = m.name,
+                                    color = palette.textPrimary,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                Icon(
+                                    imageVector = Icons.Rounded.Edit,
+                                    contentDescription = null,
+                                    tint = palette.textSecondary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                            Text(
+                                text = "${page + 1}/${modes.size} · ${stringResource(R.string.mode_tap_to_edit_hint)}",
+                                color = palette.textSecondary,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
-                        Text(
-                            text = if (isActive) stringResource(R.string.mode_badge_active) else stringResource(R.string.mode_btn_activate),
-                            color = if (isActive) modeColor else palette.textPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(if (isActive) modeColor.copy(alpha = 0.22f) else palette.bg)
+                                .border(1.dp, if (isActive) modeColor else palette.border, RoundedCornerShape(999.dp))
+                                .clickable(enabled = enabled && !isActive) { onActivateMode(m.id) }
+                                .padding(horizontal = 12.dp, vertical = 7.dp)
+                        ) {
+                            if (isActive) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CheckCircle,
+                                    contentDescription = null,
+                                    tint = modeColor,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                            Text(
+                                text = if (isActive) stringResource(R.string.mode_badge_active) else stringResource(R.string.mode_btn_activate),
+                                color = if (isActive) modeColor else palette.textPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                        }
                     }
+
+                    HorizontalDivider(color = palette.border.copy(alpha = 0.6f))
+
+                    // Mode buttons & gestures body inside the carousel card
+                    modeBody(m)
                 }
             } else {
                 // "+ New mode" card
