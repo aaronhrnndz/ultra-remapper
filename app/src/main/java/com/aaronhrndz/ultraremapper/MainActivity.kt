@@ -819,11 +819,11 @@ private fun Home(
 
         HorizontalPager(
             state = pagerState,
-            contentPadding = PaddingValues(horizontal = sidePad),
+            contentPadding = PaddingValues(horizontal = sidePad + screenW),
             pageSpacing = (4f * pageScale).dp,
             beyondViewportPageCount = totalPages.coerceAtLeast(3),
             modifier = Modifier
-                .fillMaxSize()
+                .requiredSize(screenW * 3f, screenH)
                 .graphicsLayer { translationX = introOffsetX.toPx() }
         ) { page ->
             val isCurrentPage = pagerState.currentPage == page
