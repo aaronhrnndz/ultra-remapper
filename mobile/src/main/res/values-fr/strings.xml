@@ -277,7 +277,7 @@
     <string name="anim_style_twinarc">Twin Plasma Arcs</string>
     <string name="anim_thickness_label">Épaisseur</string>
     <string name="anim_duration_label">Durée</string>
-    <string name="anim_intensity_label">Intensité</string>
+    <string name="anim_intensity_label">Opacité de l\'anneau</string>
     <string name="anim_pill_toggle">Pilule du nom</string>
     <string name="anim_pill_position">Position</string>
     <string name="anim_pill_pos_top">Haut</string>
@@ -290,4 +290,8 @@
     <string name="btn_understood">Compris</string>
     <string name="status_on">ACTIVÉ</string>
     <string name="status_off">DÉSACTIVÉ</string>
+    <string name="anim_speed_label">Vitesse d\'animation</string>
+    <string name="anim_pill_opacity">Opacité de la pilule</string>
+    <string name="anim_section_ring">Anneau</string>
+    <string name="anim_section_pill">Pilule</string>
 </resources>

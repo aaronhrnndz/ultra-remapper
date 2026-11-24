@@ -281,7 +281,7 @@ Uhr-Einstellungen › Apps › Standard-Apps › Digitaler Assistent › Ultra R
     <string name="anim_style_twinarc">Twin Plasma Arcs</string>
     <string name="anim_thickness_label">Ringstärke</string>
     <string name="anim_duration_label">Dauer</string>
-    <string name="anim_intensity_label">Intensität</string>
+    <string name="anim_intensity_label">Ring-Deckkraft</string>
     <string name="anim_pill_toggle">Namens-Pille</string>
     <string name="anim_pill_position">Position</string>
     <string name="anim_pill_pos_top">Oben</string>
@@ -294,4 +294,8 @@ Uhr-Einstellungen › Apps › Standard-Apps › Digitaler Assistent › Ultra R
     <string name="btn_understood">Verstanden</string>
     <string name="status_on">EIN</string>
     <string name="status_off">AUS</string>
+    <string name="anim_speed_label">Animationsgeschwindigkeit</string>
+    <string name="anim_pill_opacity">Pillen-Deckkraft</string>
+    <string name="anim_section_ring">Ring</string>
+    <string name="anim_section_pill">Pille</string>
 </resources>

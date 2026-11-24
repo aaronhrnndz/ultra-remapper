@@ -17,10 +17,12 @@ data class ModeOverlayConfig(
     val style: String = STYLE_BREATHING,
     val thicknessPct: Int = 13,
     val durationMs: Int = 1000,
+    val speedPct: Int = 100,
     val intensityPct: Int = 90,
     val showPill: Boolean = true,
     val pillPosition: String = POS_TOP,
-    val pillSizePct: Int = 100
+    val pillSizePct: Int = 100,
+    val pillAlphaPct: Int = 100
 ) {
     companion object {
         const val STYLE_BREATHING = "breathing"
@@ -42,11 +44,13 @@ data class ModeOverlayConfig(
             return ModeOverlayConfig(
                 style = style,
                 thicknessPct = obj.optInt("thicknessPct", 13).coerceIn(6, 26),
-                durationMs = obj.optInt("durationMs", 1000).coerceIn(400, 2000),
+                durationMs = obj.optInt("durationMs", 1000).coerceIn(400, 2500),
+                speedPct = obj.optInt("speedPct", 100).coerceIn(30, 200),
                 intensityPct = obj.optInt("intensityPct", 90).coerceIn(40, 100),
                 showPill = obj.optBoolean("showPill", true),
                 pillPosition = pos,
-                pillSizePct = obj.optInt("pillSizePct", 100).coerceIn(70, 150)
+                pillSizePct = obj.optInt("pillSizePct", 100).coerceIn(50, 300),
+                pillAlphaPct = obj.optInt("pillAlphaPct", 100).coerceIn(20, 100)
             )
         }
     }
@@ -55,10 +59,12 @@ data class ModeOverlayConfig(
         put("style", style)
         put("thicknessPct", thicknessPct)
         put("durationMs", durationMs)
+        put("speedPct", speedPct)
         put("intensityPct", intensityPct)
         put("showPill", showPill)
         put("pillPosition", pillPosition)
         put("pillSizePct", pillSizePct)
+        put("pillAlphaPct", pillAlphaPct)
     }
 }
 
@@ -318,12 +324,17 @@ object ModeStore {
 
     fun setActiveMode(context: Context, modeId: String, showOverlay: Boolean = false) {
         val target: ButtonMode
+        val modeNumber: Int
         synchronized(lock) {
             val state = getState(context)
-            target = state.modes.firstOrNull { it.id == modeId } ?: return
+            val idx = state.modes.indexOfFirst { it.id == modeId }
+            if (idx < 0) return
+            target = state.modes[idx]
+            modeNumber = idx + 1
             saveModesLocked(context, state.modes, target.id)
         }
         if (showOverlay) {
+            HapticFeedbackHelper.playModeSwitchHaptic(context, modeNumber)
             ModeOverlayManager.show(context, target, getOverlayConfig(context))
         }
     }
@@ -331,16 +342,19 @@ object ModeStore {
     fun cycleMode(context: Context, delta: Int, showOverlay: Boolean = true): ButtonMode {
         val nextMode: ButtonMode
         val cfg: ModeOverlayConfig
+        val modeNumber: Int
         synchronized(lock) {
             val state = getState(context)
             val size = state.modes.size
             val curIdx = state.modes.indexOfFirst { it.id == state.activeModeId }.coerceAtLeast(0)
             val nextIdx = ((curIdx + delta) % size + size) % size
             nextMode = state.modes[nextIdx]
+            modeNumber = nextIdx + 1
             cfg = state.overlayConfig
             saveModesLocked(context, state.modes, nextMode.id)
         }
         if (showOverlay) {
+            HapticFeedbackHelper.playModeSwitchHaptic(context, modeNumber)
             ModeOverlayManager.show(context, nextMode, cfg)
         }
         return nextMode

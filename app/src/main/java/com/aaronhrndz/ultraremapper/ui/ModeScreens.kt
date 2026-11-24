@@ -179,20 +179,20 @@ fun RgbColorPickerScreen(
                             onCancel()
                         }
                 ) {
-                    Text("✕", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    MatCloseIcon(tint = Color.White, size = 22.dp)
                 }
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .size(46.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF00E676))
+                        .background(Color(0xFF2E7D32))
                         .clickable {
                             HapticFeedbackHelper.playButtonHaptic(context)
                             onConfirm(pickedColor)
                         }
                 ) {
-                    Text("✓", color = Color(0xFF05130A), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    MatCheckIcon(tint = Color.White, size = 22.dp)
                 }
             }
         }
@@ -377,11 +377,12 @@ fun AnimationEditorScreen(onDone: () -> Unit) {
     val transformationSpec = rememberTransformationSpec()
     var cfg by remember { mutableStateOf(ModeStore.getOverlayConfig(context)) }
     val activeMode = remember { ModeStore.getState(context).activeMode }
+    var styleExpanded by remember { mutableStateOf(false) }
+    var posExpanded by remember { mutableStateOf(false) }
 
-    fun saveAndPreview(next: ModeOverlayConfig) {
+    fun saveOnly(next: ModeOverlayConfig) {
         cfg = next
         ModeStore.setOverlayConfig(context, next)
-        ModeOverlayManager.show(context, activeMode, next)
     }
 
     val styleLabels = mapOf(
@@ -416,104 +417,248 @@ fun AnimationEditorScreen(onDone: () -> Unit) {
                 }
             }
 
+            // Centered orange pill "Probar" button sized to its text
             item(key = "anim_preview_btn") {
-                Button(
-                    onClick = {
-                        HapticFeedbackHelper.playUiTap(context)
-                        ModeOverlayManager.show(context, activeMode, cfg)
-                    },
-                    label = { Text(context.getString(R.string.anim_preview_btn), fontWeight = FontWeight.Bold) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(activeMode.colorArgb), contentColor = Color.White),
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.fillMaxWidth().transformedHeight(this, transformationSpec)
-                )
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(AccentOrange)
+                            .clickable {
+                                HapticFeedbackHelper.playUiTap(context)
+                                ModeOverlayManager.show(context, activeMode, cfg)
+                            }
+                            .padding(horizontal = 22.dp, vertical = 10.dp)
+                    ) {
+                        Text(
+                            text = context.getString(R.string.anim_preview_btn),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
             }
 
-            // Style selector (tap to cycle)
-            item(key = "anim_style") {
-                Button(
-                    onClick = {
-                        val idx = ModeOverlayConfig.ALL_STYLES.indexOf(cfg.style).coerceAtLeast(0)
-                        val nextStyle = ModeOverlayConfig.ALL_STYLES[(idx + 1) % ModeOverlayConfig.ALL_STYLES.size]
-                        saveAndPreview(cfg.copy(style = nextStyle))
-                    },
-                    label = { Text(context.getString(R.string.anim_style_label), maxLines = 1, modifier = Modifier.basicMarquee()) },
-                    secondaryLabel = { Text(styleLabels[cfg.style] ?: cfg.style, color = AccentOrange, maxLines = 1) },
-                    colors = ButtonDefaults.buttonColors(containerColor = SlateCardBg, contentColor = Color.White),
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.fillMaxWidth().transformedHeight(this, transformationSpec)
-                )
+            // Section: Ring
+            item(key = "anim_ring_section_hdr") {
+                ListHeader(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp).transformedHeight(this, transformationSpec),
+                    transformation = SurfaceTransformation(transformationSpec)
+                ) {
+                    Text(
+                        text = context.getString(R.string.anim_section_ring),
+                        color = AccentOrange,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
 
-            // Thickness stepper
+            // Style Dropdown
+            item(key = "anim_style_dd") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(SlateCardBg)
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth().clickable { styleExpanded = !styleExpanded }
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(context.getString(R.string.anim_style_label), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text(styleLabels[cfg.style] ?: cfg.style, color = AccentOrange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        MatChevronIcon(expanded = styleExpanded, tint = Color.White, size = 20.dp)
+                    }
+                    if (styleExpanded) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        ModeOverlayConfig.ALL_STYLES.forEach { st ->
+                            val sel = cfg.style == st
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (sel) AccentOrange.copy(alpha = 0.2f) else Color(0xFF282E38))
+                                    .clickable {
+                                        saveOnly(cfg.copy(style = st))
+                                        styleExpanded = false
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                            ) {
+                                Text(styleLabels[st] ?: st, color = if (sel) AccentOrange else Color.White, fontSize = 12.sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
+                                if (sel) MatCheckIcon(tint = AccentOrange, size = 16.dp)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+                    }
+                }
+            }
+
             item(key = "anim_thick") {
                 StepRowCard(
                     title = context.getString(R.string.anim_thickness_label),
                     valueText = "${cfg.thicknessPct}%",
-                    onMinus = { saveAndPreview(cfg.copy(thicknessPct = (cfg.thicknessPct - 2).coerceAtLeast(6))) },
-                    onPlus = { saveAndPreview(cfg.copy(thicknessPct = (cfg.thicknessPct + 2).coerceAtMost(26))) }
+                    onMinus = { saveOnly(cfg.copy(thicknessPct = (cfg.thicknessPct - 2).coerceAtLeast(6))) },
+                    onPlus = { saveOnly(cfg.copy(thicknessPct = (cfg.thicknessPct + 2).coerceAtMost(26))) }
                 )
             }
 
-            // Duration stepper
             item(key = "anim_dur") {
                 StepRowCard(
                     title = context.getString(R.string.anim_duration_label),
                     valueText = "${cfg.durationMs} ms",
-                    onMinus = { saveAndPreview(cfg.copy(durationMs = (cfg.durationMs - 100).coerceAtLeast(400))) },
-                    onPlus = { saveAndPreview(cfg.copy(durationMs = (cfg.durationMs + 100).coerceAtMost(2000))) }
+                    onMinus = { saveOnly(cfg.copy(durationMs = (cfg.durationMs - 100).coerceAtLeast(400))) },
+                    onPlus = { saveOnly(cfg.copy(durationMs = (cfg.durationMs + 100).coerceAtMost(2500))) }
                 )
             }
 
-            // Intensity stepper
+            item(key = "anim_speed") {
+                StepRowCard(
+                    title = context.getString(R.string.anim_speed_label),
+                    valueText = "${cfg.speedPct}%",
+                    onMinus = { saveOnly(cfg.copy(speedPct = (cfg.speedPct - 10).coerceAtLeast(30))) },
+                    onPlus = { saveOnly(cfg.copy(speedPct = (cfg.speedPct + 10).coerceAtMost(200))) }
+                )
+            }
+
             item(key = "anim_int") {
                 StepRowCard(
                     title = context.getString(R.string.anim_intensity_label),
                     valueText = "${cfg.intensityPct}%",
-                    onMinus = { saveAndPreview(cfg.copy(intensityPct = (cfg.intensityPct - 10).coerceAtLeast(40))) },
-                    onPlus = { saveAndPreview(cfg.copy(intensityPct = (cfg.intensityPct + 10).coerceAtMost(100))) }
+                    onMinus = { saveOnly(cfg.copy(intensityPct = (cfg.intensityPct - 10).coerceAtLeast(40))) },
+                    onPlus = { saveOnly(cfg.copy(intensityPct = (cfg.intensityPct + 10).coerceAtMost(100))) }
                 )
             }
 
-            // Pill toggle
+            // Section: Pill
+            item(key = "anim_pill_section_hdr") {
+                ListHeader(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp).transformedHeight(this, transformationSpec),
+                    transformation = SurfaceTransformation(transformationSpec)
+                ) {
+                    Text(
+                        text = context.getString(R.string.anim_section_pill),
+                        color = AccentOrange,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // Pill Switch
             item(key = "anim_pill_toggle") {
-                Button(
-                    onClick = { saveAndPreview(cfg.copy(showPill = !cfg.showPill)) },
-                    label = { Text(context.getString(R.string.anim_pill_toggle), maxLines = 1, modifier = Modifier.basicMarquee()) },
-                    secondaryLabel = {
-                        Text(
-                            if (cfg.showPill) context.getString(R.string.status_on) else context.getString(R.string.status_off),
-                            color = if (cfg.showPill) AccentOrange else Color(0xFF9EA7B8)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(SlateCardBg)
+                        .clickable { saveOnly(cfg.copy(showPill = !cfg.showPill)) }
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                ) {
+                    Text(
+                        text = context.getString(R.string.anim_pill_toggle),
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f).basicMarquee()
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(34.dp)
+                            .height(19.dp)
+                            .clip(CircleShape)
+                            .background(if (cfg.showPill) AccentOrange else Color(0xFF434954))
+                            .padding(2.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(15.dp)
+                                .align(if (cfg.showPill) Alignment.CenterEnd else Alignment.CenterStart)
+                                .clip(CircleShape)
+                                .background(Color.White)
                         )
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = SlateCardBg, contentColor = Color.White),
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.fillMaxWidth().transformedHeight(this, transformationSpec)
-                )
+                    }
+                }
             }
 
             if (cfg.showPill) {
-                item(key = "anim_pill_pos") {
-                    Button(
-                        onClick = {
-                            val idx = ModeOverlayConfig.ALL_POSITIONS.indexOf(cfg.pillPosition).coerceAtLeast(0)
-                            val nextPos = ModeOverlayConfig.ALL_POSITIONS[(idx + 1) % ModeOverlayConfig.ALL_POSITIONS.size]
-                            saveAndPreview(cfg.copy(pillPosition = nextPos))
-                        },
-                        label = { Text(context.getString(R.string.anim_pill_position), maxLines = 1) },
-                        secondaryLabel = { Text(posLabels[cfg.pillPosition] ?: cfg.pillPosition, color = AccentOrange) },
-                        colors = ButtonDefaults.buttonColors(containerColor = SlateCardBg, contentColor = Color.White),
-                        transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier.fillMaxWidth().transformedHeight(this, transformationSpec)
-                    )
+                // Pill Position Dropdown
+                item(key = "anim_pill_pos_dd") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(SlateCardBg)
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth().clickable { posExpanded = !posExpanded }
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(context.getString(R.string.anim_pill_position), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text(posLabels[cfg.pillPosition] ?: cfg.pillPosition, color = AccentOrange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                            MatChevronIcon(expanded = posExpanded, tint = Color.White, size = 20.dp)
+                        }
+                        if (posExpanded) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            ModeOverlayConfig.ALL_POSITIONS.forEach { pos ->
+                                val sel = cfg.pillPosition == pos
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (sel) AccentOrange.copy(alpha = 0.2f) else Color(0xFF282E38))
+                                        .clickable {
+                                            saveOnly(cfg.copy(pillPosition = pos))
+                                            posExpanded = false
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                                ) {
+                                    Text(posLabels[pos] ?: pos, color = if (sel) AccentOrange else Color.White, fontSize = 12.sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
+                                    if (sel) MatCheckIcon(tint = AccentOrange, size = 16.dp)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+                        }
+                    }
                 }
 
                 item(key = "anim_pill_size") {
                     StepRowCard(
                         title = context.getString(R.string.anim_pill_size),
                         valueText = "${cfg.pillSizePct}%",
-                        onMinus = { saveAndPreview(cfg.copy(pillSizePct = (cfg.pillSizePct - 10).coerceAtLeast(70))) },
-                        onPlus = { saveAndPreview(cfg.copy(pillSizePct = (cfg.pillSizePct + 10).coerceAtMost(150))) }
+                        onMinus = { saveOnly(cfg.copy(pillSizePct = (cfg.pillSizePct - 10).coerceAtLeast(50))) },
+                        onPlus = { saveOnly(cfg.copy(pillSizePct = (cfg.pillSizePct + 10).coerceAtMost(300))) }
+                    )
+                }
+
+                item(key = "anim_pill_alpha") {
+                    StepRowCard(
+                        title = context.getString(R.string.anim_pill_opacity),
+                        valueText = "${cfg.pillAlphaPct}%",
+                        onMinus = { saveOnly(cfg.copy(pillAlphaPct = (cfg.pillAlphaPct - 10).coerceAtLeast(20))) },
+                        onPlus = { saveOnly(cfg.copy(pillAlphaPct = (cfg.pillAlphaPct + 10).coerceAtMost(100))) }
                     )
                 }
             }
@@ -671,21 +816,21 @@ fun ModeRenameScreen(
                                 onCancel()
                             }
                     ) {
-                        Text("✕", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        MatCloseIcon(tint = Color.White, size = 22.dp)
                     }
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .size(48.dp)
                             .clip(CircleShape)
-                            .background(AccentOrange)
+                            .background(Color(0xFF2E7D32))
                             .clickable {
                                 HapticFeedbackHelper.playButtonHaptic(context)
                                 val trimmed = text.trim()
                                 if (trimmed.isNotEmpty()) onSave(trimmed) else onCancel()
                             }
                     ) {
-                        Text("✓", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        MatCheckIcon(tint = Color.White, size = 22.dp)
                     }
                 }
             }
@@ -745,7 +890,7 @@ fun DeleteModeConfirmScreen(
                                 onCancel()
                             }
                     ) {
-                        Text("✕", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        MatCloseIcon(tint = Color.White, size = 22.dp)
                     }
                     Box(
                         contentAlignment = Alignment.Center,
@@ -758,7 +903,7 @@ fun DeleteModeConfirmScreen(
                                 onConfirm()
                             }
                     ) {
-                        Text("🗑", color = Color.White, fontSize = 19.sp)
+                        MatTrashIcon(tint = Color.White, size = 22.dp)
                     }
                 }
             }

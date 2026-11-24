@@ -287,7 +287,7 @@ La solución definitiva para que funcione siempre de forma fiable es congelar Sa
     <string name="anim_style_twinarc">Twin Plasma Arcs</string>
     <string name="anim_thickness_label">Grosor del anillo</string>
     <string name="anim_duration_label">Duración</string>
-    <string name="anim_intensity_label">Intensidad</string>
+    <string name="anim_intensity_label">Opacidad del anillo</string>
     <string name="anim_pill_toggle">Píldora con nombre</string>
     <string name="anim_pill_position">Posición píldora</string>
     <string name="anim_pill_pos_top">Arriba</string>
@@ -300,4 +300,8 @@ La solución definitiva para que funcione siempre de forma fiable es congelar Sa
     <string name="btn_understood">Entendido</string>
     <string name="status_on">ACTIVADO</string>
     <string name="status_off">DESACTIVADO</string>
+    <string name="anim_speed_label">Velocidad de animación</string>
+    <string name="anim_pill_opacity">Opacidad de píldora</string>
+    <string name="anim_section_ring">Anillo</string>
+    <string name="anim_section_pill">Píldora</string>
 </resources>

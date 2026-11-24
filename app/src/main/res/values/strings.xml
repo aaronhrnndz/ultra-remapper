@@ -287,7 +287,7 @@ The definitive fix to make it work reliably is to freeze Samsung Pay from Ultra 
     <string name="anim_style_twinarc">Twin Plasma Arcs</string>
     <string name="anim_thickness_label">Ring thickness</string>
     <string name="anim_duration_label">Duration</string>
-    <string name="anim_intensity_label">Intensity</string>
+    <string name="anim_intensity_label">Ring opacity</string>
     <string name="anim_pill_toggle">Mode name pill</string>
     <string name="anim_pill_position">Pill position</string>
     <string name="anim_pill_pos_top">Top</string>
@@ -300,4 +300,8 @@ The definitive fix to make it work reliably is to freeze Samsung Pay from Ultra 
     <string name="btn_understood">Got it</string>
     <string name="status_on">ON</string>
     <string name="status_off">OFF</string>
+    <string name="anim_speed_label">Animation speed</string>
+    <string name="anim_pill_opacity">Pill opacity</string>
+    <string name="anim_section_ring">Ring</string>
+    <string name="anim_section_pill">Pill</string>
 </resources>

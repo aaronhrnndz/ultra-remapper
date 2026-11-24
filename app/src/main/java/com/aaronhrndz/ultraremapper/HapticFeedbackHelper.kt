@@ -158,4 +158,31 @@ object HapticFeedbackHelper {
             vibrator.vibrate(10L)
         } catch (_: Throwable) {}
     }
+
+    /**
+     * Plays [modeNumber] crisp, rapid pulses (1-based: Mode 1 = 1 pulse, Mode 2 = 2 pulses, etc.)
+     * so the user knows which mode is active without looking at the screen.
+     */
+    fun playModeSwitchHaptic(context: Context, modeNumber: Int) {
+        if (!Mapping.isHapticFeedbackEnabled(context)) return
+        val count = modeNumber.coerceIn(1, 12)
+        try {
+            val vibrator = getVibrator(context) ?: return
+            if (!vibrator.hasVibrator()) return
+            val timings = LongArray(count * 2)
+            val amplitudes = IntArray(count * 2)
+            for (i in 0 until count) {
+                timings[i * 2] = if (i == 0) 0L else 70L // gap before pulse
+                amplitudes[i * 2] = 0
+                timings[i * 2 + 1] = 45L // crisp pulse
+                amplitudes[i * 2 + 1] = 255
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(timings, -1)
+            }
+        } catch (_: Throwable) {}
+    }
 }

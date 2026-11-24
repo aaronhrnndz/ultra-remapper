@@ -246,8 +246,16 @@ fun MobileAnimationEditorScreen(
                         label = stringResource(R.string.anim_duration_label),
                         valueText = "${cfg.durationMs} ms",
                         value = cfg.durationMs.toFloat(),
-                        valueRange = 400f..2000f,
+                        valueRange = 400f..2500f,
                         onValueChange = { cfg = cfg.copy(durationMs = (it / 50f).roundToInt() * 50) },
+                        onValueChangeFinished = { updateCfg(cfg) }
+                    )
+                    SliderParamRow(
+                        label = stringResource(R.string.anim_speed_label),
+                        valueText = "${cfg.speedPct}%",
+                        value = cfg.speedPct.toFloat(),
+                        valueRange = 30f..200f,
+                        onValueChange = { cfg = cfg.copy(speedPct = (it / 10f).roundToInt() * 10) },
                         onValueChangeFinished = { updateCfg(cfg) }
                     )
                     SliderParamRow(
@@ -321,8 +329,16 @@ fun MobileAnimationEditorScreen(
                             label = stringResource(R.string.anim_pill_size),
                             valueText = "${cfg.pillSizePct}%",
                             value = cfg.pillSizePct.toFloat(),
-                            valueRange = 70f..150f,
-                            onValueChange = { cfg = cfg.copy(pillSizePct = (it / 5f).roundToInt() * 5) },
+                            valueRange = 50f..300f,
+                            onValueChange = { cfg = cfg.copy(pillSizePct = (it / 10f).roundToInt() * 10) },
+                            onValueChangeFinished = { updateCfg(cfg) }
+                        )
+                        SliderParamRow(
+                            label = stringResource(R.string.anim_pill_opacity),
+                            valueText = "${cfg.pillAlphaPct}%",
+                            value = cfg.pillAlphaPct.toFloat(),
+                            valueRange = 20f..100f,
+                            onValueChange = { cfg = cfg.copy(pillAlphaPct = (it / 5f).roundToInt() * 5) },
                             onValueChangeFinished = { updateCfg(cfg) }
                         )
                     }
@@ -764,13 +780,13 @@ private class MobileWatchPreviewCanvasView(context: Context) : View(context) {
             if (pillAlpha > 0.01f) {
                 val s = (cfg.pillSizePct / 100f) * (r / 200f)
                 pillTextPaint.textSize = 15f * s
-                pillTextPaint.alpha = (pillAlpha * 255f).roundToInt()
+                val lum = (0.299f * android.graphics.Color.red(modeColor) + 0.587f * android.graphics.Color.green(modeColor) + 0.114f * android.graphics.Color.blue(modeColor)) / 255f
+                val contrast = if (lum > 0.58f) android.graphics.Color.rgb(10, 13, 18) else android.graphics.Color.WHITE
+                pillTextPaint.color = withAlpha(contrast, pillAlpha)
                 val textW = pillTextPaint.measureText(modeName)
-                val dotR = 5f * s
-                val padH = 15f * s
+                val padH = 18f * s
                 val padV = 8f * s
-                val gap = 9f * s
-                val pillW = padH * 2f + dotR * 2f + gap + textW
+                val pillW = padH * 2f + textW
                 val pillH = padV * 2f + pillTextPaint.textSize * 1.15f
                 val pillCy = when (cfg.pillPosition) {
                     "center" -> cy
@@ -778,13 +794,13 @@ private class MobileWatchPreviewCanvasView(context: Context) : View(context) {
                     else -> (38f * (r / 200f)) + pillH / 2f
                 }
                 pillRect.set(cx - pillW / 2f, pillCy - pillH / 2f, cx + pillW / 2f, pillCy + pillH / 2f)
-                pillBgPaint.color = android.graphics.Color.argb((pillAlpha * 218f).roundToInt(), 8, 10, 15)
+                val bgAlpha = pillAlpha * (cfg.pillAlphaPct / 100f)
+                pillBgPaint.color = withAlpha(modeColor, bgAlpha)
+                pillBgPaint.setShadowLayer(18f * s, 0f, 0f, withAlpha(modeColor, bgAlpha * 0.85f))
                 canvas.drawRoundRect(pillRect, pillH / 2f, pillH / 2f, pillBgPaint)
-                val dotCx = pillRect.left + padH + dotR
-                pillDotPaint.color = withAlpha(modeColor, pillAlpha)
-                canvas.drawCircle(dotCx, pillCy, dotR, pillDotPaint)
+                pillBgPaint.clearShadowLayer()
                 val fm = pillTextPaint.fontMetrics
-                canvas.drawText(modeName, dotCx + dotR + gap, pillCy - (fm.ascent + fm.descent) / 2f, pillTextPaint)
+                canvas.drawText(modeName, pillRect.left + padH, pillCy - (fm.ascent + fm.descent) / 2f, pillTextPaint)
             }
         }
     }

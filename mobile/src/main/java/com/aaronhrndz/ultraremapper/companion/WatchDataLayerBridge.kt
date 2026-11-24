@@ -29,19 +29,23 @@ data class WatchOverlayConfig(
     val style: String = "breathing",
     val thicknessPct: Int = 13,
     val durationMs: Int = 1000,
+    val speedPct: Int = 100,
     val intensityPct: Int = 90,
     val showPill: Boolean = true,
     val pillPosition: String = "top",
-    val pillSizePct: Int = 100
+    val pillSizePct: Int = 100,
+    val pillAlphaPct: Int = 100
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("style", style)
         put("thicknessPct", thicknessPct)
         put("durationMs", durationMs)
+        put("speedPct", speedPct)
         put("intensityPct", intensityPct)
         put("showPill", showPill)
         put("pillPosition", pillPosition)
         put("pillSizePct", pillSizePct)
+        put("pillAlphaPct", pillAlphaPct)
     }
 
     companion object {
@@ -50,11 +54,13 @@ data class WatchOverlayConfig(
             return WatchOverlayConfig(
                 style = obj.optString("style", "breathing"),
                 thicknessPct = obj.optInt("thicknessPct", 13).coerceIn(6, 26),
-                durationMs = obj.optInt("durationMs", 1000).coerceIn(400, 2000),
+                durationMs = obj.optInt("durationMs", 1000).coerceIn(400, 2500),
+                speedPct = obj.optInt("speedPct", 100).coerceIn(30, 200),
                 intensityPct = obj.optInt("intensityPct", 90).coerceIn(40, 100),
                 showPill = obj.optBoolean("showPill", true),
                 pillPosition = obj.optString("pillPosition", "top"),
-                pillSizePct = obj.optInt("pillSizePct", 100).coerceIn(70, 150)
+                pillSizePct = obj.optInt("pillSizePct", 100).coerceIn(50, 300),
+                pillAlphaPct = obj.optInt("pillAlphaPct", 100).coerceIn(20, 100)
             )
         }
     }

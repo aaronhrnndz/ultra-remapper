@@ -13,9 +13,13 @@ import com.aaronhrndz.ultraremapper.ui.PermissionsScreen
 import com.aaronhrndz.ultraremapper.ui.ReservedGestureInfoScreen
 import com.aaronhrndz.ultraremapper.ui.RgbColorPickerScreen
 import com.aaronhrndz.ultraremapper.ui.SettingsScreen
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.wear.compose.foundation.hierarchicalFocusGroup
 
 import android.content.ComponentName
 import android.content.Context
@@ -762,6 +766,22 @@ private fun Home(
     val activeModeId = modesState.activeModeId
     val totalPages = modes.size + 2 // [0]=Settings, [1..N]=Modes, [N+1]=Add Mode
     val pagerState = rememberPagerState(initialPage = 1, pageCount = { totalPages })
+    val zoomScale = remember { Animatable(0.62f) }
+    var hasSwiped by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        delay(1000L)
+        zoomScale.animateTo(
+            1f,
+            tween(
+                durationMillis = 650,
+                easing = androidx.compose.animation.core.EaseInOutCubic
+            )
+        )
+    }
+    LaunchedEffect(pagerState.currentPage) {
+        if (pagerState.currentPage != 1) hasSwiped = true
+    }
 
     // Keep pager within bounds if a mode is deleted
     LaunchedEffect(totalPages) {
@@ -770,100 +790,126 @@ private fun Home(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        val screenW = maxWidth
+        val screenH = maxHeight
+        val pageScale = zoomScale.value
+        val sidePad = screenW * ((1f - pageScale) / 2f)
+
         HorizontalPager(
             state = pagerState,
+            contentPadding = PaddingValues(horizontal = sidePad),
+            pageSpacing = (10f * pageScale).dp,
+            beyondViewportPageCount = 1,
             modifier = Modifier.fillMaxSize()
         ) { page ->
-            when {
-                page == 0 -> {
-                    SettingsScreen(
-                        client = localAdbClient,
-                        targetHighlight = null,
-                        onClientConnected = onClientConnected,
-                        onOpenPermissions = onOpenPermissions,
-                        onOpenWizard = onOpenWizard,
-                        onRefreshPermissions = onRefreshPermissions,
-                        onOpenAnimationEditor = onOpenAnimationEditor,
-                        onOpenDevOptions = onOpenDevOptions,
-                        onDone = {
-                            scope.launch { pagerState.animateScrollToPage(1) }
+            val isCurrentPage = pagerState.currentPage == page
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .requiredSize(screenW, screenH)
+                        .graphicsLayer {
+                            scaleX = pageScale
+                            scaleY = pageScale
                         }
-                    )
-                }
-                page == totalPages - 1 -> {
-                    // Add New Mode Page
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black)
-                            .padding(horizontal = 20.dp)
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
+                        .clip(CircleShape)
+                        .background(Color.Black)
+                        .hierarchicalFocusGroup(active = isCurrentPage)
+                ) {
+                    when {
+                        page == 0 -> {
+                            SettingsScreen(
+                                client = localAdbClient,
+                                targetHighlight = null,
+                                onClientConnected = onClientConnected,
+                                onOpenPermissions = onOpenPermissions,
+                                onOpenWizard = onOpenWizard,
+                                onRefreshPermissions = onRefreshPermissions,
+                                onOpenAnimationEditor = onOpenAnimationEditor,
+                                onOpenDevOptions = onOpenDevOptions,
+                                onDone = {
+                                    scope.launch { pagerState.animateScrollToPage(1) }
+                                }
+                            )
+                        }
+                        page == totalPages - 1 -> {
+                            // Add New Mode Page
                             Box(
                                 contentAlignment = Alignment.Center,
                                 modifier = Modifier
-                                    .size(64.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF00E676))
-                                    .clickable {
-                                        HapticFeedbackHelper.playButtonHaptic(context)
-                                        val created = ModeStore.createMode(context)
-                                        onModesMutated()
-                                        val targetPage = modes.size + 1
-                                        scope.launch {
-                                            delay(80)
-                                            pagerState.animateScrollToPage(targetPage)
-                                        }
-                                    }
+                                    .fillMaxSize()
+                                    .background(Color.Black)
+                                    .padding(horizontal = 20.dp)
                             ) {
-                                Text("+", color = Color(0xFF06150C), fontSize = 36.sp, fontWeight = FontWeight.Bold)
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .size(64.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF00E676))
+                                            .clickable {
+                                                HapticFeedbackHelper.playButtonHaptic(context)
+                                                ModeStore.createMode(context)
+                                                onModesMutated()
+                                                val targetPage = modes.size + 1
+                                                scope.launch {
+                                                    delay(80)
+                                                    pagerState.animateScrollToPage(targetPage)
+                                                }
+                                            }
+                                    ) {
+                                        Text("+", color = Color(0xFF06150C), fontSize = 36.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = context.getString(R.string.mode_add_title),
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = context.getString(R.string.mode_add_subtitle),
+                                        color = Color(0xFF9EA7B8),
+                                        fontSize = 11.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
                             }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = context.getString(R.string.mode_add_title),
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                textAlign = TextAlign.Center
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = context.getString(R.string.mode_add_subtitle),
-                                color = Color(0xFF9EA7B8),
-                                fontSize = 11.sp,
-                                textAlign = TextAlign.Center
+                        }
+                        else -> {
+                            val mode = modes.getOrNull(page - 1) ?: modes.first()
+                            ModeHomePage(
+                                mode = mode,
+                                isActiveMode = mode.id == activeModeId,
+                                canDelete = modes.size > 1,
+                                setup = setup,
+                                updateInfo = updateInfo,
+                                mappingVersion = mappingVersion,
+                                onOpenUpdateDetails = onOpenUpdateDetails,
+                                onOpenA11ySettings = onOpenA11ySettings,
+                                onShowAdbHelp = onShowAdbHelp,
+                                onPick = { gesture -> onPick(mode.id, gesture) },
+                                onReservedGesture = onReservedGesture,
+                                onOpenColorPicker = { onOpenColorPicker(mode.id) },
+                                onOpenRenameMode = { onOpenRenameMode(mode.id) },
+                                onActivateMode = {
+                                    HapticFeedbackHelper.playButtonHaptic(context)
+                                    ModeStore.setActiveMode(context, mode.id, showOverlay = true)
+                                    onModesMutated()
+                                },
+                                onOpenDeleteMode = { onOpenDeleteMode(mode.id) }
                             )
                         }
                     }
-                }
-                else -> {
-                    val mode = modes.getOrNull(page - 1) ?: modes.first()
-                    ModeHomePage(
-                        mode = mode,
-                        isActiveMode = mode.id == activeModeId,
-                        canDelete = modes.size > 1,
-                        setup = setup,
-                        updateInfo = if (page == 1) updateInfo else null,
-                        mappingVersion = mappingVersion,
-                        onOpenUpdateDetails = onOpenUpdateDetails,
-                        onOpenA11ySettings = onOpenA11ySettings,
-                        onShowAdbHelp = onShowAdbHelp,
-                        onPick = { gesture -> onPick(mode.id, gesture) },
-                        onReservedGesture = onReservedGesture,
-                        onOpenColorPicker = { onOpenColorPicker(mode.id) },
-                        onOpenRenameMode = { onOpenRenameMode(mode.id) },
-                        onActivateMode = {
-                            HapticFeedbackHelper.playButtonHaptic(context)
-                            ModeStore.setActiveMode(context, mode.id, showOverlay = true)
-                            onModesMutated()
-                        },
-                        onOpenDeleteMode = { onOpenDeleteMode(mode.id) }
-                    )
                 }
             }
         }
@@ -873,6 +919,28 @@ private fun Home(
             modes = modes,
             currentPage = pagerState.currentPage
         )
+
+        // Subtle side chevrons hinting horizontal swipe until first swipe
+        if (!hasSwiped) {
+            if (pagerState.currentPage > 0) {
+                Text(
+                    text = "‹",
+                    color = Color.White.copy(alpha = 0.42f),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.CenterStart).padding(start = 5.dp)
+                )
+            }
+            if (pagerState.currentPage < totalPages - 1) {
+                Text(
+                    text = "›",
+                    color = Color.White.copy(alpha = 0.42f),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 5.dp)
+                )
+            }
+        }
     }
 }
 
@@ -1850,29 +1918,24 @@ private fun ModeHomePage(
                     Spacer(modifier = Modifier.height(14.dp))
                 }
                 item(key = "delete_mode_btn") {
-                    Button(
-                        onClick = {
-                            HapticFeedbackHelper.playUiTap(context)
-                            onOpenDeleteMode()
-                        },
-                        label = {
-                            Text(
-                                text = "🗑  " + context.getString(R.string.mode_delete_btn),
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFC62828))
+                                .clickable {
+                                    HapticFeedbackHelper.playUiTap(context)
+                                    onOpenDeleteMode()
+                                }
+                        ) {
+                            com.aaronhrndz.ultraremapper.ui.MatTrashIcon(
+                                tint = Color.White,
+                                size = 22.dp
                             )
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFC62828),
-                            contentColor = Color.White
-                        ),
-                        transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .transformedHeight(this, transformationSpec)
-                    )
+                        }
+                    }
                 }
             }
         }
