@@ -172,9 +172,9 @@ object HapticFeedbackHelper {
             val timings = LongArray(count * 2)
             val amplitudes = IntArray(count * 2)
             for (i in 0 until count) {
-                timings[i * 2] = if (i == 0) 0L else 70L // gap before pulse
+                timings[i * 2] = if (i == 0) 0L else 110L // clear gap for Watch 6 Classic / older motors
                 amplitudes[i * 2] = 0
-                timings[i * 2 + 1] = 45L // crisp pulse
+                timings[i * 2 + 1] = 50L // crisp pulse
                 amplitudes[i * 2 + 1] = 255
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
