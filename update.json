@@ -1,7 +1,7 @@
 {
-  "version": "2.4.47",
-  "htmlUrl": "https://codeberg.org/Aaronhrndz/ultra-remapper/releases/tag/v2.4.47",
-  "companionApkUrl": "https://codeberg.org/Aaronhrndz/ultra-remapper/releases/download/v2.4.47/UltraRemapper-Companion-Mobile-v2.4.47.apk",
-  "watchApkUrl": "https://codeberg.org/Aaronhrndz/ultra-remapper/releases/download/v2.4.47/UltraRemapper-Watch-v2.4.47.apk",
-  "notes": "Ultra Remapper v2.4.47: Wireless ADB complication fixes (OFF/NO WIFI states, no stale port when WiFi is off), LONG_TEXT-only IP complication, and Wi-Fi-only LAN OTA improvements."
+  "version": "3.0.19",
+  "htmlUrl": "https://codeberg.org/Aaronhrndz/ultra-remapper/releases/tag/v3.0.19",
+  "companionApkUrl": "https://codeberg.org/Aaronhrndz/ultra-remapper/releases/download/v3.0.19/UltraRemapper-Companion-Mobile-v3.0.19.apk",
+  "watchApkUrl": "https://codeberg.org/Aaronhrndz/ultra-remapper/releases/download/v3.0.19/UltraRemapper-Watch-v3.0.19.apk",
+  "notes": "Ultra Remapper v3.0.19: Dynamic N-Modes System, Global Mode-Switch Action (unlimited button combinations), Watch & Phone Companion Carousels, RGB Color Picker, Futuristic Perimeter Ring Overlay & Solid Pill, and N-Pulse Mode Haptics."
 }

@@ -26,27 +26,36 @@
 </p>
 
 <p align="center">
-  <img src="docs/captura2.png" width="160" alt="Quick Button Mapping" />
-  <img src="docs/captura4.png" width="160" alt="Action Selector" />
-  <img src="docs/captura3.png" width="160" alt="Bottom Button Mapping" />
-  <img src="docs/captura.png" width="160" alt="OTA Update Detection" />
-  <img src="docs/captura1.png" width="160" alt="In-Watch Installer" />
+  <img src="docs/watch_9.png" width="150" alt="Mode Overlay / Intro" />
+  <img src="docs/watch_1.png" width="150" alt="Mode 1" />
+  <img src="docs/watch_2.png" width="150" alt="Mode 2" />
+  <img src="docs/watch_3.png" width="150" alt="Add Mode" />
+  <img src="docs/watch_4.png" width="150" alt="Settings" />
+  <br/>
+  <img src="docs/watch_5.png" width="150" alt="Mode Animation" />
+  <img src="docs/watch_6.png" width="150" alt="ADB Settings" />
+  <img src="docs/watch_7.png" width="150" alt="Permissions" />
+  <img src="docs/watch_8.png" width="150" alt="RGB Color / Extra" />
 </p>
 
 ---
 
-## 🌟 Highlights
+## Highlights
 
-- **📱 Ultra Remapper Phone Companion App**: Modern, lightweight Material 3 companion app for your phone with zero idle battery drain. Configures your watch buttons, toggles options, and syncs states over native Bluetooth DataLayer.
-- **⚡ Guided 3-Step Wireless ADB Wizard**:
+- **Dynamic N-Modes System (v3.0)**: Create unlimited button-mapping profiles, each with its own name, custom RGB color, and button/gesture layout (with automatic migration of existing v2.x settings).
+  - **Unlimited Button Combinations (Global Mode-Switch)**: Assign `Switch mode (Next/Previous)` to any button or gesture to cycle through unlimited profiles—giving you virtually unlimited button combinations. That switch gesture is automatically reserved globally across all modes so you never get trapped.
+  - **Watch & Mobile Carousels**: Samsung-style circular carousel on the watch (`⚙ • • • +` curved indicator, rotary bezel support, RGB color wheel) and full-card `HorizontalPager` carousel on the Phone Companion.
+  - **Futuristic Mode Overlay & N-Pulse Haptics**: 4 customizable perimeter ring animations (*Breathing Plasma*, *Orbital Sweep*, *Dual Shockwave*, *Twin Plasma Arcs*), solid mode-colored pill (position, size, opacity), live preview editor on both watch & phone, and distinct N-pulse vibration per mode.
+- **Ultra Remapper Phone Companion App**: Modern, lightweight Material 3 companion app for your phone with zero idle battery drain. Configures your watch modes, buttons, animations, toggles options, and syncs states over native Bluetooth DataLayer.
+- **Guided 3-Step Wireless ADB Wizard**:
   - **Automatic Port & PIN Detection**: The watch accessibility service reads the watch IP, 6-digit PIN, and ADB ports straight from Wear OS Developer Settings and streams them to the phone companion via Bluetooth. No manual typing or port scanning needed!
   - **Persistent Pairing State**: No accidental jumps back to pairing fields when reconnecting or if connection drops.
-- **📱 Remote Phone Actions (Zero Idle Battery)**: Map wrist buttons to trigger phone features instantly without touching your phone:
+- **Remote Phone Actions (Zero Idle Battery)**: Map wrist buttons to trigger phone features instantly without touching your phone:
   - **Find My Phone**: Rings your phone at maximum volume with vibration (stops on second tap).
   - **Phone Flashlight**: Toggles your phone's rear camera LED.
   - **Phone Camera Shutter**: Opens camera and fires hardware shutter.
   - **Phone Sound / Vibrate**: Toggles phone ringer mode.
-- **🌍 100% Complete Multilingual Support**: Both Watch and Phone Companion apps fully translated into **English**, **Español**, **Deutsch**, and **Français**.
+- **100% Complete Multilingual Support**: Both Watch and Phone Companion apps fully translated into **English**, **Español**, **Deutsch**, and **Français**.
 
 ---
 
@@ -65,6 +74,7 @@
 - **RGBW Tactical Flashlight**: Touch wheel and bezel-based continuous hue tuning + auto Max/Boost hardware cycling for Samsung's native white flashlight.
 - **Smart Utilities**: Water lock, speaker water ejection sweep, LTE toggle, GPS parking saver & walking navigation back to car, DND sync, and Home Assistant voice assist.
 - **Autonomous OTA Updates**: Background release checks with in-watch and in-companion direct installers.
+- **Wear OS Tile & Watchface Complications**: Quick-toggle **Wireless ADB Tile** and **Complications** (`SHORT_TEXT` / `LONG_TEXT` with live IP:port) for instant 1-tap ADB access straight from your watchface.
 
 ---
 
