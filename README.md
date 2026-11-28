@@ -78,9 +78,11 @@
 
 ---
 
-## Download & Installation
+## Download, Installation & Permissions Setup
 
 > [!IMPORTANT]
+> **Permissions are required for remapping to work:** Installing the APK alone is not enough—Wear OS requires elevated permissions (`SYSTEM_ALERT_WINDOW`, `WRITE_SECURE_SETTINGS`, Accessibility, etc.). Choose **Method A, B, or C** below to grant those permissions.
+>
 > **Migrating from an older version?** The previous GitHub repository is offline, so older versions cannot receive OTA updates automatically. Please download and install the **latest release** manually once—from there onward, automatic OTA updates work seamlessly across **Codeberg** and **GitHub**.
 
 Download the latest prebuilt APKs from the [**GitHub Releases**](https://github.com/aaronhrnndz/ultra-remapper/releases/latest) page (or [**Codeberg Mirror**](https://codeberg.org/Aaronhrndz/ultra-remapper/releases)):
@@ -92,7 +94,7 @@ Download the latest prebuilt APKs from the [**GitHub Releases**](https://github.
 
 ---
 
-### 📱 Method A: Setup via Phone Companion (Recommended)
+### Method A: Grant Permissions & Setup via Phone Companion (Recommended)
 
 1. Install `UltraRemapper-Companion-Mobile-vX.X.X.apk` on your Android phone.
 2. Open the Companion app. It connects to your watch immediately via Bluetooth.
@@ -104,7 +106,7 @@ Download the latest prebuilt APKs from the [**GitHub Releases**](https://github.
 
 ---
 
-### ⌚ Method B: Standalone Setup on the Watch (No PC or Phone required)
+### Method B: Grant Permissions Standalone on the Watch (No PC or Phone required)
 
 1. Connect the watch to Wi-Fi.
 2. In watch **Settings › Developer options › Wireless debugging**, enable it and tap **Pair new device**.
@@ -113,7 +115,7 @@ Download the latest prebuilt APKs from the [**GitHub Releases**](https://github.
 
 ---
 
-### 💻 Method C: Setup via PC Wireless ADB
+### Method C: Grant Permissions via PC Wireless ADB
 
 1. Enable **Settings → Developer options → ADB debugging** and **Wireless debugging** on your watch, then pair and connect:
    ```bash
